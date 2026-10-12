@@ -26,6 +26,13 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum PaymentStatus {
+  INITIATED
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
 model User {
   id        Int         @id @default(autoincrement())
   phone     String      @unique
@@ -69,6 +76,7 @@ model Order {
   status     OrderStatus @default(PENDING)
   total      Decimal     @db.Decimal(10, 2)
   items      OrderItem[]
+  payments   Payment[]
   createdAt  DateTime    @default(now())
 }
 
@@ -102,4 +110,14 @@ model CartItem {
   quantity  Int     @default(1)
 
   @@unique([cartId, productId])
+}
+
+model Payment {
+  id         Int           @id @default(autoincrement())
+  orderId    Int
+  order      Order         @relation(fields: [orderId], references: [id])
+  amount     Decimal       @db.Decimal(10, 2)
+  status     PaymentStatus @default(INITIATED)
+  gatewayRef String?       @unique
+  createdAt  DateTime      @default(now())
 }
