@@ -13,3 +13,28 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum Role {
+  CUSTOMER
+  SELLER
+  ADMIN
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  phone     String    @unique
+  name      String?
+  role      Role      @default(CUSTOMER)
+  language  String    @default("en")
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  sellerId  Int
+  seller    User     @relation(fields: [sellerId], references: [id])
+  createdAt DateTime @default(now())
+}
