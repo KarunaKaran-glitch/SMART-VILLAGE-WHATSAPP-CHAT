@@ -36,6 +36,7 @@ model User {
   products  Product[]
   orders    Order[]     @relation("CustomerOrders")
   soldItems OrderItem[] @relation("SellerOrderItems")
+  cart      Cart?
 }
 
 model Product {
@@ -46,6 +47,7 @@ model Product {
   seller       User                 @relation(fields: [sellerId], references: [id])
   translations ProductTranslation[]
   orderItems   OrderItem[]
+  cartItems    CartItem[]
   createdAt    DateTime             @default(now())
 }
 
@@ -81,4 +83,23 @@ model OrderItem {
   quantity  Int
   unitPrice Decimal     @db.Decimal(10, 2)
   status    OrderStatus @default(PENDING)
+}
+
+model Cart {
+  id         Int        @id @default(autoincrement())
+  customerId Int        @unique
+  customer   User       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  items      CartItem[]
+  updatedAt  DateTime   @updatedAt
+}
+
+model CartItem {
+  id        Int     @id @default(autoincrement())
+  cartId    Int
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+
+  @@unique([cartId, productId])
 }
