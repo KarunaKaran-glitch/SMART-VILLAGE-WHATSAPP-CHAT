@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
+import { prisma } from './db';
 
 const app = express();
 app.use(express.json());
@@ -24,9 +25,28 @@ app.get('/webhook', (req: Request, res: Response) => {
 });
 
 // WhatsApp sends incoming messages here
-app.post('/webhook', (req: Request, res: Response) => {
-  console.log(JSON.stringify(req.body, null, 2));
+app.post('/webhook', async (req: Request, res: Response) => {
+  // Reply to Meta immediately so it does not retry
   res.sendStatus(200);
+
+  try {
+    const value = req.body?.entry?.[0]?.changes?.[0]?.value;
+    const message = value?.messages?.[0];
+    if (!message) return; // not a message (for example a delivery status)
+
+    const phone: string = message.from;
+    const name: string | undefined = value?.contacts?.[0]?.profile?.name;
+
+    const user = await prisma.user.upsert({
+      where: { phone },
+      update: {},
+      create: { phone, name },
+    });
+
+    console.log('Message from:', user.phone, '| text:', message.text?.body);
+  } catch (err) {
+    console.error('Webhook error:', err);
+  }
 });
 
 app.listen(PORT, () => {
