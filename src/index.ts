@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import { prisma } from './db';
 import { LANGUAGES, WELCOME, languageMenu, t } from './messages';
+import { ot } from './orderText';
 
 const app = express();
 app.use(express.json());
@@ -60,6 +61,42 @@ async function cartText(userId: number, language: string): Promise<string> {
     return `${i + 1}. ${localName(item.product, language)} x ${item.quantity} - ₹${lineTotal}`;
   });
   return `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}`;
+}
+
+// Turns the cart into an order and empties the cart
+async function placeOrder(userId: number, language: string): Promise<string> {
+  const T = t(language);
+  const cart = await prisma.cart.findUnique({
+    where: { customerId: userId },
+    include: { items: { include: { product: true } } },
+  });
+  if (!cart || cart.items.length === 0) return T.emptyCart;
+
+  let total = 0;
+  for (const item of cart.items) {
+    total += Number(item.product.price) * item.quantity;
+  }
+
+  const order = await prisma.$transaction(async (tx) => {
+    const created = await tx.order.create({
+      data: {
+        customerId: userId,
+        total,
+        items: {
+          create: cart.items.map((item) => ({
+            productId: item.productId,
+            sellerId: item.product.sellerId,
+            quantity: item.quantity,
+            unitPrice: item.product.price,
+          })),
+        },
+      },
+    });
+    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+    return created;
+  });
+
+  return ot(language).placed(order.id, total);
 }
 
 app.get('/', (_req: Request, res: Response) => {
@@ -192,6 +229,11 @@ app.post('/webhook', async (req: Request, res: Response) => {
 
     if (command === 'CART') {
       await sendReply(phone, await cartText(user.id, user.language));
+      return;
+    }
+
+    if (command === 'ORDER') {
+      await sendReply(phone, await placeOrder(user.id, user.language));
       return;
     }
 
