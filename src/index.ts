@@ -4,6 +4,7 @@ import { prisma } from './db';
 import { LANGUAGES, WELCOME, languageMenu, t } from './messages';
 import { ot } from './orderText';
 import { SELLER_TEXT } from './sellerText';
+import { ct } from './cartEditText';
 
 const app = express();
 app.use(express.json());
@@ -61,7 +62,34 @@ async function cartText(userId: number, language: string): Promise<string> {
     total += lineTotal;
     return `${i + 1}. ${localName(item.product, language)} x ${item.quantity} - ₹${lineTotal}`;
   });
-  return `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}`;
+    return `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}\n\n${ct(language).hint}`;
+}
+
+// REMOVE n: removes line n of the cart (same numbering as the CART message)
+async function removeFromCart(userId: number, language: string, line: number): Promise<string> {
+  const cart = await prisma.cart.findUnique({
+    where: { customerId: userId },
+    include: { items: { orderBy: { id: 'asc' } } },
+  });
+  if (!cart || cart.items.length === 0) return t(language).emptyCart;
+
+  const item = cart.items[line - 1];
+  if (!item) return ct(language).invalidLine;
+
+  await prisma.cartItem.delete({ where: { id: item.id } });
+  return `${ct(language).removed}\n\n${await cartText(userId, language)}`;
+}
+
+// CLEAR: empties the cart
+async function clearCart(userId: number, language: string): Promise<string> {
+  const cart = await prisma.cart.findUnique({
+    where: { customerId: userId },
+    include: { items: true },
+  });
+  if (!cart || cart.items.length === 0) return t(language).emptyCart;
+
+  await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+  return ct(language).cleared;
 }
 
 // Turns the cart into an order, empties the cart, and tells each seller
@@ -435,6 +463,20 @@ app.post('/webhook', async (req: Request, res: Response) => {
 
     if (command === 'CART') {
       await sendReply(phone, await cartText(user.id, user.language));
+      return;
+    }
+
+        if (command === 'CLEAR') {
+      await sendReply(phone, await clearCart(user.id, user.language));
+      return;
+    }
+
+    const removeMatch = command.match(/^REMOVE\s+#?(\d+)$/);
+    if (removeMatch) {
+      await sendReply(
+        phone,
+        await removeFromCart(user.id, user.language, Number(removeMatch[1]))
+      );
       return;
     }
 
