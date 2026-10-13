@@ -5,6 +5,7 @@ import { LANGUAGES, WELCOME, languageMenu, t } from './messages';
 import { ot } from './orderText';
 import { SELLER_TEXT } from './sellerText';
 import { ct } from './cartEditText';
+import { mo } from './myOrdersText';
 
 const app = express();
 app.use(express.json());
@@ -90,6 +91,26 @@ async function clearCart(userId: number, language: string): Promise<string> {
 
   await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
   return ct(language).cleared;
+}
+
+// Customer's last 5 orders with status
+async function customerOrders(userId: number, language: string): Promise<string> {
+  const M = mo(language);
+  const orders = await prisma.order.findMany({
+    where: { customerId: userId },
+    include: { items: { include: { product: { include: { translations: true } } } } },
+    orderBy: { id: 'desc' },
+    take: 5,
+  });
+  if (orders.length === 0) return M.none;
+
+  const blocks = orders.map((o) => {
+    const items = o.items
+      .map((i) => `  ${localName(i.product, language)} x ${i.quantity}`)
+      .join('\n');
+    return `#${o.id} - ${M.status(o.status)} - ₹${o.total}\n${items}`;
+  });
+  return `${M.title}\n\n${blocks.join('\n\n')}`;
 }
 
 // Turns the cart into an order, empties the cart, and tells each seller
@@ -477,6 +498,11 @@ app.post('/webhook', async (req: Request, res: Response) => {
         phone,
         await removeFromCart(user.id, user.language, Number(removeMatch[1]))
       );
+      return;
+    }
+
+    if (command === 'MYORDERS') {
+      await sendReply(phone, await customerOrders(user.id, user.language));
       return;
     }
 
