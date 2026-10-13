@@ -288,6 +288,20 @@ app.post('/webhook', async (req: Request, res: Response) => {
     const message = value?.messages?.[0];
     if (!message) return; // not a message (for example a delivery status)
 
+    
+    // Ignore a message we have already handled (Meta can send the same one twice)
+    const messageId: string | undefined = message.id;
+    if (messageId) {
+      const saved = await prisma.processedMessage.createMany({
+        data: [{ id: messageId }],
+        skipDuplicates: true,
+      });
+      if (saved.count === 0) {
+        console.log('Duplicate message ignored:', messageId);
+        return;
+      }
+    }
+
     const phone: string = message.from;
     const name: string | undefined = value?.contacts?.[0]?.profile?.name;
     const text: string = (message.text?.body ?? '').trim();

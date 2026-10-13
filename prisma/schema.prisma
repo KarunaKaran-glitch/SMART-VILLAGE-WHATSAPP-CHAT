@@ -135,3 +135,9 @@ model Payment {
   gatewayRef String?       @unique
   createdAt  DateTime      @default(now())
 }
+
+
+model ProcessedMessage {
+  id        String   @id
+  createdAt DateTime @default(now())
+}
