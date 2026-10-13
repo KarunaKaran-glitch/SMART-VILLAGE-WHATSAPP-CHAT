@@ -21,7 +21,6 @@ export const WELCOME: Record<string, string> = {
   ml: 'ഭാഷ മലയാളത്തിലേക്ക് സജ്ജമാക്കി. ഉൽപ്പന്നങ്ങൾ കാണാൻ MENU അയയ്ക്കുക.',
 };
 
-// Telugu and Malayalam fall back to English for now. We can add them later.
 export const TEXT = {
   en: {
     productsTitle: 'Our products:',
@@ -67,6 +66,36 @@ export const TEXT = {
     invalidQty: 'कृपया 1 से 99 के बीच संख्या भेजें, या CANCEL।',
     cancelled: 'रद्द किया गया। उत्पाद देखने के लिए MENU भेजें।',
     help: 'उत्पादों के लिए MENU, कार्ट के लिए CART, भाषा बदलने के लिए LANG भेजें।',
+  },
+  te: {
+    productsTitle: 'మా ఉత్పత్తులు:',
+    productsHint: 'కార్ట్‌లో చేర్చడానికి ఉత్పత్తి నంబర్ పంపండి.',
+    askQty: (name: string) =>
+      `"${name}" ఎన్ని కావాలి? సంఖ్య (1-99) పంపండి, లేదా CANCEL.`,
+    added: (name: string, qty: number) =>
+      `${qty} x ${name} కార్ట్‌లో చేర్చబడింది. చూడటానికి CART, షాపింగ్ కొనసాగించడానికి MENU పంపండి.`,
+    cartTitle: 'మీ కార్ట్:',
+    cartTotal: 'మొత్తం',
+    emptyCart: 'మీ కార్ట్ ఖాళీగా ఉంది. ఉత్పత్తులు చూడటానికి MENU పంపండి.',
+    invalidProduct: 'దయచేసి సరైన ఉత్పత్తి నంబర్ పంపండి, లేదా జాబితా కోసం MENU.',
+    invalidQty: 'దయచేసి 1 నుండి 99 మధ్య సంఖ్య పంపండి, లేదా CANCEL.',
+    cancelled: 'రద్దు చేయబడింది. ఉత్పత్తులు చూడటానికి MENU పంపండి.',
+    help: 'ఉత్పత్తుల కోసం MENU, కార్ట్ కోసం CART, భాష మార్చడానికి LANG పంపండి.',
+  },
+  ml: {
+    productsTitle: 'ഞങ്ങളുടെ ഉൽപ്പന്നങ്ങൾ:',
+    productsHint: 'കാർട്ടിലേക്ക് ചേർക്കാൻ ഉൽപ്പന്ന നമ്പർ അയയ്ക്കുക.',
+    askQty: (name: string) =>
+      `"${name}" എത്ര വേണം? ഒരു സംഖ്യ (1-99) അയയ്ക്കുക, അല്ലെങ്കിൽ CANCEL.`,
+    added: (name: string, qty: number) =>
+      `${qty} x ${name} കാർട്ടിൽ ചേർത്തു. കാണാൻ CART, ഷോപ്പിംഗ് തുടരാൻ MENU അയയ്ക്കുക.`,
+    cartTitle: 'നിങ്ങളുടെ കാർട്ട്:',
+    cartTotal: 'ആകെ',
+    emptyCart: 'നിങ്ങളുടെ കാർട്ട് ശൂന്യമാണ്. ഉൽപ്പന്നങ്ങൾ കാണാൻ MENU അയയ്ക്കുക.',
+    invalidProduct: 'ദയവായി ശരിയായ ഉൽപ്പന്ന നമ്പർ അയയ്ക്കുക, അല്ലെങ്കിൽ പട്ടികയ്ക്ക് MENU.',
+    invalidQty: 'ദയവായി 1 മുതൽ 99 വരെയുള്ള സംഖ്യ അയയ്ക്കുക, അല്ലെങ്കിൽ CANCEL.',
+    cancelled: 'റദ്ദാക്കി. ഉൽപ്പന്നങ്ങൾ കാണാൻ MENU അയയ്ക്കുക.',
+    help: 'ഉൽപ്പന്നങ്ങൾക്ക് MENU, കാർട്ടിന് CART, ഭാഷ മാറ്റാൻ LANG അയയ്ക്കുക.',
   },
 };
 

@@ -14,6 +14,16 @@ const STATUS_LABELS: Record<string, Record<string, string>> = {
     SHIPPED: 'भेज दिया गया',
     DELIVERED: 'पहुँचा दिया गया',
   },
+  te: {
+    CONFIRMED: 'విక్రేత ధృవీకరించారు',
+    SHIPPED: 'పంపబడింది',
+    DELIVERED: 'డెలివరీ అయింది',
+  },
+  ml: {
+    CONFIRMED: 'വിൽപ്പനക്കാരൻ സ്ഥിരീകരിച്ചു',
+    SHIPPED: 'അയച്ചു',
+    DELIVERED: 'ഡെലിവറി ചെയ്തു',
+  },
 };
 
 export const ORDER_TEXT = {
@@ -34,6 +44,18 @@ export const ORDER_TEXT = {
       `ऑर्डर #${id} दर्ज हो गया। कुल: ₹${total}। धन्यवाद! और खरीदारी के लिए MENU भेजें।`,
     status: (id: number, s: string) =>
       `ऑर्डर #${id}: ${STATUS_LABELS.hi[s] ?? s}।`,
+  },
+  te: {
+    placed: (id: number, total: number) =>
+      `ఆర్డర్ #${id} నమోదు అయింది. మొత్తం: ₹${total}. ధన్యవాదాలు! మరింత షాపింగ్ కోసం MENU పంపండి.`,
+    status: (id: number, s: string) =>
+      `ఆర్డర్ #${id}: ${STATUS_LABELS.te[s] ?? s}.`,
+  },
+  ml: {
+    placed: (id: number, total: number) =>
+      `ഓർഡർ #${id} രേഖപ്പെടുത്തി. ആകെ: ₹${total}. നന്ദി! കൂടുതൽ ഷോപ്പിംഗിന് MENU അയയ്ക്കുക.`,
+    status: (id: number, s: string) =>
+      `ഓർഡർ #${id}: ${STATUS_LABELS.ml[s] ?? s}.`,
   },
 };
 
