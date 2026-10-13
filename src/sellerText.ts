@@ -14,8 +14,10 @@ export const SELLER_TEXT = {
   added: (id: number, name: string, price: number) =>
     `Product #${id} added: ${name} - ₹${price}. Send ADD for another, or MENU to see the list.`,
   cancelled: 'Cancelled. Send SELLER to see your menu.',
-    noProducts: 'You have no products yet. Send ADD to add one.',
+  noProducts: 'You have no products yet. Send ADD to add one.',
   myProductsTitle: 'Your products:',
-    noOrders: 'No orders for your products yet.',
+  noOrders: 'No orders for your products yet.',
   myOrdersTitle: 'Latest orders for your products:',
+  newOrder: (orderId: number, lines: string[], customer: string) =>
+    `New order #${orderId}!\n${lines.join('\n')}\nCustomer: ${customer}\nSend MYORDERS to see all your orders.`,
 };

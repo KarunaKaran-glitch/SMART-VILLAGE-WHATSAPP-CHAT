@@ -64,7 +64,7 @@ async function cartText(userId: number, language: string): Promise<string> {
   return `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}`;
 }
 
-// Turns the cart into an order and empties the cart
+// Turns the cart into an order, empties the cart, and tells each seller
 async function placeOrder(userId: number, language: string): Promise<string> {
   const T = t(language);
   const cart = await prisma.cart.findUnique({
@@ -96,6 +96,32 @@ async function placeOrder(userId: number, language: string): Promise<string> {
     await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
     return created;
   });
+
+  // Tell each seller about their own items. A failure here must not break the order.
+  try {
+    const customer = await prisma.user.findUnique({ where: { id: userId } });
+    const customerLabel = `${customer?.name ?? 'Customer'} (${customer?.phone})`;
+
+    const items = await prisma.orderItem.findMany({
+      where: { orderId: order.id },
+      include: { product: true, seller: true },
+    });
+
+    const bySeller = new Map<string, string[]>();
+    for (const it of items) {
+      const lineTotal = Number(it.unitPrice) * it.quantity;
+      const line = `${it.product.name} x ${it.quantity} = ₹${lineTotal}`;
+      const list = bySeller.get(it.seller.phone) ?? [];
+      list.push(line);
+      bySeller.set(it.seller.phone, list);
+    }
+
+    for (const [sellerPhone, lines] of bySeller) {
+      await sendReply(sellerPhone, SELLER_TEXT.newOrder(order.id, lines, customerLabel));
+    }
+  } catch (err) {
+    console.error('Seller notification failed:', err);
+  }
 
   return ot(language).placed(order.id, total);
 }
