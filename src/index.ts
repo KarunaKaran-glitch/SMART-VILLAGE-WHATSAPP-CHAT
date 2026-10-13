@@ -6,6 +6,7 @@ import { ot } from './orderText';
 import { SELLER_TEXT } from './sellerText';
 import { ct } from './cartEditText';
 import { mo } from './myOrdersText';
+import { ad } from './addressText';
 
 const app = express();
 app.use(express.json());
@@ -63,7 +64,7 @@ async function cartText(userId: number, language: string): Promise<string> {
     total += lineTotal;
     return `${i + 1}. ${localName(item.product, language)} x ${item.quantity} - ₹${lineTotal}`;
   });
-    return `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}\n\n${ct(language).hint}`;
+  return `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}\n\n${ct(language).hint}`;
 }
 
 // REMOVE n: removes line n of the cart (same numbering as the CART message)
@@ -114,7 +115,7 @@ async function customerOrders(userId: number, language: string): Promise<string>
 }
 
 // Turns the cart into an order, empties the cart, and tells each seller
-async function placeOrder(userId: number, language: string): Promise<string> {
+async function placeOrder(userId: number, language: string, address: string): Promise<string> {
   const T = t(language);
   const cart = await prisma.cart.findUnique({
     where: { customerId: userId },
@@ -132,6 +133,7 @@ async function placeOrder(userId: number, language: string): Promise<string> {
       data: {
         customerId: userId,
         total,
+        deliveryAddress: address,
         items: {
           create: cart.items.map((item) => ({
             productId: item.productId,
@@ -149,7 +151,7 @@ async function placeOrder(userId: number, language: string): Promise<string> {
   // Tell each seller about their own items. A failure here must not break the order.
   try {
     const customer = await prisma.user.findUnique({ where: { id: userId } });
-    const customerLabel = `${customer?.name ?? 'Customer'} (${customer?.phone})`;
+    const customerLabel = `${customer?.name ?? 'Customer'} (${customer?.phone})\nDeliver to: ${address}`;
 
     const items = await prisma.orderItem.findMany({
       where: { orderId: order.id },
@@ -392,7 +394,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
           }
           return;
         }
-                const statusMatch = command.match(/^(CONFIRM|SHIP|DELIVER)\s+#?(\d+)$/);
+        const statusMatch = command.match(/^(CONFIRM|SHIP|DELIVER)\s+#?(\d+)$/);
         if (statusMatch) {
           await sendReply(
             phone,
@@ -400,7 +402,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
           );
           return;
         }
-
         if (command === 'SELLER' || command === 'HELP') {
           await sendReply(phone, SELLER_TEXT.help);
           return;
@@ -420,6 +421,29 @@ app.post('/webhook', async (req: Request, res: Response) => {
         data: { language: chosen.code, state: 'BROWSING' },
       });
       await sendReply(phone, WELCOME[chosen.code]);
+      return;
+    }
+
+    // ---- State: entering the delivery address ----
+    if (user.state === 'ENTERING_ADDRESS') {
+      const A = ad(user.language);
+      if (command === 'CANCEL') {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'BROWSING' },
+        });
+        await sendReply(phone, A.cancelled);
+        return;
+      }
+      if (text.length < 10 || text.length > 200) {
+        await sendReply(phone, A.invalid);
+        return;
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { address: text, state: 'BROWSING' },
+      });
+      await sendReply(phone, A.saved);
       return;
     }
 
@@ -487,7 +511,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return;
     }
 
-        if (command === 'CLEAR') {
+    if (command === 'CLEAR') {
       await sendReply(phone, await clearCart(user.id, user.language));
       return;
     }
@@ -506,8 +530,35 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return;
     }
 
+    if (command === 'ADDRESS') {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { state: 'ENTERING_ADDRESS' },
+      });
+      const A = ad(user.language);
+      await sendReply(phone, user.address ? A.askChange(user.address) : A.ask);
+      return;
+    }
+
     if (command === 'ORDER') {
-      await sendReply(phone, await placeOrder(user.id, user.language));
+      // First order: ask for the delivery address (only if the cart has items)
+      if (!user.address) {
+        const cart = await prisma.cart.findUnique({
+          where: { customerId: user.id },
+          include: { items: true },
+        });
+        if (!cart || cart.items.length === 0) {
+          await sendReply(phone, T.emptyCart);
+          return;
+        }
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'ENTERING_ADDRESS' },
+        });
+        await sendReply(phone, ad(user.language).ask);
+        return;
+      }
+      await sendReply(phone, await placeOrder(user.id, user.language, user.address));
       return;
     }
 

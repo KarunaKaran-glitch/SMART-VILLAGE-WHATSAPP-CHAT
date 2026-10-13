@@ -39,6 +39,7 @@ enum UserState {
   CHOOSING_QUANTITY
   ADDING_PRODUCT_NAME
   ADDING_PRODUCT_PRICE
+  ENTERING_ADDRESS
 }
 
 model User {
@@ -50,6 +51,7 @@ model User {
   state              UserState   @default(CHOOSING_LANGUAGE)
   pendingProductId   Int?
   pendingProductName String?
+  address            String?
   createdAt          DateTime    @default(now())
   products           Product[]
   orders             Order[]     @relation("CustomerOrders")
@@ -81,14 +83,15 @@ model ProductTranslation {
 }
 
 model Order {
-  id         Int         @id @default(autoincrement())
-  customerId Int
-  customer   User        @relation("CustomerOrders", fields: [customerId], references: [id])
-  status     OrderStatus @default(PENDING)
-  total      Decimal     @db.Decimal(10, 2)
-  items      OrderItem[]
-  payments   Payment[]
-  createdAt  DateTime    @default(now())
+  id              Int         @id @default(autoincrement())
+  customerId      Int
+  customer        User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  status          OrderStatus @default(PENDING)
+  total           Decimal     @db.Decimal(10, 2)
+  deliveryAddress String?
+  items           OrderItem[]
+  payments        Payment[]
+  createdAt       DateTime    @default(now())
 }
 
 model OrderItem {
