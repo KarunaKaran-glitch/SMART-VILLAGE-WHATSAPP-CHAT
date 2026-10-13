@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import { prisma } from './db';
-import { LANGUAGES, WELCOME, languageMenu } from './messages';
+import { LANGUAGES, WELCOME, languageMenu, t } from './messages';
 
 const app = express();
 app.use(express.json());
@@ -9,35 +9,57 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
-const PRODUCTS_TITLE: Record<string, string> = {
-  en: 'Our products:',
-  ta: 'எங்கள் பொருட்கள்:',
-  hi: 'हमारे उत्पाद:',
-  te: 'మా ఉత్పత్తులు:',
-  ml: 'ഞങ്ങളുടെ ഉൽപ്പന്നങ്ങൾ:',
-};
-
 // For now this only prints the reply. Later it will send it through the WhatsApp API.
 async function sendReply(to: string, text: string) {
   console.log(`>> Reply to ${to}:\n${text}\n`);
 }
 
-// Builds the product list in the customer's language
-async function productList(language: string): Promise<string> {
-  const products = await prisma.product.findMany({
+type Named = { name: string; translations: { language: string; name: string }[] };
+
+// Picks the product name in the customer's language, or the default name
+function localName(product: Named, language: string): string {
+  const tr = product.translations.find((x) => x.language === language);
+  return tr ? tr.name : product.name;
+}
+
+function loadProducts() {
+  return prisma.product.findMany({
     include: { translations: true },
     orderBy: { id: 'asc' },
   });
+}
 
+async function productList(language: string): Promise<string> {
+  const T = t(language);
+  const products = await loadProducts();
   if (products.length === 0) return 'No products yet.';
 
-  const lines = products.map((p, i) => {
-    const t = p.translations.find((x) => x.language === language);
-    const name = t ? t.name : p.name; // fall back to the default name
-    return `${i + 1}. ${name} - ₹${p.price}`;
-  });
+  const lines = products.map(
+    (p, i) => `${i + 1}. ${localName(p, language)} - ₹${p.price}`
+  );
+  return `${T.productsTitle}\n${lines.join('\n')}\n\n${T.productsHint}`;
+}
 
-  return `${PRODUCTS_TITLE[language] ?? PRODUCTS_TITLE.en}\n${lines.join('\n')}`;
+async function cartText(userId: number, language: string): Promise<string> {
+  const T = t(language);
+  const cart = await prisma.cart.findUnique({
+    where: { customerId: userId },
+    include: {
+      items: {
+        include: { product: { include: { translations: true } } },
+        orderBy: { id: 'asc' },
+      },
+    },
+  });
+  if (!cart || cart.items.length === 0) return T.emptyCart;
+
+  let total = 0;
+  const lines = cart.items.map((item, i) => {
+    const lineTotal = Number(item.product.price) * item.quantity;
+    total += lineTotal;
+    return `${i + 1}. ${localName(item.product, language)} x ${item.quantity} - ₹${lineTotal}`;
+  });
+  return `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}`;
 }
 
 app.get('/', (_req: Request, res: Response) => {
@@ -73,40 +95,125 @@ app.post('/webhook', async (req: Request, res: Response) => {
 
     console.log('Message from:', phone, '| text:', text);
 
-    const existing = await prisma.user.findUnique({ where: { phone } });
+    const user = await prisma.user.findUnique({ where: { phone } });
 
     // New customer: save them and ask for a language
-    if (!existing) {
+    if (!user) {
       await prisma.user.create({ data: { phone, name } });
       await sendReply(phone, languageMenu());
       return;
     }
 
-    // Customer wants to change language
+    const T = t(user.language);
+
+    // LANG works in every state
     if (command === 'LANG') {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { state: 'CHOOSING_LANGUAGE', pendingProductId: null },
+      });
       await sendReply(phone, languageMenu());
       return;
     }
 
-    // Customer wants to see products
-    if (command === 'MENU') {
-      await sendReply(phone, await productList(existing.language));
-      return;
-    }
-
-    // Customer chose a language (1 to 5)
-    const chosen = LANGUAGES[text];
-    if (chosen) {
+    // ---- State: choosing a language ----
+    if (user.state === 'CHOOSING_LANGUAGE') {
+      const chosen = LANGUAGES[text];
+      if (!chosen) {
+        await sendReply(phone, languageMenu());
+        return;
+      }
       await prisma.user.update({
-        where: { phone },
-        data: { language: chosen.code },
+        where: { id: user.id },
+        data: { language: chosen.code, state: 'BROWSING' },
       });
       await sendReply(phone, WELCOME[chosen.code]);
       return;
     }
 
+    // ---- State: choosing a quantity ----
+    if (user.state === 'CHOOSING_QUANTITY') {
+      if (command === 'CANCEL') {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'BROWSING', pendingProductId: null },
+        });
+        await sendReply(phone, T.cancelled);
+        return;
+      }
+
+      const qty = Number(text);
+      if (!Number.isInteger(qty) || qty < 1 || qty > 99) {
+        await sendReply(phone, T.invalidQty);
+        return;
+      }
+
+      const product = user.pendingProductId
+        ? await prisma.product.findUnique({
+            where: { id: user.pendingProductId },
+            include: { translations: true },
+          })
+        : null;
+
+      if (!product) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'BROWSING', pendingProductId: null },
+        });
+        await sendReply(phone, T.invalidProduct);
+        return;
+      }
+
+      const cart = await prisma.cart.upsert({
+        where: { customerId: user.id },
+        update: {},
+        create: { customerId: user.id },
+      });
+
+      await prisma.cartItem.upsert({
+        where: { cartId_productId: { cartId: cart.id, productId: product.id } },
+        update: { quantity: { increment: qty } },
+        create: { cartId: cart.id, productId: product.id, quantity: qty },
+      });
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { state: 'BROWSING', pendingProductId: null },
+      });
+      await sendReply(phone, T.added(localName(product, user.language), qty));
+      return;
+    }
+
+    // ---- State: browsing ----
+    if (command === 'MENU') {
+      await sendReply(phone, await productList(user.language));
+      return;
+    }
+
+    if (command === 'CART') {
+      await sendReply(phone, await cartText(user.id, user.language));
+      return;
+    }
+
+    // A number picks a product from the list
+    const n = Number(text);
+    if (Number.isInteger(n) && n >= 1) {
+      const products = await loadProducts();
+      const product = products[n - 1];
+      if (!product) {
+        await sendReply(phone, T.invalidProduct);
+        return;
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { state: 'CHOOSING_QUANTITY', pendingProductId: product.id },
+      });
+      await sendReply(phone, T.askQty(localName(product, user.language)));
+      return;
+    }
+
     // Anything else
-    await sendReply(phone, WELCOME[existing.language] ?? WELCOME.en);
+    await sendReply(phone, T.help);
   } catch (err) {
     console.error('Webhook error:', err);
   }
