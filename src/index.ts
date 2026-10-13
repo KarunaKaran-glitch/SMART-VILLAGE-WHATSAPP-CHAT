@@ -154,7 +154,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return;
     }
 
-       // ---- Seller commands (only for users with the SELLER role) ----
+    // ---- Seller commands (only for users with the SELLER role) ----
     if (user.role === 'SELLER') {
       // Waiting for the product name
       if (user.state === 'ADDING_PRODUCT_NAME') {
@@ -222,7 +222,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
         return;
       }
 
-          // Normal seller commands
+      // Normal seller commands
       if (user.state === 'BROWSING') {
         if (command === 'ADD') {
           await prisma.user.update({
@@ -242,6 +242,25 @@ app.post('/webhook', async (req: Request, res: Response) => {
           } else {
             const lines = mine.map((p) => `#${p.id} ${p.name} - ₹${p.price}`);
             await sendReply(phone, `${SELLER_TEXT.myProductsTitle}\n${lines.join('\n')}`);
+          }
+          return;
+        }
+        if (command === 'MYORDERS') {
+          const items = await prisma.orderItem.findMany({
+            where: { sellerId: user.id },
+            include: { order: { include: { customer: true } }, product: true },
+            orderBy: { id: 'desc' },
+            take: 10,
+          });
+          if (items.length === 0) {
+            await sendReply(phone, SELLER_TEXT.noOrders);
+          } else {
+            const lines = items.map((it) => {
+              const who = it.order.customer.name ?? it.order.customer.phone;
+              const lineTotal = Number(it.unitPrice) * it.quantity;
+              return `Order #${it.orderId} | ${it.product.name} x ${it.quantity} = ₹${lineTotal} | ${it.status} | ${who} (${it.order.customer.phone})`;
+            });
+            await sendReply(phone, `${SELLER_TEXT.myOrdersTitle}\n${lines.join('\n')}`);
           }
           return;
         }

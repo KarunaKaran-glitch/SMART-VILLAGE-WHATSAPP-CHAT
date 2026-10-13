@@ -16,4 +16,6 @@ export const SELLER_TEXT = {
   cancelled: 'Cancelled. Send SELLER to see your menu.',
     noProducts: 'You have no products yet. Send ADD to add one.',
   myProductsTitle: 'Your products:',
+    noOrders: 'No orders for your products yet.',
+  myOrdersTitle: 'Latest orders for your products:',
 };
