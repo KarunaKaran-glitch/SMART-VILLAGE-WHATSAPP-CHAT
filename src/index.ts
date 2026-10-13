@@ -7,6 +7,7 @@ import { SELLER_TEXT } from './sellerText';
 import { ct } from './cartEditText';
 import { mo } from './myOrdersText';
 import { ad } from './addressText';
+import { cn, sellerCancelNotice } from './cancelText';
 
 const app = express();
 app.use(express.json());
@@ -112,6 +113,37 @@ async function customerOrders(userId: number, language: string): Promise<string>
     return `#${o.id} - ${M.status(o.status)} - ₹${o.total}\n${items}`;
   });
   return `${M.title}\n\n${blocks.join('\n\n')}`;
+}
+
+// Customer cancels an order, only while every item is still PENDING
+async function cancelOrder(userId: number, language: string, orderId: number): Promise<string> {
+  const C = cn(language);
+
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, customerId: userId },
+    include: { items: { include: { seller: true } } },
+  });
+  if (!order) return C.notFound(orderId);
+
+  const allPending = order.items.every((i) => i.status === 'PENDING');
+  if (order.status !== 'PENDING' || !allPending) return C.cannot(orderId);
+
+  await prisma.$transaction([
+    prisma.orderItem.updateMany({ where: { orderId }, data: { status: 'CANCELLED' } }),
+    prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } }),
+  ]);
+
+  // Tell each seller. A failure here must not undo the cancellation.
+  try {
+    const sellerPhones = new Set(order.items.map((i) => i.seller.phone));
+    for (const sellerPhone of sellerPhones) {
+      await sendReply(sellerPhone, sellerCancelNotice(orderId));
+    }
+  } catch (err) {
+    console.error('Seller cancel notice failed:', err);
+  }
+
+  return C.cancelled(orderId);
 }
 
 // Turns the cart into an order, empties the cart, and tells each seller
@@ -527,6 +559,15 @@ app.post('/webhook', async (req: Request, res: Response) => {
 
     if (command === 'MYORDERS') {
       await sendReply(phone, await customerOrders(user.id, user.language));
+      return;
+    }
+
+        const cancelMatch = command.match(/^CANCELORDER\s+#?(\d+)$/);
+    if (cancelMatch) {
+      await sendReply(
+        phone,
+        await cancelOrder(user.id, user.language, Number(cancelMatch[1]))
+      );
       return;
     }
 
