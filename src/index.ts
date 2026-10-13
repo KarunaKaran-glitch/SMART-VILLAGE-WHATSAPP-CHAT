@@ -493,6 +493,20 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return;
     }
 
+        // While waiting for a quantity, these commands leave that step automatically
+    if (
+      user.state === 'CHOOSING_QUANTITY' &&
+      (['MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER'].includes(command) ||
+        /^(REMOVE|CANCELORDER)\s+#?\d+$/.test(command))
+    ) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { state: 'BROWSING', pendingProductId: null },
+      });
+      user.state = 'BROWSING';
+      user.pendingProductId = null;
+    }
+
     // ---- State: choosing a quantity ----
     if (user.state === 'CHOOSING_QUANTITY') {
       if (command === 'CANCEL') {
