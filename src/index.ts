@@ -3,6 +3,7 @@ import express, { Request, Response } from 'express';
 import { prisma } from './db';
 import { LANGUAGES, WELCOME, languageMenu, t } from './messages';
 import { ot } from './orderText';
+import { SELLER_TEXT } from './sellerText';
 
 const app = express();
 app.use(express.json());
@@ -151,6 +152,14 @@ app.post('/webhook', async (req: Request, res: Response) => {
       });
       await sendReply(phone, languageMenu());
       return;
+    }
+
+        // ---- Seller commands (only for users with the SELLER role) ----
+    if (user.role === 'SELLER' && user.state === 'BROWSING') {
+      if (command === 'SELLER' || command === 'HELP') {
+        await sendReply(phone, SELLER_TEXT.help);
+        return;
+      }
     }
 
     // ---- State: choosing a language ----

@@ -37,21 +37,24 @@ enum UserState {
   CHOOSING_LANGUAGE
   BROWSING
   CHOOSING_QUANTITY
+  ADDING_PRODUCT_NAME
+  ADDING_PRODUCT_PRICE
 }
 
 model User {
-  id               Int         @id @default(autoincrement())
-  phone            String      @unique
-  name             String?
-  role             Role        @default(CUSTOMER)
-  language         String      @default("en")
-  state            UserState   @default(CHOOSING_LANGUAGE)
-  pendingProductId Int?
-  createdAt        DateTime    @default(now())
-  products         Product[]
-  orders           Order[]     @relation("CustomerOrders")
-  soldItems        OrderItem[] @relation("SellerOrderItems")
-  cart             Cart?
+  id                 Int         @id @default(autoincrement())
+  phone              String      @unique
+  name               String?
+  role               Role        @default(CUSTOMER)
+  language           String      @default("en")
+  state              UserState   @default(CHOOSING_LANGUAGE)
+  pendingProductId   Int?
+  pendingProductName String?
+  createdAt          DateTime    @default(now())
+  products           Product[]
+  orders             Order[]     @relation("CustomerOrders")
+  soldItems          OrderItem[] @relation("SellerOrderItems")
+  cart               Cart?
 }
 
 model Product {
