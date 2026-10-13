@@ -126,6 +126,59 @@ async function placeOrder(userId: number, language: string): Promise<string> {
   return ot(language).placed(order.id, total);
 }
 
+// Seller moves an order forward: CONFIRM, then SHIP, then DELIVER
+const STATUS_FLOW: Record<string, { to: 'CONFIRMED' | 'SHIPPED' | 'DELIVERED'; from: string[] }> = {
+  CONFIRM: { to: 'CONFIRMED', from: ['PENDING', 'PAID'] },
+  SHIP: { to: 'SHIPPED', from: ['CONFIRMED'] },
+  DELIVER: { to: 'DELIVERED', from: ['SHIPPED'] },
+};
+
+async function updateOrderStatus(
+  sellerId: number,
+  orderId: number,
+  action: string
+): Promise<string> {
+  const rule = STATUS_FLOW[action];
+
+  // Only this seller's own items in this order
+  const items = await prisma.orderItem.findMany({ where: { orderId, sellerId } });
+  if (items.length === 0) return SELLER_TEXT.orderNotFound(orderId);
+
+  const allowed = items.filter((i) => rule.from.includes(i.status));
+  if (allowed.length === 0) {
+    return SELLER_TEXT.cannotChange(orderId, items[0].status, rule.to);
+  }
+
+  await prisma.orderItem.updateMany({
+    where: { id: { in: allowed.map((i) => i.id) } },
+    data: { status: rule.to },
+  });
+
+  // If every item in the order now has this status, update the order itself too
+  const all = await prisma.orderItem.findMany({ where: { orderId } });
+  if (all.every((i) => i.status === rule.to)) {
+    await prisma.order.update({ where: { id: orderId }, data: { status: rule.to } });
+  }
+
+  // Tell the customer. A failure here must not break the update.
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true },
+    });
+    if (order) {
+      await sendReply(
+        order.customer.phone,
+        ot(order.customer.language).status(orderId, rule.to)
+      );
+    }
+  } catch (err) {
+    console.error('Customer notification failed:', err);
+  }
+
+  return SELLER_TEXT.statusUpdated(orderId, rule.to);
+}
+
 app.get('/', (_req: Request, res: Response) => {
   res.send('WhatsApp Marketplace server is running');
 });
@@ -290,6 +343,15 @@ app.post('/webhook', async (req: Request, res: Response) => {
           }
           return;
         }
+                const statusMatch = command.match(/^(CONFIRM|SHIP|DELIVER)\s+#?(\d+)$/);
+        if (statusMatch) {
+          await sendReply(
+            phone,
+            await updateOrderStatus(user.id, Number(statusMatch[2]), statusMatch[1])
+          );
+          return;
+        }
+
         if (command === 'SELLER' || command === 'HELP') {
           await sendReply(phone, SELLER_TEXT.help);
           return;

@@ -5,6 +5,9 @@ export const SELLER_TEXT = {
     'ADD - add a new product\n' +
     'MYPRODUCTS - see your products\n' +
     'MYORDERS - see orders for your products\n' +
+    'CONFIRM 3 - confirm order #3\n' +
+    'SHIP 3 - mark order #3 as shipped\n' +
+    'DELIVER 3 - mark order #3 as delivered\n' +
     'MENU - shop as a customer',
   askName: 'What is the product name? (2 to 60 characters) Or send CANCEL.',
   invalidName: 'The name must be 2 to 60 characters. Try again, or send CANCEL.',
@@ -20,4 +23,10 @@ export const SELLER_TEXT = {
   myOrdersTitle: 'Latest orders for your products:',
   newOrder: (orderId: number, lines: string[], customer: string) =>
     `New order #${orderId}!\n${lines.join('\n')}\nCustomer: ${customer}\nSend MYORDERS to see all your orders.`,
+  orderNotFound: (orderId: number) =>
+    `Order #${orderId} was not found for your products. Send MYORDERS to see your orders.`,
+  cannotChange: (orderId: number, current: string, target: string) =>
+    `Order #${orderId} is ${current}, so it cannot be changed to ${target}. Order of steps: CONFIRM, then SHIP, then DELIVER.`,
+  statusUpdated: (orderId: number, status: string) =>
+    `Order #${orderId} is now ${status}. The customer has been told.`,
 };
