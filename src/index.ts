@@ -154,11 +154,101 @@ app.post('/webhook', async (req: Request, res: Response) => {
       return;
     }
 
-        // ---- Seller commands (only for users with the SELLER role) ----
-    if (user.role === 'SELLER' && user.state === 'BROWSING') {
-      if (command === 'SELLER' || command === 'HELP') {
-        await sendReply(phone, SELLER_TEXT.help);
+       // ---- Seller commands (only for users with the SELLER role) ----
+    if (user.role === 'SELLER') {
+      // Waiting for the product name
+      if (user.state === 'ADDING_PRODUCT_NAME') {
+        if (command === 'CANCEL') {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { state: 'BROWSING', pendingProductName: null },
+          });
+          await sendReply(phone, SELLER_TEXT.cancelled);
+          return;
+        }
+        if (text.length < 2 || text.length > 60) {
+          await sendReply(phone, SELLER_TEXT.invalidName);
+          return;
+        }
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'ADDING_PRODUCT_PRICE', pendingProductName: text },
+        });
+        await sendReply(phone, SELLER_TEXT.askPrice(text));
         return;
+      }
+
+      // Waiting for the product price
+      if (user.state === 'ADDING_PRODUCT_PRICE') {
+        if (command === 'CANCEL') {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { state: 'BROWSING', pendingProductName: null },
+          });
+          await sendReply(phone, SELLER_TEXT.cancelled);
+          return;
+        }
+
+        const price = Math.round(Number(text) * 100) / 100;
+        if (!Number.isFinite(price) || price <= 0 || price > 100000) {
+          await sendReply(phone, SELLER_TEXT.invalidPrice);
+          return;
+        }
+
+        const productName = user.pendingProductName;
+        if (!productName) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { state: 'BROWSING', pendingProductName: null },
+          });
+          await sendReply(phone, SELLER_TEXT.cancelled);
+          return;
+        }
+
+        const product = await prisma.product.create({
+          data: {
+            name: productName,
+            price,
+            sellerId: user.id,
+            translations: { create: [{ language: user.language, name: productName }] },
+          },
+        });
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'BROWSING', pendingProductName: null },
+        });
+        await sendReply(phone, SELLER_TEXT.added(product.id, productName, price));
+        return;
+      }
+
+          // Normal seller commands
+      if (user.state === 'BROWSING') {
+        if (command === 'ADD') {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { state: 'ADDING_PRODUCT_NAME', pendingProductName: null },
+          });
+          await sendReply(phone, SELLER_TEXT.askName);
+          return;
+        }
+        if (command === 'MYPRODUCTS') {
+          const mine = await prisma.product.findMany({
+            where: { sellerId: user.id },
+            orderBy: { id: 'asc' },
+          });
+          if (mine.length === 0) {
+            await sendReply(phone, SELLER_TEXT.noProducts);
+          } else {
+            const lines = mine.map((p) => `#${p.id} ${p.name} - ₹${p.price}`);
+            await sendReply(phone, `${SELLER_TEXT.myProductsTitle}\n${lines.join('\n')}`);
+          }
+          return;
+        }
+        if (command === 'SELLER' || command === 'HELP') {
+          await sendReply(phone, SELLER_TEXT.help);
+          return;
+        }
       }
     }
 
