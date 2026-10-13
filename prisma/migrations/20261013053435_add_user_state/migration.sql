@@ -1,0 +1,6 @@
+-- CreateEnum
+CREATE TYPE "UserState" AS ENUM ('CHOOSING_LANGUAGE', 'BROWSING', 'CHOOSING_QUANTITY');
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "pendingProductId" INTEGER,
+ADD COLUMN     "state" "UserState" NOT NULL DEFAULT 'CHOOSING_LANGUAGE';
