@@ -131,6 +131,10 @@ async function cancelOrder(userId: number, language: string, orderId: number): P
   await prisma.$transaction([
     prisma.orderItem.updateMany({ where: { orderId }, data: { status: 'CANCELLED' } }),
     prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } }),
+    prisma.payment.updateMany({
+      where: { orderId, status: 'INITIATED' },
+      data: { status: 'CANCELLED' },
+    }),
   ]);
 
   // Tell each seller. A failure here must not undo the cancellation.
@@ -176,6 +180,10 @@ async function placeOrder(userId: number, language: string, address: string): Pr
         },
       },
     });
+      await tx.payment.create({
+      data: { orderId: created.id, amount: total, method: 'COD' },
+    });
+
     await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
     return created;
   });
@@ -239,8 +247,16 @@ async function updateOrderStatus(
 
   // If every item in the order now has this status, update the order itself too
   const all = await prisma.orderItem.findMany({ where: { orderId } });
-  if (all.every((i) => i.status === rule.to)) {
+   if (all.every((i) => i.status === rule.to)) {
     await prisma.order.update({ where: { id: orderId }, data: { status: rule.to } });
+
+    // Cash on delivery: delivery means the cash was collected
+    if (rule.to === 'DELIVERED') {
+      await prisma.payment.updateMany({
+        where: { orderId, method: 'COD', status: 'INITIATED' },
+        data: { status: 'SUCCESS' },
+      });
+    }
   }
 
   // Tell the customer. A failure here must not break the update.

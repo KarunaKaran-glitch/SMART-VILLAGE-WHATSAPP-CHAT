@@ -31,6 +31,12 @@ enum PaymentStatus {
   SUCCESS
   FAILED
   REFUNDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  COD
+  ONLINE
 }
 
 enum UserState {
@@ -131,11 +137,11 @@ model Payment {
   orderId    Int
   order      Order         @relation(fields: [orderId], references: [id])
   amount     Decimal       @db.Decimal(10, 2)
+  method     PaymentMethod @default(COD)
   status     PaymentStatus @default(INITIATED)
   gatewayRef String?       @unique
   createdAt  DateTime      @default(now())
 }
-
 
 model ProcessedMessage {
   id        String   @id
