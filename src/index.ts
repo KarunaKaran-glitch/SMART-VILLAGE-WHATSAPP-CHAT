@@ -31,6 +31,7 @@ function localName(product: Named, language: string): string {
 
 function loadProducts() {
   return prisma.product.findMany({
+    where: { isActive: true },
     include: { translations: true },
     orderBy: { id: 'asc' },
   });
@@ -468,7 +469,9 @@ async function handleWebhook(body: any) {
           if (mine.length === 0) {
             await sendReply(phone, SELLER_TEXT.noProducts);
           } else {
-            const lines = mine.map((p) => `#${p.id} ${p.name} - ₹${p.price}`);
+                        const lines = mine.map(
+              (p) => `#${p.id} ${p.name} - ₹${p.price}${p.isActive ? '' : ' (hidden)'}`
+            );
             await sendReply(phone, `${SELLER_TEXT.myProductsTitle}\n${lines.join('\n')}`);
           }
           return;
@@ -492,6 +495,52 @@ async function handleWebhook(body: any) {
           }
           return;
         }
+
+                const priceMatch = command.match(/^PRICE\s+#?(\d+)\s+(\d+(?:\.\d{1,2})?)$/);
+        if (priceMatch) {
+          const productId = Number(priceMatch[1]);
+          const newPrice = Number(priceMatch[2]);
+          if (newPrice <= 0 || newPrice > 100000) {
+            await sendReply(phone, SELLER_TEXT.invalidPrice);
+            return;
+          }
+          const changed = await prisma.product.updateMany({
+            where: { id: productId, sellerId: user.id },
+            data: { price: newPrice },
+          });
+          await sendReply(
+            phone,
+            changed.count === 0
+              ? SELLER_TEXT.productNotFound(productId)
+              : SELLER_TEXT.priceUpdated(productId, newPrice)
+          );
+          return;
+        }
+
+        const visibilityMatch = command.match(/^(HIDE|SHOW)\s+#?(\d+)$/);
+        if (visibilityMatch) {
+          const productId = Number(visibilityMatch[2]);
+          const makeActive = visibilityMatch[1] === 'SHOW';
+          const changed = await prisma.product.updateMany({
+            where: { id: productId, sellerId: user.id },
+            data: { isActive: makeActive },
+          });
+          await sendReply(
+            phone,
+            changed.count === 0
+              ? SELLER_TEXT.productNotFound(productId)
+              : makeActive
+                ? SELLER_TEXT.shown(productId)
+                : SELLER_TEXT.hidden(productId)
+          );
+          return;
+        }
+
+        if (command === 'MYPURCHASES') {
+          await sendReply(phone, await customerOrders(user.id, user.language));
+          return;
+        }
+
         const statusMatch = command.match(/^(CONFIRM|SHIP|DELIVER)\s+#?(\d+)$/);
         if (statusMatch) {
           await sendReply(

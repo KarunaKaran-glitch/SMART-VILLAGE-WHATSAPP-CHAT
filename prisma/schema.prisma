@@ -84,6 +84,7 @@ model Product {
   translations ProductTranslation[]
   orderItems   OrderItem[]
   cartItems    CartItem[]
+  isActive     Boolean              @default(true)
   createdAt    DateTime             @default(now())
 }
 
