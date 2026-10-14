@@ -8,6 +8,7 @@ import { ct } from './cartEditText';
 import { mo } from './myOrdersText';
 import { ad } from './addressText';
 import { cn, sellerCancelNotice } from './cancelText';
+import { REG_TEXT } from './registerText';
 
 const app = express();
 app.use(express.json());
@@ -281,6 +282,40 @@ async function updateOrderStatus(
   return SELLER_TEXT.statusUpdated(orderId, rule.to);
 }
 
+// Admin approves or rejects a seller request
+async function decideSeller(applicantId: number, approve: boolean): Promise<string> {
+  const applicant = await prisma.user.findUnique({ where: { id: applicantId } });
+  if (!applicant || applicant.sellerStatus !== 'PENDING') {
+    return REG_TEXT.notPending(applicantId);
+  }
+
+  if (approve) {
+    await prisma.user.update({
+      where: { id: applicantId },
+      data: { sellerStatus: 'APPROVED', role: 'SELLER' },
+    });
+  } else {
+    await prisma.user.update({
+      where: { id: applicantId },
+      data: { sellerStatus: 'REJECTED' },
+    });
+  }
+
+  // Tell the applicant. A failure here must not undo the decision.
+  try {
+    await sendReply(
+      applicant.phone,
+      approve
+        ? REG_TEXT.approvedNotice(applicant.shopName ?? 'your shop')
+        : REG_TEXT.rejectedNotice
+    );
+  } catch (err) {
+    console.error('Applicant notification failed:', err);
+  }
+
+  return REG_TEXT.decided(applicantId, approve ? 'APPROVED' : 'REJECTED');
+}
+
 app.get('/', (_req: Request, res: Response) => {
   res.send('WhatsApp Marketplace server is running');
 });
@@ -472,6 +507,35 @@ async function handleWebhook(body: any) {
       }
     }
 
+    // ---- Admin commands (only for users with the ADMIN role) ----
+    if (user.role === 'ADMIN' && user.state === 'BROWSING') {
+      if (command === 'PENDINGSELLERS') {
+        const waiting = await prisma.user.findMany({
+          where: { sellerStatus: 'PENDING' },
+          orderBy: { id: 'asc' },
+        });
+        if (waiting.length === 0) {
+          await sendReply(phone, REG_TEXT.noPending);
+        } else {
+          const lines = waiting.map((u) => `#${u.id} ${u.shopName ?? '-'} (${u.phone})`);
+          await sendReply(phone, `${REG_TEXT.pendingTitle}\n${lines.join('\n')}`);
+        }
+        return;
+      }
+      const decideMatch = command.match(/^(APPROVE|REJECT)\s+#?(\d+)$/);
+      if (decideMatch) {
+        await sendReply(
+          phone,
+          await decideSeller(Number(decideMatch[2]), decideMatch[1] === 'APPROVE')
+        );
+        return;
+      }
+      if (command === 'ADMIN' || command === 'HELP') {
+        await sendReply(phone, REG_TEXT.adminHelp);
+        return;
+      }
+    }
+
     // ---- State: choosing a language ----
     if (user.state === 'CHOOSING_LANGUAGE') {
       const chosen = LANGUAGES[text];
@@ -487,10 +551,13 @@ async function handleWebhook(body: any) {
       return;
     }
 
-    // While waiting for a quantity or an address, these commands leave that step automatically
+    // While waiting for a quantity, an address or a shop name,
+    // these commands leave that step automatically
     if (
-      (user.state === 'CHOOSING_QUANTITY' || user.state === 'ENTERING_ADDRESS') &&
-      (['MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER'].includes(command) ||
+      (user.state === 'CHOOSING_QUANTITY' ||
+        user.state === 'ENTERING_ADDRESS' ||
+        user.state === 'ENTERING_SHOP_NAME') &&
+      (['MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER', 'SELL'].includes(command) ||
         /^(REMOVE|CANCELORDER)\s+#?\d+$/.test(command))
     ) {
       await prisma.user.update({
@@ -521,6 +588,39 @@ async function handleWebhook(body: any) {
         data: { address: text, state: 'BROWSING' },
       });
       await sendReply(phone, A.saved);
+      return;
+    }
+
+    // ---- State: entering the shop name (seller registration) ----
+    if (user.state === 'ENTERING_SHOP_NAME') {
+      if (command === 'CANCEL') {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'BROWSING' },
+        });
+        await sendReply(phone, REG_TEXT.cancelled);
+        return;
+      }
+      if (text.length < 2 || text.length > 40) {
+        await sendReply(phone, REG_TEXT.invalidShop);
+        return;
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { shopName: text, sellerStatus: 'PENDING', state: 'BROWSING' },
+      });
+
+      // Tell every admin. A failure here must not undo the request.
+      try {
+        const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+        for (const a of admins) {
+          await sendReply(a.phone, REG_TEXT.adminNotice(user.id, text, user.phone));
+        }
+      } catch (err) {
+        console.error('Admin notification failed:', err);
+      }
+
+      await sendReply(phone, REG_TEXT.requested);
       return;
     }
 
@@ -613,6 +713,27 @@ async function handleWebhook(body: any) {
         phone,
         await cancelOrder(user.id, user.language, Number(cancelMatch[1]))
       );
+      return;
+    }
+
+    if (command === 'SELL') {
+      if (user.role === 'ADMIN') {
+        await sendReply(phone, REG_TEXT.adminCannot);
+        return;
+      }
+      if (user.role === 'SELLER' || user.sellerStatus === 'APPROVED') {
+        await sendReply(phone, REG_TEXT.alreadySeller);
+        return;
+      }
+      if (user.sellerStatus === 'PENDING') {
+        await sendReply(phone, REG_TEXT.alreadyPending);
+        return;
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { state: 'ENTERING_SHOP_NAME' },
+      });
+      await sendReply(phone, REG_TEXT.askShop);
       return;
     }
 

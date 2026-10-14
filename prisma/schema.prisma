@@ -17,6 +17,13 @@ enum Role {
   ADMIN
 }
 
+enum SellerStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum OrderStatus {
   PENDING
   PAID
@@ -46,22 +53,25 @@ enum UserState {
   ADDING_PRODUCT_NAME
   ADDING_PRODUCT_PRICE
   ENTERING_ADDRESS
+  ENTERING_SHOP_NAME
 }
 
 model User {
-  id                 Int         @id @default(autoincrement())
-  phone              String      @unique
+  id                 Int          @id @default(autoincrement())
+  phone              String       @unique
   name               String?
-  role               Role        @default(CUSTOMER)
-  language           String      @default("en")
-  state              UserState   @default(CHOOSING_LANGUAGE)
+  role               Role         @default(CUSTOMER)
+  language           String       @default("en")
+  state              UserState    @default(CHOOSING_LANGUAGE)
   pendingProductId   Int?
   pendingProductName String?
   address            String?
-  createdAt          DateTime    @default(now())
+  shopName           String?
+  sellerStatus       SellerStatus @default(NONE)
+  createdAt          DateTime     @default(now())
   products           Product[]
-  orders             Order[]     @relation("CustomerOrders")
-  soldItems          OrderItem[] @relation("SellerOrderItems")
+  orders             Order[]      @relation("CustomerOrders")
+  soldItems          OrderItem[]  @relation("SellerOrderItems")
   cart               Cart?
 }
 
