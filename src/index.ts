@@ -184,10 +184,9 @@ async function placeOrder(userId: number, language: string, address: string): Pr
         },
       },
     });
-      await tx.payment.create({
+    await tx.payment.create({
       data: { orderId: created.id, amount: total, method: 'COD' },
     });
-
     await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
     return created;
   });
@@ -251,7 +250,7 @@ async function updateOrderStatus(
 
   // If every item in the order now has this status, update the order itself too
   const all = await prisma.orderItem.findMany({ where: { orderId } });
-   if (all.every((i) => i.status === rule.to)) {
+  if (all.every((i) => i.status === rule.to)) {
     await prisma.order.update({ where: { id: orderId }, data: { status: rule.to } });
 
     // Cash on delivery: delivery means the cash was collected
@@ -298,7 +297,7 @@ app.get('/webhook', (req: Request, res: Response) => {
   res.sendStatus(403);
 });
 
-// WhatsApp sends incoming messages here
+// Handles one incoming webhook call
 async function handleWebhook(body: any) {
   let messageId: string | undefined;
 
@@ -307,7 +306,6 @@ async function handleWebhook(body: any) {
     const message = value?.messages?.[0];
     if (!message) return; // not a message (for example a delivery status)
 
-    
     // Ignore a message we have already handled (Meta can send the same one twice)
     messageId = message.id;
     if (messageId) {
@@ -489,6 +487,20 @@ async function handleWebhook(body: any) {
       return;
     }
 
+    // While waiting for a quantity or an address, these commands leave that step automatically
+    if (
+      (user.state === 'CHOOSING_QUANTITY' || user.state === 'ENTERING_ADDRESS') &&
+      (['MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER'].includes(command) ||
+        /^(REMOVE|CANCELORDER)\s+#?\d+$/.test(command))
+    ) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { state: 'BROWSING', pendingProductId: null },
+      });
+      user.state = 'BROWSING';
+      user.pendingProductId = null;
+    }
+
     // ---- State: entering the delivery address ----
     if (user.state === 'ENTERING_ADDRESS') {
       const A = ad(user.language);
@@ -510,20 +522,6 @@ async function handleWebhook(body: any) {
       });
       await sendReply(phone, A.saved);
       return;
-    }
-
-        // While waiting for a quantity, these commands leave that step automatically
-    if (
-      user.state === 'CHOOSING_QUANTITY'  &&
-      (['MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER'].includes(command) ||
-        /^(REMOVE|CANCELORDER)\s+#?\d+$/.test(command))
-    ) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { state: 'BROWSING', pendingProductId: null },
-      });
-      user.state = 'BROWSING';
-      user.pendingProductId = null;
     }
 
     // ---- State: choosing a quantity ----
@@ -609,7 +607,7 @@ async function handleWebhook(body: any) {
       return;
     }
 
-        const cancelMatch = command.match(/^CANCELORDER\s+#?(\d+)$/);
+    const cancelMatch = command.match(/^CANCELORDER\s+#?(\d+)$/);
     if (cancelMatch) {
       await sendReply(
         phone,
@@ -669,7 +667,7 @@ async function handleWebhook(body: any) {
 
     // Anything else
     await sendReply(phone, T.help);
-   } catch (err) {
+  } catch (err) {
     // Forget this message ID so Meta's retry can be processed
     if (messageId) {
       await prisma.processedMessage.deleteMany({ where: { id: messageId } });
