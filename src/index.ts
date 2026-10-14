@@ -95,12 +95,15 @@ async function clearCart(userId: number, language: string): Promise<string> {
   return ct(language).cleared;
 }
 
-// Customer's last 5 orders with status
+// Customer's last 5 orders with status and payment
 async function customerOrders(userId: number, language: string): Promise<string> {
   const M = mo(language);
   const orders = await prisma.order.findMany({
     where: { customerId: userId },
-    include: { items: { include: { product: { include: { translations: true } } } } },
+    include: {
+      items: { include: { product: { include: { translations: true } } } },
+      payments: { orderBy: { id: 'desc' }, take: 1 },
+    },
     orderBy: { id: 'desc' },
     take: 5,
   });
@@ -110,7 +113,8 @@ async function customerOrders(userId: number, language: string): Promise<string>
     const items = o.items
       .map((i) => `  ${localName(i.product, language)} x ${i.quantity}`)
       .join('\n');
-    return `#${o.id} - ${M.status(o.status)} - ₹${o.total}\n${items}`;
+    const pay = o.payments[0] ? `\n  ${M.pay(o.payments[0].status)}` : '';
+    return `#${o.id} - ${M.status(o.status)} - ₹${o.total}\n${items}${pay}`;
   });
   return `${M.title}\n\n${blocks.join('\n\n')}`;
 }
@@ -510,7 +514,7 @@ async function handleWebhook(body: any) {
 
         // While waiting for a quantity, these commands leave that step automatically
     if (
-      user.state === 'CHOOSING_QUANTITY' &&
+      user.state === 'CHOOSING_QUANTITY'  &&
       (['MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER'].includes(command) ||
         /^(REMOVE|CANCELORDER)\s+#?\d+$/.test(command))
     ) {

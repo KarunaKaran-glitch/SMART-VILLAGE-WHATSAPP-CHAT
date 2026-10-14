@@ -41,6 +41,44 @@ const STATUS: Record<string, Record<string, string>> = {
   },
 };
 
+const PAYMENT: Record<string, Record<string, string>> = {
+  en: {
+    INITIATED: 'Payment: pay cash on delivery',
+    SUCCESS: 'Payment: paid',
+    CANCELLED: 'Payment: cancelled',
+    FAILED: 'Payment: failed',
+    REFUNDED: 'Payment: refunded',
+  },
+  ta: {
+    INITIATED: 'பணம்: டெலிவரியின் போது செலுத்த வேண்டும்',
+    SUCCESS: 'பணம்: செலுத்தப்பட்டது',
+    CANCELLED: 'பணம்: ரத்து',
+    FAILED: 'பணம்: தோல்வி',
+    REFUNDED: 'பணம்: திரும்பத் தரப்பட்டது',
+  },
+  hi: {
+    INITIATED: 'भुगतान: डिलीवरी पर नकद देना है',
+    SUCCESS: 'भुगतान: हो गया',
+    CANCELLED: 'भुगतान: रद्द',
+    FAILED: 'भुगतान: विफल',
+    REFUNDED: 'भुगतान: वापस किया गया',
+  },
+  te: {
+    INITIATED: 'చెల్లింపు: డెలివరీ సమయంలో నగదు చెల్లించాలి',
+    SUCCESS: 'చెల్లింపు: పూర్తయింది',
+    CANCELLED: 'చెల్లింపు: రద్దు',
+    FAILED: 'చెల్లింపు: విఫలమైంది',
+    REFUNDED: 'చెల్లింపు: తిరిగి ఇవ్వబడింది',
+  },
+  ml: {
+    INITIATED: 'പേയ്‌മെന്റ്: ഡെലിവറി സമയത്ത് പണം നൽകണം',
+    SUCCESS: 'പേയ്‌മെന്റ്: പൂർത്തിയായി',
+    CANCELLED: 'പേയ്‌മെന്റ്: റദ്ദാക്കി',
+    FAILED: 'പേയ്‌മെന്റ്: പരാജയപ്പെട്ടു',
+    REFUNDED: 'പേയ്‌മെന്റ്: തിരികെ നൽകി',
+  },
+};
+
 export const MYORDERS_TEXT = {
   en: { title: 'Your latest orders:', none: 'You have no orders yet. Reply MENU to shop.' },
   ta: { title: 'உங்கள் சமீபத்திய ஆர்டர்கள்:', none: 'உங்களிடம் இன்னும் ஆர்டர்கள் இல்லை. வாங்க MENU என்று அனுப்பவும்.' },
@@ -54,5 +92,6 @@ export function mo(language: string) {
   return {
     ...MYORDERS_TEXT[key],
     status: (s: string) => (STATUS[key] ?? STATUS.en)[s] ?? s,
+    pay: (s: string) => (PAYMENT[key] ?? PAYMENT.en)[s] ?? s,
   };
 }
