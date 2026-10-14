@@ -85,6 +85,7 @@ model Product {
   orderItems   OrderItem[]
   cartItems    CartItem[]
   isActive     Boolean              @default(true)
+  stock        Int?
   createdAt    DateTime             @default(now())
 }
 

@@ -5,6 +5,7 @@ export const SELLER_TEXT = {
     'ADD - add a new product\n' +
     'MYPRODUCTS - see your products\n' +
     'PRICE 3 90 - change the price of product #3 to 90\n' +
+    'STOCK 3 25 - set the stock of product #3 to 25 (STOCK 3 OFF = unlimited)\n' +
     'HIDE 3 - take product #3 off the menu\n' +
     'SHOW 3 - put product #3 back on the menu\n' +
     'MYORDERS - see orders for your products\n' +
@@ -40,4 +41,9 @@ export const SELLER_TEXT = {
   hidden: (id: number) =>
     `Product #${id} is hidden from the menu. Send SHOW ${id} to bring it back.`,
   shown: (id: number) => `Product #${id} is back on the menu.`,
+  stockSet: (id: number, amount: number | null) =>
+    amount === null
+      ? `Product #${id} stock is now unlimited.`
+      : `Product #${id} stock is now ${amount}.${amount === 0 ? ' It is hidden from customers until you add stock.' : ''}`,
+  stockInvalid: 'Please send a stock number from 0 to 100000, or OFF for unlimited.',
 };

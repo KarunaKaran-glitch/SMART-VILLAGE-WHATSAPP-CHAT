@@ -9,6 +9,7 @@ import { mo } from './myOrdersText';
 import { ad } from './addressText';
 import { cn, sellerCancelNotice } from './cancelText';
 import { REG_TEXT } from './registerText';
+import { st } from './stockText';
 
 const app = express();
 app.use(express.json());
@@ -31,7 +32,10 @@ function localName(product: Named, language: string): string {
 
 function loadProducts() {
   return prisma.product.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      OR: [{ stock: null }, { stock: { gt: 0 } }],
+    },
     include: { translations: true },
     orderBy: { id: 'asc' },
   });
@@ -134,13 +138,20 @@ async function cancelOrder(userId: number, language: string, orderId: number): P
   const allPending = order.items.every((i) => i.status === 'PENDING');
   if (order.status !== 'PENDING' || !allPending) return C.cannot(orderId);
 
-  await prisma.$transaction([
+     await prisma.$transaction([
     prisma.orderItem.updateMany({ where: { orderId }, data: { status: 'CANCELLED' } }),
     prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } }),
     prisma.payment.updateMany({
       where: { orderId, status: 'INITIATED' },
       data: { status: 'CANCELLED' },
     }),
+    // Put the quantities back into stock (only for products that track stock)
+    ...order.items.map((i) =>
+      prisma.product.updateMany({
+        where: { id: i.productId, stock: { not: null } },
+        data: { stock: { increment: i.quantity } },
+      })
+    ),
   ]);
 
   // Tell each seller. A failure here must not undo the cancellation.
@@ -154,6 +165,15 @@ async function cancelOrder(userId: number, language: string, orderId: number): P
   }
 
   return C.cancelled(orderId);
+}
+
+// Thrown when a product has too little stock (or was hidden) while placing an order
+class StockError extends Error {
+  productId: number;
+  constructor(productId: number) {
+    super('Not enough stock');
+    this.productId = productId;
+  }
 }
 
 // Turns the cart into an order, empties the cart, and tells each seller
@@ -170,28 +190,56 @@ async function placeOrder(userId: number, language: string, address: string): Pr
     total += Number(item.product.price) * item.quantity;
   }
 
-  const order = await prisma.$transaction(async (tx) => {
-    const created = await tx.order.create({
-      data: {
-        customerId: userId,
-        total,
-        deliveryAddress: address,
-        items: {
-          create: cart.items.map((item) => ({
-            productId: item.productId,
-            sellerId: item.product.sellerId,
-            quantity: item.quantity,
-            unitPrice: item.product.price,
-          })),
+   let order: { id: number } | undefined;
+  try {
+    order = await prisma.$transaction(async (tx) => {
+      // Check and take stock first (all or nothing)
+      for (const item of cart.items) {
+        if (!item.product.isActive) throw new StockError(item.productId);
+        if (item.product.stock !== null) {
+          const taken = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } },
+          });
+          if (taken.count === 0) throw new StockError(item.productId);
+        }
+      }
+
+      const created = await tx.order.create({
+        data: {
+          customerId: userId,
+          total,
+          deliveryAddress: address,
+          items: {
+            create: cart.items.map((item) => ({
+              productId: item.productId,
+              sellerId: item.product.sellerId,
+              quantity: item.quantity,
+              unitPrice: item.product.price,
+            })),
+          },
         },
-      },
+      });
+      await tx.payment.create({
+        data: { orderId: created.id, amount: total, method: 'COD' },
+      });
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      return created;
     });
-    await tx.payment.create({
-      data: { orderId: created.id, amount: total, method: 'COD' },
-    });
-    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-    return created;
-  });
+  } catch (err) {
+    if (err instanceof StockError) {
+      const p = await prisma.product.findUnique({
+        where: { id: err.productId },
+        include: { translations: true },
+      });
+      if (!p) return T.invalidProduct;
+      const label = localName(p, language);
+      const left = p.isActive ? (p.stock ?? 0) : 0;
+      return left > 0 ? st(language).notEnough(label, left) : st(language).unavailable(label);
+    }
+    throw err;
+  }
+  if (!order) throw new Error('Order was not created');
 
   // Tell each seller about their own items. A failure here must not break the order.
   try {
@@ -469,8 +517,9 @@ async function handleWebhook(body: any) {
           if (mine.length === 0) {
             await sendReply(phone, SELLER_TEXT.noProducts);
           } else {
-                        const lines = mine.map(
-              (p) => `#${p.id} ${p.name} - ₹${p.price}${p.isActive ? '' : ' (hidden)'}`
+                          const lines = mine.map(
+              (p) =>
+                `#${p.id} ${p.name} - ₹${p.price} - stock: ${p.stock ?? 'unlimited'}${p.isActive ? '' : ' (hidden)'}`
             );
             await sendReply(phone, `${SELLER_TEXT.myProductsTitle}\n${lines.join('\n')}`);
           }
@@ -493,6 +542,27 @@ async function handleWebhook(body: any) {
             });
             await sendReply(phone, `${SELLER_TEXT.myOrdersTitle}\n${lines.join('\n')}`);
           }
+          return;
+        }
+
+                const stockMatch = command.match(/^STOCK\s+#?(\d+)\s+(\d+|OFF)$/);
+        if (stockMatch) {
+          const productId = Number(stockMatch[1]);
+          const amount = stockMatch[2] === 'OFF' ? null : Number(stockMatch[2]);
+          if (amount !== null && amount > 100000) {
+            await sendReply(phone, SELLER_TEXT.stockInvalid);
+            return;
+          }
+          const changed = await prisma.product.updateMany({
+            where: { id: productId, sellerId: user.id },
+            data: { stock: amount },
+          });
+          await sendReply(
+            phone,
+            changed.count === 0
+              ? SELLER_TEXT.productNotFound(productId)
+              : SELLER_TEXT.stockSet(productId, amount)
+          );
           return;
         }
 
@@ -711,6 +781,22 @@ async function handleWebhook(body: any) {
         update: {},
         create: { customerId: user.id },
       });
+
+      
+      const existing = await prisma.cartItem.findUnique({
+        where: { cartId_productId: { cartId: cart.id, productId: product.id } },
+      });
+      const already = existing?.quantity ?? 0;
+      const productLabel = localName(product, user.language);
+      if (!product.isActive) {
+        await sendReply(phone, st(user.language).unavailable(productLabel));
+        return;
+      }
+      if (product.stock !== null && already + qty > product.stock) {
+        const left = Math.max(product.stock - already, 0);
+        await sendReply(phone, st(user.language).onlyLeft(productLabel, left));
+        return;
+      }
 
       await prisma.cartItem.upsert({
         where: { cartId_productId: { cartId: cart.id, productId: product.id } },
