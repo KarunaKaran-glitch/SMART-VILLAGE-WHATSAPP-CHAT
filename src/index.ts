@@ -279,18 +279,17 @@ app.get('/webhook', (req: Request, res: Response) => {
 });
 
 // WhatsApp sends incoming messages here
-app.post('/webhook', async (req: Request, res: Response) => {
-  // Reply to Meta immediately so it does not retry
-  res.sendStatus(200);
+async function handleWebhook(body: any) {
+  let messageId: string | undefined;
 
   try {
-    const value = req.body?.entry?.[0]?.changes?.[0]?.value;
+    const value = body?.entry?.[0]?.changes?.[0]?.value;
     const message = value?.messages?.[0];
     if (!message) return; // not a message (for example a delivery status)
 
     
     // Ignore a message we have already handled (Meta can send the same one twice)
-    const messageId: string | undefined = message.id;
+    messageId = message.id;
     if (messageId) {
       const saved = await prisma.processedMessage.createMany({
         data: [{ id: messageId }],
@@ -650,8 +649,22 @@ app.post('/webhook', async (req: Request, res: Response) => {
 
     // Anything else
     await sendReply(phone, T.help);
+   } catch (err) {
+    // Forget this message ID so Meta's retry can be processed
+    if (messageId) {
+      await prisma.processedMessage.deleteMany({ where: { id: messageId } });
+    }
+    throw err;
+  }
+}
+
+app.post('/webhook', async (req: Request, res: Response) => {
+  try {
+    await handleWebhook(req.body);
+    res.sendStatus(200);
   } catch (err) {
     console.error('Webhook error:', err);
+    res.sendStatus(500);
   }
 });
 
