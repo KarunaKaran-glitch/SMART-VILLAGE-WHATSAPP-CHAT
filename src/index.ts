@@ -365,6 +365,97 @@ async function decideSeller(applicantId: number, approve: boolean): Promise<stri
   return REG_TEXT.decided(applicantId, approve ? 'APPROVED' : 'REJECTED');
 }
 
+// Admin blocks a seller: the seller role is removed and all their products are hidden
+async function blockSeller(sellerId: number): Promise<string> {
+  const seller = await prisma.user.findUnique({ where: { id: sellerId } });
+  if (!seller || seller.role !== 'SELLER') return REG_TEXT.notSeller(sellerId);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: sellerId },
+      data: {
+        role: 'CUSTOMER',
+        sellerStatus: 'BLOCKED',
+        state: 'BROWSING',
+        pendingProductName: null,
+      },
+    }),
+    prisma.product.updateMany({ where: { sellerId }, data: { isActive: false } }),
+  ]);
+
+  // Orders already placed stay as they are, so count the ones still open
+  const open = await prisma.orderItem.count({
+    where: { sellerId, status: { in: ['PENDING', 'CONFIRMED', 'SHIPPED'] } },
+  });
+
+  try {
+    await sendReply(seller.phone, REG_TEXT.blockedNotice);
+  } catch (err) {
+    console.error('Seller notification failed:', err);
+  }
+
+  return REG_TEXT.blocked(sellerId, open);
+}
+
+// Admin allows a blocked seller again (products stay hidden)
+async function unblockSeller(sellerId: number): Promise<string> {
+  const seller = await prisma.user.findUnique({ where: { id: sellerId } });
+  if (!seller || seller.sellerStatus !== 'BLOCKED') return REG_TEXT.notBlocked(sellerId);
+
+  await prisma.user.update({
+    where: { id: sellerId },
+    data: { role: 'SELLER', sellerStatus: 'APPROVED' },
+  });
+
+  try {
+    await sendReply(seller.phone, REG_TEXT.unblockedNotice);
+  } catch (err) {
+    console.error('Seller notification failed:', err);
+  }
+
+  return REG_TEXT.unblocked(sellerId);
+}
+
+// Totals for the whole marketplace
+async function salesReport(): Promise<string> {
+  const [orders, delivered, cancelled, cash, sellers, customers] = await Promise.all([
+    prisma.order.count(),
+    prisma.order.count({ where: { status: 'DELIVERED' } }),
+    prisma.order.count({ where: { status: 'CANCELLED' } }),
+    prisma.payment.aggregate({ where: { status: 'SUCCESS' }, _sum: { amount: true } }),
+    prisma.user.count({ where: { role: 'SELLER' } }),
+    prisma.user.count({ where: { role: 'CUSTOMER' } }),
+  ]);
+  const open = orders - delivered - cancelled;
+
+  const deliveredItems = await prisma.orderItem.findMany({
+    where: { status: 'DELIVERED' },
+    include: { seller: true },
+  });
+  const bySeller = new Map<number, { label: string; amount: number }>();
+  for (const it of deliveredItems) {
+    const row = bySeller.get(it.sellerId) ?? {
+      label: it.seller.shopName ?? it.seller.phone,
+      amount: 0,
+    };
+    row.amount += Number(it.unitPrice) * it.quantity;
+    bySeller.set(it.sellerId, row);
+  }
+  const sellerLines = [...bySeller.entries()].map(
+    ([id, r]) => `#${id} ${r.label}: ₹${r.amount}`
+  );
+
+  return [
+    'Marketplace summary:',
+    `Orders: ${orders} (open ${open}, delivered ${delivered}, cancelled ${cancelled})`,
+    `Cash collected: ₹${Number(cash._sum.amount ?? 0)}`,
+    `Sellers: ${sellers}, customers: ${customers}`,
+    sellerLines.length > 0
+      ? `Delivered sales per seller:\n${sellerLines.join('\n')}`
+      : 'No delivered sales yet.',
+  ].join('\n');
+}
+
 app.get('/', (_req: Request, res: Response) => {
   res.send('WhatsApp Marketplace server is running');
 });
@@ -641,6 +732,23 @@ async function handleWebhook(body: any) {
         }
         return;
       }
+
+            const blockMatch = command.match(/^(BLOCK|UNBLOCK)\s+#?(\d+)$/);
+      if (blockMatch) {
+        const targetId = Number(blockMatch[2]);
+        await sendReply(
+          phone,
+          blockMatch[1] === 'BLOCK'
+            ? await blockSeller(targetId)
+            : await unblockSeller(targetId)
+        );
+        return;
+      }
+      if (command === 'SALES') {
+        await sendReply(phone, await salesReport());
+        return;
+      }
+      
       const decideMatch = command.match(/^(APPROVE|REJECT)\s+#?(\d+)$/);
       if (decideMatch) {
         await sendReply(
@@ -858,6 +966,10 @@ async function handleWebhook(body: any) {
       }
       if (user.role === 'SELLER' || user.sellerStatus === 'APPROVED') {
         await sendReply(phone, REG_TEXT.alreadySeller);
+        return;
+      }
+            if (user.sellerStatus === 'BLOCKED') {
+        await sendReply(phone, REG_TEXT.sellBlocked);
         return;
       }
       if (user.sellerStatus === 'PENDING') {
