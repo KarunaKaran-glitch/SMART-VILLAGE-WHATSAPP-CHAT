@@ -636,7 +636,24 @@ async function handleWebhook(body: any) {
           return;
         }
 
-                const stockMatch = command.match(/^STOCK\s+#?(\d+)\s+(\d+|OFF)$/);
+                if (command === 'UPI') {
+          await sendReply(phone, SELLER_TEXT.upiCurrent(user.upiId));
+          return;
+        }
+        const upiMatch = text.match(/^UPI\s+(\S+)$/i);
+        if (upiMatch) {
+          const upi = upiMatch[1].trim();
+          // A UPI ID looks like name@bank. Card and account numbers have no "@", so they are rejected.
+          if (!/^[A-Za-z0-9._-]{2,64}@[A-Za-z]{2,32}$/.test(upi)) {
+            await sendReply(phone, SELLER_TEXT.upiInvalid);
+            return;
+          }
+          await prisma.user.update({ where: { id: user.id }, data: { upiId: upi } });
+          await sendReply(phone, SELLER_TEXT.upiSet(upi));
+          return;
+        }
+
+        const stockMatch = command.match(/^STOCK\s+#?(\d+)\s+(\d+|OFF)$/);
         if (stockMatch) {
           const productId = Number(stockMatch[1]);
           const amount = stockMatch[2] === 'OFF' ? null : Number(stockMatch[2]);

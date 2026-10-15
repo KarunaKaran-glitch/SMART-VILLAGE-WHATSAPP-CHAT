@@ -8,6 +8,7 @@ export const SELLER_TEXT = {
     'STOCK 3 25 - set the stock of product #3 to 25 (STOCK 3 OFF = unlimited)\n' +
     'HIDE 3 - take product #3 off the menu\n' +
     'SHOW 3 - put product #3 back on the menu\n' +
+    'UPI yourname@bank - set the UPI ID customers pay to (UPI alone shows it)\n' +
     'MYORDERS - see orders for your products\n' +
     'CONFIRM 3 - confirm order #3\n' +
     'SHIP 3 - mark order #3 as shipped\n' +
@@ -46,4 +47,12 @@ export const SELLER_TEXT = {
       ? `Product #${id} stock is now unlimited.`
       : `Product #${id} stock is now ${amount}.${amount === 0 ? ' It is hidden from customers until you add stock.' : ''}`,
   stockInvalid: 'Please send a stock number from 0 to 100000, or OFF for unlimited.',
+  upiSet: (upi: string) =>
+    `Your UPI ID is saved: ${upi}\nCustomers will see it when they pay you. Never share your bank account number or card details here.`,
+  upiInvalid:
+    'That does not look like a UPI ID. It looks like yourname@bank. Please send it again, for example: UPI yourname@bank',
+  upiCurrent: (upi: string | null) =>
+    upi
+      ? `Your UPI ID: ${upi}\nSend UPI yourname@bank to change it.`
+      : 'You have not set a UPI ID yet. Send UPI yourname@bank to set it.',
 };

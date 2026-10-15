@@ -40,11 +40,13 @@ enum PaymentStatus {
   FAILED
   REFUNDED
   CANCELLED
+  AWAITING_CONFIRMATION
 }
 
 enum PaymentMethod {
   COD
   ONLINE
+  UPI_DIRECT
 }
 
 enum UserState {
@@ -55,6 +57,7 @@ enum UserState {
   ADDING_PRODUCT_PRICE
   ENTERING_ADDRESS
   ENTERING_SHOP_NAME
+  CHOOSING_PAYMENT
 }
 
 model User {
@@ -68,6 +71,7 @@ model User {
   pendingProductName String?
   address            String?
   shopName           String?
+  upiId              String?
   sellerStatus       SellerStatus @default(NONE)
   createdAt          DateTime     @default(now())
   products           Product[]
