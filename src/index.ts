@@ -10,6 +10,8 @@ import { ad } from './addressText';
 import { cn, sellerCancelNotice } from './cancelText';
 import { REG_TEXT } from './registerText';
 import { st } from './stockText';
+import { pay } from './payText';
+import { ACTIVE_PAYMENT_METHOD } from './paymentConfig';
 
 const app = express();
 app.use(express.json());
@@ -176,99 +178,6 @@ class StockError extends Error {
   }
 }
 
-// Turns the cart into an order, empties the cart, and tells each seller
-async function placeOrder(userId: number, language: string, address: string): Promise<string> {
-  const T = t(language);
-  const cart = await prisma.cart.findUnique({
-    where: { customerId: userId },
-    include: { items: { include: { product: true } } },
-  });
-  if (!cart || cart.items.length === 0) return T.emptyCart;
-
-  let total = 0;
-  for (const item of cart.items) {
-    total += Number(item.product.price) * item.quantity;
-  }
-
-   let order: { id: number } | undefined;
-  try {
-    order = await prisma.$transaction(async (tx) => {
-      // Check and take stock first (all or nothing)
-      for (const item of cart.items) {
-        if (!item.product.isActive) throw new StockError(item.productId);
-        if (item.product.stock !== null) {
-          const taken = await tx.product.updateMany({
-            where: { id: item.productId, stock: { gte: item.quantity } },
-            data: { stock: { decrement: item.quantity } },
-          });
-          if (taken.count === 0) throw new StockError(item.productId);
-        }
-      }
-
-      const created = await tx.order.create({
-        data: {
-          customerId: userId,
-          total,
-          deliveryAddress: address,
-          items: {
-            create: cart.items.map((item) => ({
-              productId: item.productId,
-              sellerId: item.product.sellerId,
-              quantity: item.quantity,
-              unitPrice: item.product.price,
-            })),
-          },
-        },
-      });
-      await tx.payment.create({
-        data: { orderId: created.id, amount: total, method: 'COD' },
-      });
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-      return created;
-    });
-  } catch (err) {
-    if (err instanceof StockError) {
-      const p = await prisma.product.findUnique({
-        where: { id: err.productId },
-        include: { translations: true },
-      });
-      if (!p) return T.invalidProduct;
-      const label = localName(p, language);
-      const left = p.isActive ? (p.stock ?? 0) : 0;
-      return left > 0 ? st(language).notEnough(label, left) : st(language).unavailable(label);
-    }
-    throw err;
-  }
-  if (!order) throw new Error('Order was not created');
-
-  // Tell each seller about their own items. A failure here must not break the order.
-  try {
-    const customer = await prisma.user.findUnique({ where: { id: userId } });
-    const customerLabel = `${customer?.name ?? 'Customer'} (${customer?.phone})\nDeliver to: ${address}`;
-
-    const items = await prisma.orderItem.findMany({
-      where: { orderId: order.id },
-      include: { product: true, seller: true },
-    });
-
-    const bySeller = new Map<string, string[]>();
-    for (const it of items) {
-      const lineTotal = Number(it.unitPrice) * it.quantity;
-      const line = `${it.product.name} x ${it.quantity} = ₹${lineTotal}`;
-      const list = bySeller.get(it.seller.phone) ?? [];
-      list.push(line);
-      bySeller.set(it.seller.phone, list);
-    }
-
-    for (const [sellerPhone, lines] of bySeller) {
-      await sendReply(sellerPhone, SELLER_TEXT.newOrder(order.id, lines, customerLabel));
-    }
-  } catch (err) {
-    console.error('Seller notification failed:', err);
-  }
-
-  return ot(language).placed(order.id, total);
-}
 
 // Seller moves an order forward: CONFIRM, then SHIP, then DELIVER
 const STATUS_FLOW: Record<string, { to: 'CONFIRMED' | 'SHIPPED' | 'DELIVERED'; from: string[] }> = {
@@ -1029,6 +938,7 @@ async function handleWebhook(body: any) {
         await sendReply(phone, ad(user.language).ask);
         return;
       }
+      
       await sendReply(phone, await placeOrder(user.id, user.language, user.address));
       return;
     }
