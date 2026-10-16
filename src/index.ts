@@ -11,6 +11,7 @@ import { cn, sellerCancelNotice } from './cancelText';
 import { REG_TEXT } from './registerText';
 import { st } from './stockText';
 import { pay } from './payText';
+import { uf } from './upiFlowText';
 import { ACTIVE_PAYMENT_METHOD } from './paymentConfig';
 
 const app = express();
@@ -121,7 +122,9 @@ async function customerOrders(userId: number, language: string): Promise<string>
     const items = o.items
       .map((i) => `  ${localName(i.product, language)} x ${i.quantity}`)
       .join('\n');
-    const payLine = o.payments[0] ? `\n  ${M.pay(o.payments[0].status)}` : '';
+    const payLine = o.payments[0]
+      ? `\n  ${M.pay(o.payments[0].status, o.payments[0].method)}`
+      : '';
     return `#${o.id} - ${M.status(o.status)} - ₹${o.total}\n${items}${payLine}`;
   });
   return `${M.title}\n\n${blocks.join('\n\n')}`;
@@ -133,12 +136,18 @@ async function cancelOrder(userId: number, language: string, orderId: number): P
 
   const order = await prisma.order.findFirst({
     where: { id: orderId, customerId: userId },
-    include: { items: { include: { seller: true } } },
+    include: { items: { include: { seller: true } }, payments: true },
   });
   if (!order) return C.notFound(orderId);
 
   const allPending = order.items.every((i) => i.status === 'PENDING');
   if (order.status !== 'PENDING' || !allPending) return C.cannot(orderId);
+
+  // Once the customer has reported a UPI payment, the seller must answer first
+  const paymentStarted = order.payments.some(
+    (p) => p.status === 'AWAITING_CONFIRMATION' || p.status === 'SUCCESS'
+  );
+  if (paymentStarted) return C.cannot(orderId);
 
   await prisma.$transaction([
     prisma.orderItem.updateMany({ where: { orderId }, data: { status: 'CANCELLED' } }),
@@ -167,6 +176,129 @@ async function cancelOrder(userId: number, language: string, orderId: number): P
   }
 
   return C.cancelled(orderId);
+}
+
+// PAID n ref: the customer reports a UPI payment; the seller is asked to check it
+async function reportPaid(
+  userId: number,
+  language: string,
+  orderId: number,
+  rawRef: string
+): Promise<string> {
+  const U = uf(language);
+
+  // UPI transaction numbers are usually 12 digits; allow 8 to 24 letters or digits
+  const ref = rawRef.toUpperCase();
+  if (!/^[A-Z0-9]{8,24}$/.test(ref)) return U.invalidRef;
+
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, customerId: userId },
+    include: {
+      items: { include: { seller: true } },
+      payments: { orderBy: { id: 'desc' }, take: 1 },
+    },
+  });
+  if (!order) return U.notFound(orderId);
+
+  const payment = order.payments[0];
+  if (
+    !payment ||
+    order.status === 'CANCELLED' ||
+    payment.method !== 'UPI_DIRECT' ||
+    (payment.status !== 'INITIATED' && payment.status !== 'AWAITING_CONFIRMATION')
+  ) {
+    return U.nothingToPay(orderId);
+  }
+
+  // The same transaction number cannot pay for two orders
+  const usedElsewhere = await prisma.payment.findFirst({
+    where: { reference: ref, id: { not: payment.id } },
+  });
+  if (usedElsewhere) return U.refUsed;
+
+  try {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: 'AWAITING_CONFIRMATION', reference: ref },
+    });
+  } catch (err: any) {
+    // Another message saved the same number at the same moment
+    if (err?.code === 'P2002') return U.refUsed;
+    throw err;
+  }
+
+  // Tell the seller. A failure here must not undo the report.
+  try {
+    const sellerPhones = new Set(order.items.map((i) => i.seller.phone));
+    for (const sellerPhone of sellerPhones) {
+      await sendReply(
+        sellerPhone,
+        SELLER_TEXT.paymentReported(orderId, Number(payment.amount), ref)
+      );
+    }
+  } catch (err) {
+    console.error('Seller payment notice failed:', err);
+  }
+
+  return U.paidThanks(orderId);
+}
+
+// RECEIVED n / NOTRECEIVED n: the seller answers a reported UPI payment
+async function decidePayment(
+  sellerId: number,
+  orderId: number,
+  received: boolean
+): Promise<string> {
+  // Only this seller's own orders
+  const mine = await prisma.orderItem.count({ where: { orderId, sellerId } });
+  if (mine === 0) return SELLER_TEXT.orderNotFound(orderId);
+
+  const payment = await prisma.payment.findFirst({
+    where: { orderId },
+    orderBy: { id: 'desc' },
+  });
+  if (!payment || payment.method !== 'UPI_DIRECT' || payment.status !== 'AWAITING_CONFIRMATION') {
+    return SELLER_TEXT.noPaymentWaiting(orderId);
+  }
+
+  if (received) {
+    await prisma.$transaction([
+      prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCESS' } }),
+      prisma.order.updateMany({
+        where: { id: orderId, status: 'PENDING' },
+        data: { status: 'PAID' },
+      }),
+      prisma.orderItem.updateMany({
+        where: { orderId, status: 'PENDING' },
+        data: { status: 'PAID' },
+      }),
+    ]);
+  } else {
+    // Back to waiting; the customer can send PAID again with the right number
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: 'INITIATED', reference: null },
+    });
+  }
+
+  // Tell the customer. A failure here must not undo the decision.
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true },
+    });
+    if (order) {
+      const U = uf(order.customer.language);
+      await sendReply(
+        order.customer.phone,
+        received ? U.received(orderId) : U.notReceived(orderId)
+      );
+    }
+  } catch (err) {
+    console.error('Customer payment notice failed:', err);
+  }
+
+  return received ? SELLER_TEXT.receivedDone(orderId) : SELLER_TEXT.notReceivedDone(orderId);
 }
 
 // Thrown when a product has too little stock (or was hidden) while placing an order
@@ -326,6 +458,17 @@ async function updateOrderStatus(
   // Only this seller's own items in this order
   const items = await prisma.orderItem.findMany({ where: { orderId, sellerId } });
   if (items.length === 0) return SELLER_TEXT.orderNotFound(orderId);
+
+  // UPI orders can only be confirmed after the seller has received the money
+  if (action === 'CONFIRM') {
+    const payment = await prisma.payment.findFirst({
+      where: { orderId },
+      orderBy: { id: 'desc' },
+    });
+    if (payment?.method === 'UPI_DIRECT' && payment.status !== 'SUCCESS') {
+      return SELLER_TEXT.needPayment(orderId);
+    }
+  }
 
   const allowed = items.filter((i) => rule.from.includes(i.status));
   if (allowed.length === 0) {
@@ -758,6 +901,15 @@ async function handleWebhook(body: any) {
           return;
         }
 
+        const paymentMatch = command.match(/^(RECEIVED|NOTRECEIVED)\s+#?(\d+)$/);
+        if (paymentMatch) {
+          await sendReply(
+            phone,
+            await decidePayment(user.id, Number(paymentMatch[2]), paymentMatch[1] === 'RECEIVED')
+          );
+          return;
+        }
+
         const statusMatch = command.match(/^(CONFIRM|SHIP|DELIVER)\s+#?(\d+)$/);
         if (statusMatch) {
           await sendReply(
@@ -841,7 +993,8 @@ async function handleWebhook(body: any) {
         user.state === 'ENTERING_ADDRESS' ||
         user.state === 'ENTERING_SHOP_NAME') &&
       (['MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER', 'SELL'].includes(command) ||
-        /^(REMOVE|CANCELORDER)\s+#?\d+$/.test(command))
+        /^(REMOVE|CANCELORDER)\s+#?\d+$/.test(command) ||
+        /^PAID(\s|$)/.test(command))
     ) {
       await prisma.user.update({
         where: { id: user.id },
@@ -1010,6 +1163,18 @@ async function handleWebhook(body: any) {
       await sendReply(
         phone,
         await cancelOrder(user.id, user.language, Number(cancelMatch[1]))
+      );
+      return;
+    }
+
+    // PAID n ref: the customer reports a UPI payment (plain PAID shows how)
+    if (/^PAID(\s|$)/.test(command)) {
+      const paidMatch = text.match(/^PAID\s+#?(\d+)\s+(\S+)$/i);
+      await sendReply(
+        phone,
+        paidMatch
+          ? await reportPaid(user.id, user.language, Number(paidMatch[1]), paidMatch[2])
+          : uf(user.language).paidUsage
       );
       return;
     }

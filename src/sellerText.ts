@@ -10,6 +10,8 @@ export const SELLER_TEXT = {
     'SHOW 3 - put product #3 back on the menu\n' +
     'UPI yourname@bank - set the UPI ID customers pay to (UPI alone shows it)\n' +
     'MYORDERS - see orders for your products\n' +
+    'RECEIVED 3 - the UPI money for order #3 reached your bank\n' +
+    'NOTRECEIVED 3 - the UPI money for order #3 did not arrive\n' +
     'CONFIRM 3 - confirm order #3\n' +
     'SHIP 3 - mark order #3 as shipped\n' +
     'DELIVER 3 - mark order #3 as delivered\n' +
@@ -51,6 +53,16 @@ export const SELLER_TEXT = {
     `Your UPI ID is saved: ${upi}\nCustomers will see it when they pay you. Never share your bank account number or card details here.`,
   upiInvalid:
     'That does not look like a UPI ID. It looks like yourname@bank. Please send it again, for example: UPI yourname@bank',
+  paymentReported: (orderId: number, amount: number, ref: string) =>
+    `The customer says they paid ₹${amount} for order #${orderId}.\nUPI transaction number: ${ref}\nCheck your bank or UPI app. If the money is there, send RECEIVED ${orderId}. If not, send NOTRECEIVED ${orderId}.`,
+  needPayment: (orderId: number) =>
+    `Order #${orderId} is not paid yet. Wait for the customer to pay by UPI, check your bank app, then send RECEIVED ${orderId} before CONFIRM.`,
+  receivedDone: (orderId: number) =>
+    `Payment for order #${orderId} is marked as received. The customer has been told. Next: CONFIRM ${orderId}.`,
+  notReceivedDone: (orderId: number) =>
+    `Order #${orderId}: the customer has been told the money did not arrive and was asked to check and send PAID again.`,
+  noPaymentWaiting: (orderId: number) =>
+    `Order #${orderId} has no UPI payment waiting for your answer. The customer must send PAID first.`,
   upiCurrent: (upi: string | null) =>
     upi
       ? `Your UPI ID: ${upi}\nSend UPI yourname@bank to change it.`

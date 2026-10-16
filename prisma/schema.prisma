@@ -157,6 +157,7 @@ model Payment {
   method     PaymentMethod @default(COD)
   status     PaymentStatus @default(INITIATED)
   gatewayRef String?       @unique
+  reference  String?       @unique // customer's UPI transaction number (sent with PAID)
   createdAt  DateTime      @default(now())
 }
 
