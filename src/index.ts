@@ -121,8 +121,8 @@ async function customerOrders(userId: number, language: string): Promise<string>
     const items = o.items
       .map((i) => `  ${localName(i.product, language)} x ${i.quantity}`)
       .join('\n');
-    const pay = o.payments[0] ? `\n  ${M.pay(o.payments[0].status)}` : '';
-    return `#${o.id} - ${M.status(o.status)} - ₹${o.total}\n${items}${pay}`;
+    const payLine = o.payments[0] ? `\n  ${M.pay(o.payments[0].status)}` : '';
+    return `#${o.id} - ${M.status(o.status)} - ₹${o.total}\n${items}${payLine}`;
   });
   return `${M.title}\n\n${blocks.join('\n\n')}`;
 }
@@ -140,7 +140,7 @@ async function cancelOrder(userId: number, language: string, orderId: number): P
   const allPending = order.items.every((i) => i.status === 'PENDING');
   if (order.status !== 'PENDING' || !allPending) return C.cannot(orderId);
 
-     await prisma.$transaction([
+  await prisma.$transaction([
     prisma.orderItem.updateMany({ where: { orderId }, data: { status: 'CANCELLED' } }),
     prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } }),
     prisma.payment.updateMany({
@@ -178,6 +178,136 @@ class StockError extends Error {
   }
 }
 
+// Turns the cart into one order per seller (each with a payment), empties the cart,
+// and tells each seller
+async function placeOrder(userId: number, language: string, address: string): Promise<string> {
+  const T = t(language);
+  const P = pay(language);
+  const cart = await prisma.cart.findUnique({
+    where: { customerId: userId },
+    include: { items: { include: { product: { include: { seller: true } } } } },
+  });
+  if (!cart || cart.items.length === 0) return T.emptyCart;
+
+  // Group the cart by seller: one order per seller
+  const groups = new Map<number, typeof cart.items>();
+  for (const item of cart.items) {
+    const list = groups.get(item.product.sellerId) ?? [];
+    list.push(item);
+    groups.set(item.product.sellerId, list);
+  }
+
+  // With UPI, every seller must have a UPI ID so the customer can pay them
+  if (ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT') {
+    for (const items of groups.values()) {
+      const seller = items[0].product.seller;
+      if (!seller.upiId) return P.noUpi(seller.shopName ?? 'seller');
+    }
+  }
+
+  type Placed = {
+    orderId: number;
+    sellerPhone: string;
+    shop: string;
+    upiId: string | null;
+    total: number;
+    lines: string[];
+  };
+
+  let placed: Placed[] = [];
+  try {
+    placed = await prisma.$transaction(async (tx) => {
+      // Check and take stock first (all or nothing)
+      for (const item of cart.items) {
+        if (!item.product.isActive) throw new StockError(item.productId);
+        if (item.product.stock !== null) {
+          const taken = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } },
+          });
+          if (taken.count === 0) throw new StockError(item.productId);
+        }
+      }
+
+      const results: Placed[] = [];
+      for (const items of groups.values()) {
+        const seller = items[0].product.seller;
+        const total = items.reduce(
+          (sum, i) => sum + Number(i.product.price) * i.quantity,
+          0
+        );
+        const created = await tx.order.create({
+          data: {
+            customerId: userId,
+            total,
+            deliveryAddress: address,
+            items: {
+              create: items.map((i) => ({
+                productId: i.productId,
+                sellerId: i.product.sellerId,
+                quantity: i.quantity,
+                unitPrice: i.product.price,
+              })),
+            },
+          },
+        });
+        await tx.payment.create({
+          data: { orderId: created.id, amount: total, method: ACTIVE_PAYMENT_METHOD },
+        });
+        results.push({
+          orderId: created.id,
+          sellerPhone: seller.phone,
+          shop: seller.shopName ?? seller.phone,
+          upiId: seller.upiId,
+          total,
+          lines: items.map(
+            (i) => `${i.product.name} x ${i.quantity} = ₹${Number(i.product.price) * i.quantity}`
+          ),
+        });
+      }
+
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+      return results;
+    });
+  } catch (err) {
+    if (err instanceof StockError) {
+      const p = await prisma.product.findUnique({
+        where: { id: err.productId },
+        include: { translations: true },
+      });
+      if (!p) return T.invalidProduct;
+      const label = localName(p, language);
+      const left = p.isActive ? (p.stock ?? 0) : 0;
+      return left > 0 ? st(language).notEnough(label, left) : st(language).unavailable(label);
+    }
+    throw err;
+  }
+
+  // Tell each seller. A failure here must not break the order.
+  try {
+    const customer = await prisma.user.findUnique({ where: { id: userId } });
+    const customerLabel = `${customer?.name ?? 'Customer'} (${customer?.phone})\nDeliver to: ${address}`;
+    for (const p of placed) {
+      const note =
+        ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT'
+          ? 'Payment: by UPI. Wait for the customer to confirm, then check your bank app.'
+          : 'Payment: cash on delivery.';
+      await sendReply(
+        p.sellerPhone,
+        SELLER_TEXT.newOrder(p.orderId, [...p.lines, note], customerLabel)
+      );
+    }
+  } catch (err) {
+    console.error('Seller notification failed:', err);
+  }
+
+  // Tell the customer how to pay
+  if (ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT') {
+    const blocks = placed.map((p) => P.block(p.orderId, p.shop, p.total, p.upiId ?? ''));
+    return `${P.header}\n\n${blocks.join('\n\n')}\n\n${P.footer}`;
+  }
+  return placed.map((p) => ot(language).placed(p.orderId, p.total)).join('\n\n');
+}
 
 // Seller moves an order forward: CONFIRM, then SHIP, then DELIVER
 const STATUS_FLOW: Record<string, { to: 'CONFIRMED' | 'SHIPPED' | 'DELIVERED'; from: string[] }> = {
@@ -517,7 +647,7 @@ async function handleWebhook(body: any) {
           if (mine.length === 0) {
             await sendReply(phone, SELLER_TEXT.noProducts);
           } else {
-                          const lines = mine.map(
+            const lines = mine.map(
               (p) =>
                 `#${p.id} ${p.name} - ₹${p.price} - stock: ${p.stock ?? 'unlimited'}${p.isActive ? '' : ' (hidden)'}`
             );
@@ -545,7 +675,7 @@ async function handleWebhook(body: any) {
           return;
         }
 
-                if (command === 'UPI') {
+        if (command === 'UPI') {
           await sendReply(phone, SELLER_TEXT.upiCurrent(user.upiId));
           return;
         }
@@ -583,7 +713,7 @@ async function handleWebhook(body: any) {
           return;
         }
 
-                const priceMatch = command.match(/^PRICE\s+#?(\d+)\s+(\d+(?:\.\d{1,2})?)$/);
+        const priceMatch = command.match(/^PRICE\s+#?(\d+)\s+(\d+(?:\.\d{1,2})?)$/);
         if (priceMatch) {
           const productId = Number(priceMatch[1]);
           const newPrice = Number(priceMatch[2]);
@@ -659,7 +789,7 @@ async function handleWebhook(body: any) {
         return;
       }
 
-            const blockMatch = command.match(/^(BLOCK|UNBLOCK)\s+#?(\d+)$/);
+      const blockMatch = command.match(/^(BLOCK|UNBLOCK)\s+#?(\d+)$/);
       if (blockMatch) {
         const targetId = Number(blockMatch[2]);
         await sendReply(
@@ -674,7 +804,7 @@ async function handleWebhook(body: any) {
         await sendReply(phone, await salesReport());
         return;
       }
-      
+
       const decideMatch = command.match(/^(APPROVE|REJECT)\s+#?(\d+)$/);
       if (decideMatch) {
         await sendReply(
@@ -816,7 +946,6 @@ async function handleWebhook(body: any) {
         create: { customerId: user.id },
       });
 
-      
       const existing = await prisma.cartItem.findUnique({
         where: { cartId_productId: { cartId: cart.id, productId: product.id } },
       });
@@ -894,7 +1023,7 @@ async function handleWebhook(body: any) {
         await sendReply(phone, REG_TEXT.alreadySeller);
         return;
       }
-            if (user.sellerStatus === 'BLOCKED') {
+      if (user.sellerStatus === 'BLOCKED') {
         await sendReply(phone, REG_TEXT.sellBlocked);
         return;
       }
@@ -938,7 +1067,7 @@ async function handleWebhook(body: any) {
         await sendReply(phone, ad(user.language).ask);
         return;
       }
-      
+
       await sendReply(phone, await placeOrder(user.id, user.language, user.address));
       return;
     }
