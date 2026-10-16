@@ -1,5 +1,8 @@
 import { prisma } from './db';
 
+// Sample handmade products for a new, empty database.
+// They have no photo yet, so customers only see them after the seller sends
+// PHOTO <number> and an admin sends APPROVEPRODUCT <number>.
 async function main() {
   const count = await prisma.product.count();
   if (count > 0) {
@@ -10,19 +13,19 @@ async function main() {
   const seller = await prisma.user.upsert({
     where: { phone: '919000000001' },
     update: { role: 'SELLER' },
-    create: { phone: '919000000001', name: 'Test Seller', role: 'SELLER' },
+    create: { phone: '919000000001', name: 'Test Seller', role: 'SELLER', shopName: 'Test Shop' },
   });
 
   await prisma.product.create({
     data: {
-      name: 'Rice 1kg',
-      price: 60,
+      name: 'Jute Handbag',
+      price: 450,
       sellerId: seller.id,
       translations: {
         create: [
-          { language: 'en', name: 'Rice 1kg' },
-          { language: 'ta', name: 'அரிசி 1 கிலோ' },
-          { language: 'hi', name: 'चावल 1 किलो' },
+          { language: 'en', name: 'Jute Handbag' },
+          { language: 'ta', name: 'சணல் கைப்பை' },
+          { language: 'hi', name: 'जूट हैंडबैग' },
         ],
       },
     },
@@ -30,14 +33,14 @@ async function main() {
 
   await prisma.product.create({
     data: {
-      name: 'Honey 500g',
-      price: 250,
+      name: 'Embroidered Girls Bag',
+      price: 350,
       sellerId: seller.id,
       translations: {
         create: [
-          { language: 'en', name: 'Honey 500g' },
-          { language: 'ta', name: 'தேன் 500 கிராம்' },
-          { language: 'hi', name: 'शहद 500 ग्राम' },
+          { language: 'en', name: 'Embroidered Girls Bag' },
+          { language: 'ta', name: 'எம்பிராய்டரி பெண்கள் பை' },
+          { language: 'hi', name: 'कढ़ाई वाला लड़कियों का बैग' },
         ],
       },
     },

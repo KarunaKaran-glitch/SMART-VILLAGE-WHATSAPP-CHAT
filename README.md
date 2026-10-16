@@ -1,6 +1,6 @@
 # Smart Village WhatsApp Marketplace
 
-A WhatsApp chatbot backend for a multi-vendor village marketplace. Customers browse products, fill a cart and place orders by sending short text commands. Local sellers list and manage their products, and admins approve sellers, all inside the same WhatsApp chat.
+A WhatsApp chatbot backend for a multi-vendor marketplace of **handmade products** (bags, handbags and similar). Customers browse products with photos, fill a cart, place orders and pay the seller by UPI ID or QR code, by sending short text commands. Local sellers list their products with a photo, and admins approve sellers and every product, all inside the same WhatsApp chat.
 
 The bot works in five languages: English, Tamil, Hindi, Telugu and Malayalam.
 
@@ -84,7 +84,26 @@ On Windows PowerShell, define this helper once per terminal (paste it as one lin
 function Send-Msg($phone,$name,$text,$id=('wamid.'+[guid]::NewGuid().ToString())){ $obj=@{entry=@(@{changes=@(@{value=@{contacts=@(@{profile=@{name=$name};wa_id=$phone});messages=@(@{from=$phone;id=$id;type='text';text=@{body=$text}})}})})}; $json=$obj | ConvertTo-Json -Depth 10; Invoke-RestMethod -Uri http://localhost:3000/webhook -Method Post -ContentType "application/json" -Body $json }
 ```
 
+To send a test photo (product photo or UPI QR code), define `Send-Img` the same way and call `Send-Img '918888888888' 'Ravi' 'D:\photos\bag.png'` (`.jpg`, `.png` or `.webp`):
+
+```powershell
+function Send-Img($phone,$name,$file){ $ext=[IO.Path]::GetExtension($file).ToLower(); $mime=@{'.png'='image/png';'.jpg'='image/jpeg';'.jpeg'='image/jpeg';'.webp'='image/webp'}[$ext]; if(-not $mime){ Write-Host 'Use a .jpg, .png or .webp photo'; return }; $obj=@{entry=@(@{changes=@(@{value=@{contacts=@(@{profile=@{name=$name};wa_id=$phone});messages=@(@{from=$phone;id=('wamid.'+[guid]::NewGuid());type='image';image=@{id='test';mime_type=$mime;test_data=[Convert]::ToBase64String([IO.File]::ReadAllBytes($file))}})}})})}; $b=[Text.Encoding]::UTF8.GetBytes(($obj|ConvertTo-Json -Depth 10 -Compress)); Invoke-RestMethod -Uri http://localhost:3000/webhook -Method Post -ContentType 'application/json; charset=utf-8' -Body $b }
+```
+
+The photo goes in a `test_data` field that the server only accepts while WhatsApp sending is off; live, photos are downloaded from Meta by media ID. Sent photos are printed as `http://localhost:3000/images/<key>` links you can open in a browser.
+
 If PowerShell blocks `npm` or `npx` ("not digitally signed"), use `npm.cmd` and `npx.cmd` instead.
+
+### Going live
+
+Add these to `.env` (never commit them):
+
+| Key | Purpose |
+|---|---|
+| `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | Turn on real sending (otherwise replies are only printed) |
+| `WHATSAPP_APP_SECRET` | Turn on the `X-Hub-Signature-256` check |
+| `PUBLIC_BASE_URL` | Public HTTPS address of this server (for example the ngrok URL), so WhatsApp can fetch product photos and QR codes from `/images/<key>` |
+| `GRAPH_API_VERSION` | Optional, default `v25.0` |
 
 ### Make someone an admin
 
@@ -105,13 +124,14 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 | Command | What it does |
 |---|---|
 | `LANG` | Choose the language again |
-| `MENU` | List the products that are available |
-| `<number>` | Pick a product from the menu, then send a quantity (1–99) |
+| `MENU` | List the approved products (name and price) |
+| `<number>` | Pick a product from the menu: the bot sends its photo and price, then send a quantity (1–99) |
 | `CART` | Show the cart and its total |
 | `REMOVE <line>` | Remove one line from the cart |
 | `CLEAR` | Empty the cart |
 | `ADDRESS` | Set or change the delivery address |
 | `ORDER` | Place an order from the cart (asks for an address the first time). Creates one order per seller and shows each seller's UPI ID |
+| `QR <order id>` | Get a QR code to pay that order: the seller's own QR photo, or a QR made from the seller's UPI ID with the amount and note filled in |
 | `PAID <order id> <transaction no.>` | Report a UPI payment; the seller is asked to check it (`PAID` alone shows how) |
 | `MYORDERS` | Show your last 5 orders with order and payment status |
 | `CANCELORDER <id>` | Cancel an order while every item is still pending and no payment has been reported |
@@ -122,12 +142,14 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 
 | Command | What it does |
 |---|---|
-| `ADD` | Add a product (asks for a name, then a price) |
-| `MYPRODUCTS` | List your products with price, stock and visibility |
+| `ADD` | Add a handmade product (asks for a name, a price, then a photo). It is hidden until an admin approves it |
+| `PHOTO <id>` | Send a new photo for a product (the admin checks it again) |
+| `MYPRODUCTS` | List your products with price, stock, approval and visibility |
 | `PRICE <id> <amount>` | Change a product's price |
 | `STOCK <id> <qty>` / `STOCK <id> OFF` | Set the stock count, or stop tracking stock |
 | `HIDE <id>` / `SHOW <id>` | Hide a product from the menu, or show it again |
 | `UPI` / `UPI <name@bank>` | Show or set the UPI ID that customers pay |
+| `QR` / `QR REMOVE` | Upload a photo of your UPI QR code, or delete it |
 | `MYORDERS` | Show the last 10 order items for your products |
 | `RECEIVED <id>` / `NOTRECEIVED <id>` | Answer a customer's `PAID`: the money reached your bank, or it did not |
 | `CONFIRM <id>` → `SHIP <id>` → `DELIVER <id>` | Move your items in an order forward. The customer is told at each step. A UPI order can only be confirmed after `RECEIVED` |
@@ -138,6 +160,8 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 
 | Command | What it does |
 |---|---|
+| `PENDINGPRODUCTS` | Get the photo of every product waiting for approval |
+| `APPROVEPRODUCT <id>` / `REJECTPRODUCT <id>` | Show a product to customers, or refuse it (not handmade). Rejecting also hides an approved product |
 | `PENDINGSELLERS` | List seller requests waiting for a decision |
 | `APPROVE <user id>` / `REJECT <user id>` | Decide a seller request |
 | `BLOCK <user id>` | Remove a seller's role and hide all their products |
@@ -150,6 +174,8 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 
 ## Business rules
 
+- **Handmade only:** a product appears in `MENU` only when it has a photo and an admin has approved it. A new photo sends it back for approval.
+- **Photos:** stored in the `Image` table (JPG, PNG or WebP, up to 5 MB) under a random key and served at `GET /images/<key>`.
 - **Stock:** `stock = null` means unlimited. Products that are out of stock or hidden do not appear in `MENU`. Cancelling an order puts the quantities back into stock.
 - **Order status:** each order item moves `PENDING`/`PAID` → `CONFIRMED` → `SHIPPED` → `DELIVERED`. The order itself takes a status once all of its items have it.
 - **Payments:** [src/paymentConfig.ts](src/paymentConfig.ts) chooses the method for new orders. `UPI_DIRECT` (the current setting) means the customer pays each seller's UPI ID directly. `COD` means cash on delivery, and a COD payment is marked `SUCCESS` when the order is delivered.
@@ -167,6 +193,8 @@ prisma.config.ts       Prisma CLI configuration
 src/
   index.ts             Express server, webhook and all command handling
   db.ts                Shared Prisma client
+  whatsapp.ts          WhatsApp Cloud API: send text and photos, download photos, signature check
+  images.ts            Save and load photos, make UPI QR codes
   paymentConfig.ts     Active payment method
   seed.ts              Sample seller and products
   messages.ts          Language menu and main customer texts

@@ -58,6 +58,15 @@ enum UserState {
   ENTERING_ADDRESS
   ENTERING_SHOP_NAME
   CHOOSING_PAYMENT
+  ADDING_PRODUCT_PHOTO
+  SETTING_UPI_QR
+}
+
+// Every product is checked by an admin (handmade products only) before customers see it
+enum ProductApproval {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model User {
@@ -72,6 +81,7 @@ model User {
   address            String?
   shopName           String?
   upiId              String?
+  upiQrKey           String? // Image.key of the seller's UPI QR code photo
   sellerStatus       SellerStatus @default(NONE)
   createdAt          DateTime     @default(now())
   products           Product[]
@@ -91,7 +101,18 @@ model Product {
   cartItems    CartItem[]
   isActive     Boolean              @default(true)
   stock        Int?
+  imageKey     String? // Image.key of the product photo
+  approval     ProductApproval      @default(PENDING)
   createdAt    DateTime             @default(now())
+}
+
+// Photos (product photos, seller QR codes, generated QR codes), served at /images/<key>
+model Image {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique // random, so image links cannot be guessed
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
 }
 
 model ProductTranslation {

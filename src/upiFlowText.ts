@@ -13,6 +13,11 @@ export const UPI_FLOW_TEXT = {
     received: (id: number) => `The seller received your payment for order #${id}. They will now prepare your order.`,
     notReceived: (id: number) =>
       `The seller has not received your payment for order #${id}. Please check your UPI app. If the money left your account, send PAID ${id} <transaction number> again.`,
+    qrHint: 'Prefer a QR code? Send QR <order number>, for example: QR 8.',
+    qrSellerCaption: (id: number, shop: string, total: number) =>
+      `Scan to pay ${shop}. Enter the amount ₹${total} and write "Order ${id}" in the note. After paying, send PAID ${id} <transaction number>.`,
+    qrAutoCaption: (id: number, shop: string, total: number) =>
+      `Scan to pay ₹${total} to ${shop}. The amount and the note "Order ${id}" are already filled in. After paying, send PAID ${id} <transaction number>.`,
   },
   ta: {
     paidUsage:
@@ -29,6 +34,11 @@ export const UPI_FLOW_TEXT = {
       `ஆர்டர் #${id} க்கான உங்கள் பணம் விற்பனையாளருக்குக் கிடைத்தது. அவர் இப்போது உங்கள் ஆர்டரைத் தயார் செய்வார்.`,
     notReceived: (id: number) =>
       `ஆர்டர் #${id} க்கான உங்கள் பணம் விற்பனையாளருக்கு இன்னும் வரவில்லை. உங்கள் UPI செயலியைச் சரிபார்க்கவும். பணம் உங்கள் கணக்கிலிருந்து சென்றிருந்தால், PAID ${id} <பரிவர்த்தனை எண்> மீண்டும் அனுப்பவும்.`,
+    qrHint: 'QR குறியீடு வேண்டுமா? QR <ஆர்டர் எண்> என்று அனுப்பவும், எடுத்துக்காட்டு: QR 8.',
+    qrSellerCaption: (id: number, shop: string, total: number) =>
+      `${shop} க்கு பணம் செலுத்த ஸ்கேன் செய்யவும். தொகை ₹${total} ஐ உள்ளிட்டு, குறிப்பில் "Order ${id}" என்று எழுதவும். பணம் செலுத்திய பிறகு PAID ${id} <பரிவர்த்தனை எண்> அனுப்பவும்.`,
+    qrAutoCaption: (id: number, shop: string, total: number) =>
+      `${shop} க்கு ₹${total} செலுத்த ஸ்கேன் செய்யவும். தொகையும் "Order ${id}" குறிப்பும் ஏற்கனவே நிரப்பப்பட்டுள்ளன. பணம் செலுத்திய பிறகு PAID ${id} <பரிவர்த்தனை எண்> அனுப்பவும்.`,
   },
   hi: {
     paidUsage:
@@ -43,6 +53,11 @@ export const UPI_FLOW_TEXT = {
     received: (id: number) => `विक्रेता को ऑर्डर #${id} का आपका भुगतान मिल गया है। अब वे आपका ऑर्डर तैयार करेंगे।`,
     notReceived: (id: number) =>
       `विक्रेता को ऑर्डर #${id} का आपका भुगतान नहीं मिला है। कृपया अपना UPI ऐप देखें। अगर पैसे आपके खाते से कट गए हैं, तो PAID ${id} <ट्रांजैक्शन नंबर> फिर से भेजें।`,
+    qrHint: 'QR कोड चाहिए? QR <ऑर्डर नंबर> भेजें, जैसे: QR 8।',
+    qrSellerCaption: (id: number, shop: string, total: number) =>
+      `${shop} को भुगतान के लिए स्कैन करें। राशि ₹${total} डालें और नोट में "Order ${id}" लिखें। भुगतान के बाद PAID ${id} <ट्रांजैक्शन नंबर> भेजें।`,
+    qrAutoCaption: (id: number, shop: string, total: number) =>
+      `${shop} को ₹${total} भुगतान के लिए स्कैन करें। राशि और नोट "Order ${id}" पहले से भरे हैं। भुगतान के बाद PAID ${id} <ट्रांजैक्शन नंबर> भेजें।`,
   },
   te: {
     paidUsage:
@@ -57,6 +72,11 @@ export const UPI_FLOW_TEXT = {
     received: (id: number) => `ఆర్డర్ #${id} కు మీ చెల్లింపు విక్రేతకు అందింది. వారు ఇప్పుడు మీ ఆర్డర్ సిద్ధం చేస్తారు.`,
     notReceived: (id: number) =>
       `ఆర్డర్ #${id} కు మీ చెల్లింపు విక్రేతకు అందలేదు. దయచేసి మీ UPI యాప్ చూడండి. డబ్బు మీ ఖాతా నుండి వెళ్ళి ఉంటే, PAID ${id} <లావాదేవీ నంబర్> మళ్ళీ పంపండి.`,
+    qrHint: 'QR కోడ్ కావాలా? QR <ఆర్డర్ నంబర్> పంపండి, ఉదాహరణ: QR 8.',
+    qrSellerCaption: (id: number, shop: string, total: number) =>
+      `${shop} కు చెల్లించడానికి స్కాన్ చేయండి. మొత్తం ₹${total} నమోదు చేసి, నోట్‌లో "Order ${id}" అని రాయండి. చెల్లించిన తర్వాత PAID ${id} <లావాదేవీ నంబర్> పంపండి.`,
+    qrAutoCaption: (id: number, shop: string, total: number) =>
+      `${shop} కు ₹${total} చెల్లించడానికి స్కాన్ చేయండి. మొత్తం మరియు "Order ${id}" నోట్ ముందే నింపబడ్డాయి. చెల్లించిన తర్వాత PAID ${id} <లావాదేవీ నంబర్> పంపండి.`,
   },
   ml: {
     paidUsage:
@@ -73,6 +93,11 @@ export const UPI_FLOW_TEXT = {
       `ഓർഡർ #${id} നുള്ള നിങ്ങളുടെ പണം വിൽപ്പനക്കാരന് ലഭിച്ചു. അവർ ഇപ്പോൾ നിങ്ങളുടെ ഓർഡർ തയ്യാറാക്കും.`,
     notReceived: (id: number) =>
       `ഓർഡർ #${id} നുള്ള നിങ്ങളുടെ പണം വിൽപ്പനക്കാരന് ലഭിച്ചിട്ടില്ല. ദയവായി UPI ആപ്പ് പരിശോധിക്കുക. പണം നിങ്ങളുടെ അക്കൗണ്ടിൽ നിന്ന് പോയിട്ടുണ്ടെങ്കിൽ, PAID ${id} <ഇടപാട് നമ്പർ> വീണ്ടും അയയ്ക്കുക.`,
+    qrHint: 'QR കോഡ് വേണോ? QR <ഓർഡർ നമ്പർ> അയയ്ക്കുക, ഉദാഹരണം: QR 8.',
+    qrSellerCaption: (id: number, shop: string, total: number) =>
+      `${shop} ന് പണമടയ്ക്കാൻ സ്കാൻ ചെയ്യുക. തുക ₹${total} നൽകി, നോട്ടിൽ "Order ${id}" എന്ന് എഴുതുക. പണമടച്ച ശേഷം PAID ${id} <ഇടപാട് നമ്പർ> അയയ്ക്കുക.`,
+    qrAutoCaption: (id: number, shop: string, total: number) =>
+      `${shop} ന് ₹${total} അടയ്ക്കാൻ സ്കാൻ ചെയ്യുക. തുകയും "Order ${id}" നോട്ടും മുൻകൂട്ടി പൂരിപ്പിച്ചിട്ടുണ്ട്. പണമടച്ച ശേഷം PAID ${id} <ഇടപാട് നമ്പർ> അയയ്ക്കുക.`,
   },
 };
 

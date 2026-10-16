@@ -2,13 +2,15 @@
 export const SELLER_TEXT = {
   help:
     'Seller menu:\n' +
-    'ADD - add a new product\n' +
-    'MYPRODUCTS - see your products\n' +
+    'ADD - add a new handmade product (name, price, photo)\n' +
+    'MYPRODUCTS - see your products and their approval\n' +
+    'PHOTO 3 - send a new photo for product #3\n' +
     'PRICE 3 90 - change the price of product #3 to 90\n' +
     'STOCK 3 25 - set the stock of product #3 to 25 (STOCK 3 OFF = unlimited)\n' +
     'HIDE 3 - take product #3 off the menu\n' +
     'SHOW 3 - put product #3 back on the menu\n' +
     'UPI yourname@bank - set the UPI ID customers pay to (UPI alone shows it)\n' +
+    'QR - send a photo of your UPI QR code (QR REMOVE deletes it)\n' +
     'MYORDERS - see orders for your products\n' +
     'RECEIVED 3 - the UPI money for order #3 reached your bank\n' +
     'NOTRECEIVED 3 - the UPI money for order #3 did not arrive\n' +
@@ -17,7 +19,28 @@ export const SELLER_TEXT = {
     'DELIVER 3 - mark order #3 as delivered\n' +
     'MYPURCHASES - orders you placed as a customer\n' +
     'MENU - shop as a customer',
-  askName: 'What is the product name? (2 to 60 characters) Or send CANCEL.',
+  askName:
+    'What is the product name? Only handmade products can be sold (for example: Jute Handbag). 2 to 60 characters. Or send CANCEL.',
+  askPhoto: (id: number, name: string) =>
+    `Product #${id} "${name}" is saved. Now send one clear photo of it.\nCustomers will see it after the admin approves it. Or send CANCEL to add the photo later.`,
+  askPhotoFor: (id: number) =>
+    `Send the new photo for product #${id}. The admin will check the product again. Or send CANCEL.`,
+  needPhoto: 'Please send a photo (not text). Or send CANCEL to add it later with PHOTO <product number>.',
+  photoFailed: 'Sorry, the photo could not be saved. Please send it again as a normal photo (JPG or PNG, under 5 MB).',
+  photoSaved: (id: number) =>
+    `Photo saved for product #${id}. The admin will check it (handmade products only). You will get a message when it is approved.`,
+  photoLater: (id: number) =>
+    `Product #${id} is saved without a photo. Customers will not see it until you send PHOTO ${id} and the admin approves it.`,
+  productApproved: (id: number, name: string) =>
+    `Good news: product #${id} "${name}" was approved and is now on the menu for customers.`,
+  productRejected: (id: number, name: string) =>
+    `Product #${id} "${name}" was not approved. Only handmade products can be sold here. Please contact the admin if you have questions.`,
+  askQr: 'Send a photo of your UPI QR code (from GPay, PhonePe, Paytm or your bank app). Or send CANCEL.',
+  qrNeedPhoto: 'Please send your UPI QR code as a photo, or send CANCEL.',
+  qrSaved:
+    'Your UPI QR code is saved. Customers can ask for it when they pay.\nTip: pay yourself ₹1 with it once to check that the money reaches your account.',
+  qrCancelled: 'Cancelled. Your QR code was not changed.',
+  qrRemoved: 'Your UPI QR code photo is removed. Customers will get a QR code made from your UPI ID instead.',
   invalidName: 'The name must be 2 to 60 characters. Try again, or send CANCEL.',
   askPrice: (name: string) =>
     `Price for "${name}" in rupees? Send a number like 80 or 49.50, or CANCEL.`,
@@ -63,8 +86,11 @@ export const SELLER_TEXT = {
     `Order #${orderId}: the customer has been told the money did not arrive and was asked to check and send PAID again.`,
   noPaymentWaiting: (orderId: number) =>
     `Order #${orderId} has no UPI payment waiting for your answer. The customer must send PAID first.`,
-  upiCurrent: (upi: string | null) =>
-    upi
+  upiCurrent: (upi: string | null, hasQr: boolean) =>
+    (upi
       ? `Your UPI ID: ${upi}\nSend UPI yourname@bank to change it.`
-      : 'You have not set a UPI ID yet. Send UPI yourname@bank to set it.',
+      : 'You have not set a UPI ID yet. Send UPI yourname@bank to set it.') +
+    (hasQr
+      ? '\nYour UPI QR code photo is saved (QR to change it, QR REMOVE to delete it).'
+      : '\nNo QR code photo saved. Send QR to add one; otherwise customers get a QR made from your UPI ID.'),
 };

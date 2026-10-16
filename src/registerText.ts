@@ -50,8 +50,21 @@ export const REG_TEXT = {
     `${phone} is a seller or has a seller request. A seller cannot also be an admin.`,
   madeAdmin: (phone: string) => `${phone} is now an admin and has been told.`,
   newAdminNotice: 'You are now an admin of this marketplace. Send ADMIN to see the admin menu.',
+  adminProductNotice: (id: number, name: string, price: number, shop: string) =>
+    `New product #${id} to check\n${name} - ₹${price}\nShop: ${shop}\nIs it handmade? Send APPROVEPRODUCT ${id} or REJECTPRODUCT ${id}.`,
+  noPendingProducts: 'No products are waiting for approval.',
+  pendingProductsSent: (n: number) =>
+    `${n} product(s) waiting: their photos are above. Send APPROVEPRODUCT <number> or REJECTPRODUCT <number>.`,
+  productNotFound: (id: number) => `Product #${id} was not found.`,
+  productNoPhoto: (id: number) =>
+    `Product #${id} has no photo yet, so it cannot be approved. The seller must send PHOTO ${id} first.`,
+  productDecided: (id: number, result: string) =>
+    `Product #${id} is now ${result}. The seller has been told.`,
   adminHelp:
     'Admin menu:\n' +
+    'PENDINGPRODUCTS - new products waiting for approval (with photos)\n' +
+    'APPROVEPRODUCT 5 - show product #5 to customers\n' +
+    'REJECTPRODUCT 5 - refuse product #5 (not handmade); also hides an approved one\n' +
     'PENDINGSELLERS - requests waiting\n' +
     'APPROVE 7 - approve request #7\n' +
     'REJECT 7 - reject request #7\n' +

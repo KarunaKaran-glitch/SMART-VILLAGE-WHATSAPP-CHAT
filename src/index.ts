@@ -14,17 +14,22 @@ import { pay } from './payText';
 import { uf } from './upiFlowText';
 import { ACTIVE_PAYMENT_METHOD } from './paymentConfig';
 import {
+  downloadWhatsAppMedia,
   maskDigits,
+  sendWhatsAppImage,
   sendWhatsAppText,
   sendingEnabled,
   signatureCheckEnabled,
   validSignature,
 } from './whatsapp';
+import { getImage, imageUrl, makeUpiQr, saveImage } from './images';
 
 const app = express();
-// Keep the raw request body: the Meta signature is calculated over the exact bytes
+// Keep the raw request body: the Meta signature is calculated over the exact bytes.
+// The larger limit is for test photos sent with Send-Img (real WhatsApp only sends a media ID).
 app.use(
   express.json({
+    limit: '10mb',
     verify: (req, _res, buf) => {
       (req as any).rawBody = buf;
     },
@@ -40,6 +45,30 @@ async function sendReply(to: string, text: string) {
   await sendWhatsAppText(to, text);
 }
 
+// Same for a photo: prints its link (open it in a browser to see it) and sends it when live
+async function sendImage(to: string, key: string, caption: string) {
+  const link = imageUrl(key);
+  console.log(`>> Image to ${to}: ${link}\n${maskDigits(caption)}\n`);
+  await sendWhatsAppImage(to, link, caption);
+}
+
+// Reads the photo in an incoming message and saves it. Returns the image key, or null.
+// Live, WhatsApp only sends a media ID, so the photo is downloaded from Meta.
+// For local tests (sending switched off), Send-Img puts the photo itself in "test_data".
+async function saveIncomingImage(message: any): Promise<string | null> {
+  if (message?.type !== 'image' || !message.image) return null;
+
+  let photo: { data: Buffer; mimeType: string } | null = null;
+  if (sendingEnabled) {
+    if (message.image.id) photo = await downloadWhatsAppMedia(String(message.image.id));
+  } else if (typeof message.image.test_data === 'string') {
+    photo = {
+      data: Buffer.from(message.image.test_data, 'base64'),
+      mimeType: String(message.image.mime_type ?? ''),
+    };
+  }
+  return photo ? saveImage(photo.data, photo.mimeType) : null;
+}
 // At most 20 messages per phone per minute; extra messages are ignored without a reply
 const RATE_LIMIT = 20;
 const recentMessages = new Map<string, number[]>();
@@ -77,6 +106,8 @@ function loadProducts() {
   return prisma.product.findMany({
     where: {
       isActive: true,
+      approval: 'APPROVED', // checked by the admin: handmade only
+      imageKey: { not: null }, // every product on the menu has a photo
       OR: [{ stock: null }, { stock: { gt: 0 } }],
     },
     include: { translations: true },
@@ -391,7 +422,9 @@ async function placeOrder(userId: number, language: string, address: string): Pr
     placed = await prisma.$transaction(async (tx) => {
       // Check and take stock first (all or nothing)
       for (const item of cart.items) {
-        if (!item.product.isActive) throw new StockError(item.productId);
+        if (!item.product.isActive || item.product.approval !== 'APPROVED') {
+          throw new StockError(item.productId);
+        }
         if (item.product.stock !== null) {
           const taken = await tx.product.updateMany({
             where: { id: item.productId, stock: { gte: item.quantity } },
@@ -449,7 +482,7 @@ async function placeOrder(userId: number, language: string, address: string): Pr
       });
       if (!p) return T.invalidProduct;
       const label = localName(p, language);
-      const left = p.isActive ? (p.stock ?? 0) : 0;
+      const left = p.isActive && p.approval === 'APPROVED' ? (p.stock ?? 0) : 0;
       return left > 0 ? st(language).notEnough(label, left) : st(language).unavailable(label);
     }
     throw err;
@@ -476,7 +509,7 @@ async function placeOrder(userId: number, language: string, address: string): Pr
   // Tell the customer how to pay
   if (ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT') {
     const blocks = placed.map((p) => P.block(p.orderId, p.shop, p.total, p.upiId ?? ''));
-    return `${P.header}\n\n${blocks.join('\n\n')}\n\n${P.footer}`;
+    return `${P.header}\n\n${blocks.join('\n\n')}\n\n${P.footer}\n${uf(language).qrHint}`;
   }
   return placed.map((p) => ot(language).placed(p.orderId, p.total)).join('\n\n');
 }
@@ -751,6 +784,127 @@ async function makeAdmin(rawPhone: string): Promise<string> {
   return REG_TEXT.madeAdmin(phone);
 }
 
+// QR n: sends the customer a QR code to pay order n.
+// The seller's own QR photo if they uploaded one, otherwise a QR made from their UPI ID
+// with the amount and note filled in. Either way the money goes straight to the seller.
+// Returns a text reply only when there is no QR to send.
+async function sendPaymentQr(
+  userId: number,
+  phone: string,
+  language: string,
+  orderId: number
+): Promise<string | null> {
+  const U = uf(language);
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, customerId: userId },
+    include: {
+      items: { include: { seller: true }, take: 1 },
+      payments: { orderBy: { id: 'desc' }, take: 1 },
+    },
+  });
+  if (!order) return U.notFound(orderId);
+
+  const payment = order.payments[0];
+  const seller = order.items[0]?.seller;
+  if (
+    !payment ||
+    !seller ||
+    order.status === 'CANCELLED' ||
+    payment.method !== 'UPI_DIRECT' ||
+    payment.status !== 'INITIATED'
+  ) {
+    return U.nothingToPay(orderId);
+  }
+
+  const shop = seller.shopName ?? seller.phone;
+  const total = Number(payment.amount);
+
+  if (seller.upiQrKey && (await getImage(seller.upiQrKey))) {
+    await sendImage(phone, seller.upiQrKey, U.qrSellerCaption(orderId, shop, total));
+    return null;
+  }
+  if (!seller.upiId) return U.nothingToPay(orderId);
+
+  const key = await makeUpiQr(seller.upiId, shop, total, `Order ${orderId}`);
+  await sendImage(phone, key, U.qrAutoCaption(orderId, shop, total));
+  return null;
+}
+
+// PENDINGPRODUCTS: sends the admin the photo of every product waiting for approval
+async function pendingProducts(adminPhone: string): Promise<string> {
+  const waiting = await prisma.product.findMany({
+    where: { approval: 'PENDING', imageKey: { not: null } },
+    include: { seller: true },
+    orderBy: { id: 'asc' },
+    take: 10,
+  });
+  if (waiting.length === 0) return REG_TEXT.noPendingProducts;
+
+  for (const p of waiting) {
+    await sendImage(
+      adminPhone,
+      p.imageKey!,
+      REG_TEXT.adminProductNotice(p.id, p.name, Number(p.price), p.seller.shopName ?? p.seller.phone)
+    );
+  }
+  return REG_TEXT.pendingProductsSent(waiting.length);
+}
+
+// APPROVEPRODUCT n / REJECTPRODUCT n
+async function decideProduct(productId: number, approve: boolean): Promise<string> {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { seller: true },
+  });
+  if (!product) return REG_TEXT.productNotFound(productId);
+  if (approve && !product.imageKey) return REG_TEXT.productNoPhoto(productId);
+
+  await prisma.product.update({
+    where: { id: productId },
+    data: { approval: approve ? 'APPROVED' : 'REJECTED' },
+  });
+
+  // Tell the seller. A failure here must not undo the decision.
+  try {
+    await sendReply(
+      product.seller.phone,
+      approve
+        ? SELLER_TEXT.productApproved(productId, product.name)
+        : SELLER_TEXT.productRejected(productId, product.name)
+    );
+  } catch (err) {
+    console.error('Seller product notice failed:', err);
+  }
+
+  return REG_TEXT.productDecided(productId, approve ? 'APPROVED' : 'REJECTED');
+}
+
+// Sends every admin the photo of a product that needs checking
+async function notifyAdminsOfProduct(productId: number) {
+  try {
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      include: { seller: true },
+    });
+    if (!product?.imageKey) return;
+    const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+    for (const a of admins) {
+      await sendImage(
+        a.phone,
+        product.imageKey,
+        REG_TEXT.adminProductNotice(
+          product.id,
+          product.name,
+          Number(product.price),
+          product.seller.shopName ?? product.seller.phone
+        )
+      );
+    }
+  } catch (err) {
+    console.error('Admin product notice failed:', err);
+  }
+}
+
 // Totals for the whole marketplace
 async function salesReport(): Promise<string> {
   const [orders, delivered, cancelled, cash, sellers, customers] = await Promise.all([
@@ -793,6 +947,24 @@ async function salesReport(): Promise<string> {
 
 app.get('/', (_req: Request, res: Response) => {
   res.send('WhatsApp Marketplace server is running');
+});
+
+// Product photos and QR codes. WhatsApp fetches them from here when we send an image.
+app.get('/images/:key', async (req: Request, res: Response) => {
+  const key = String(req.params.key);
+  if (!/^[0-9a-f-]{36}$/.test(key)) {
+    res.sendStatus(404);
+    return;
+  }
+  const image = await getImage(key);
+  if (!image) {
+    res.sendStatus(404);
+    return;
+  }
+  res.set('Content-Type', image.mimeType);
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(Buffer.from(image.data));
 });
 
 // Meta calls this once to verify your webhook
@@ -922,11 +1094,82 @@ async function handleWebhook(body: any) {
           },
         });
 
+        // Next step: the photo (the product stays hidden until it has one and is approved)
         await prisma.user.update({
           where: { id: user.id },
-          data: { state: 'BROWSING', pendingProductName: null },
+          data: {
+            state: 'ADDING_PRODUCT_PHOTO',
+            pendingProductName: null,
+            pendingProductId: product.id,
+          },
         });
-        await sendReply(phone, SELLER_TEXT.added(product.id, productName, price));
+        await sendReply(phone, SELLER_TEXT.askPhoto(product.id, productName));
+        return;
+      }
+
+      // Waiting for a product photo (after ADD, or after PHOTO n)
+      if (user.state === 'ADDING_PRODUCT_PHOTO') {
+        const productId = user.pendingProductId;
+        if (command === 'CANCEL' || !productId) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { state: 'BROWSING', pendingProductId: null },
+          });
+          await sendReply(
+            phone,
+            productId ? SELLER_TEXT.photoLater(productId) : SELLER_TEXT.cancelled
+          );
+          return;
+        }
+        if (message.type !== 'image') {
+          await sendReply(phone, SELLER_TEXT.needPhoto);
+          return;
+        }
+        const key = await saveIncomingImage(message);
+        if (!key) {
+          await sendReply(phone, SELLER_TEXT.photoFailed);
+          return;
+        }
+
+        // A new photo means the admin checks the product again
+        const changed = await prisma.product.updateMany({
+          where: { id: productId, sellerId: user.id },
+          data: { imageKey: key, approval: 'PENDING' },
+        });
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'BROWSING', pendingProductId: null },
+        });
+        if (changed.count === 0) {
+          await sendReply(phone, SELLER_TEXT.productNotFound(productId));
+          return;
+        }
+        await notifyAdminsOfProduct(productId);
+        await sendReply(phone, SELLER_TEXT.photoSaved(productId));
+        return;
+      }
+
+      // Waiting for the seller's UPI QR code photo
+      if (user.state === 'SETTING_UPI_QR') {
+        if (command === 'CANCEL') {
+          await prisma.user.update({ where: { id: user.id }, data: { state: 'BROWSING' } });
+          await sendReply(phone, SELLER_TEXT.qrCancelled);
+          return;
+        }
+        if (message.type !== 'image') {
+          await sendReply(phone, SELLER_TEXT.qrNeedPhoto);
+          return;
+        }
+        const key = await saveIncomingImage(message);
+        if (!key) {
+          await sendReply(phone, SELLER_TEXT.photoFailed);
+          return;
+        }
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { upiQrKey: key, state: 'BROWSING' },
+        });
+        await sendReply(phone, SELLER_TEXT.qrSaved);
         return;
       }
 
@@ -948,9 +1191,12 @@ async function handleWebhook(body: any) {
           if (mine.length === 0) {
             await sendReply(phone, SELLER_TEXT.noProducts);
           } else {
+            const approvalLabel = { PENDING: 'waiting for admin', APPROVED: 'approved', REJECTED: 'rejected' };
             const lines = mine.map(
               (p) =>
-                `#${p.id} ${p.name} - ₹${p.price} - stock: ${p.stock ?? 'unlimited'}${p.isActive ? '' : ' (hidden)'}`
+                `#${p.id} ${p.name} - ₹${p.price} - stock: ${p.stock ?? 'unlimited'}` +
+                ` - ${p.imageKey ? approvalLabel[p.approval] : `no photo (send PHOTO ${p.id})`}` +
+                `${p.isActive ? '' : ' (hidden)'}`
             );
             await sendReply(phone, `${SELLER_TEXT.myProductsTitle}\n${lines.join('\n')}`);
           }
@@ -977,7 +1223,34 @@ async function handleWebhook(body: any) {
         }
 
         if (command === 'UPI') {
-          await sendReply(phone, SELLER_TEXT.upiCurrent(user.upiId));
+          await sendReply(phone, SELLER_TEXT.upiCurrent(user.upiId, Boolean(user.upiQrKey)));
+          return;
+        }
+
+        if (command === 'QR') {
+          await prisma.user.update({ where: { id: user.id }, data: { state: 'SETTING_UPI_QR' } });
+          await sendReply(phone, SELLER_TEXT.askQr);
+          return;
+        }
+        if (command === 'QR REMOVE') {
+          await prisma.user.update({ where: { id: user.id }, data: { upiQrKey: null } });
+          await sendReply(phone, SELLER_TEXT.qrRemoved);
+          return;
+        }
+
+        const photoMatch = command.match(/^PHOTO\s+#?(\d+)$/);
+        if (photoMatch) {
+          const productId = Number(photoMatch[1]);
+          const own = await prisma.product.findFirst({ where: { id: productId, sellerId: user.id } });
+          if (!own) {
+            await sendReply(phone, SELLER_TEXT.productNotFound(productId));
+            return;
+          }
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { state: 'ADDING_PRODUCT_PHOTO', pendingProductId: productId },
+          });
+          await sendReply(phone, SELLER_TEXT.askPhotoFor(productId));
           return;
         }
         const upiMatch = text.match(/^UPI\s+(\S+)$/i);
@@ -1115,6 +1388,22 @@ async function handleWebhook(body: any) {
         return;
       }
 
+      if (command === 'PENDINGPRODUCTS') {
+        await sendReply(phone, await pendingProducts(phone));
+        return;
+      }
+      const productDecisionMatch = command.match(/^(APPROVEPRODUCT|REJECTPRODUCT)\s+#?(\d+)$/);
+      if (productDecisionMatch) {
+        await sendReply(
+          phone,
+          await decideProduct(
+            Number(productDecisionMatch[2]),
+            productDecisionMatch[1] === 'APPROVEPRODUCT'
+          )
+        );
+        return;
+      }
+
       const openMatch = command.match(/^OPENORDERS\s+#?(\d+)$/);
       if (openMatch) {
         await sendReply(phone, await openOrders(Number(openMatch[1])));
@@ -1173,7 +1462,7 @@ async function handleWebhook(body: any) {
         user.state === 'ENTERING_ADDRESS' ||
         user.state === 'ENTERING_SHOP_NAME') &&
       (['MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER', 'SELL'].includes(command) ||
-        /^(REMOVE|CANCELORDER)\s+#?\d+$/.test(command) ||
+        /^(REMOVE|CANCELORDER|QR)\s+#?\d+$/.test(command) ||
         /^PAID(\s|$)/.test(command))
     ) {
       await prisma.user.update({
@@ -1284,7 +1573,7 @@ async function handleWebhook(body: any) {
       });
       const already = existing?.quantity ?? 0;
       const productLabel = localName(product, user.language);
-      if (!product.isActive) {
+      if (!product.isActive || product.approval !== 'APPROVED') {
         await sendReply(phone, st(user.language).unavailable(productLabel));
         return;
       }
@@ -1359,6 +1648,14 @@ async function handleWebhook(body: any) {
       return;
     }
 
+    // QR n: the customer wants a QR code instead of typing the UPI ID
+    const qrMatch = command.match(/^QR\s+#?(\d+)$/);
+    if (qrMatch) {
+      const reply = await sendPaymentQr(user.id, phone, user.language, Number(qrMatch[1]));
+      if (reply) await sendReply(phone, reply);
+      return;
+    }
+
     if (command === 'SELL') {
       if (user.role === 'ADMIN') {
         await sendReply(phone, REG_TEXT.adminCannot);
@@ -1430,7 +1727,9 @@ async function handleWebhook(body: any) {
         where: { id: user.id },
         data: { state: 'CHOOSING_QUANTITY', pendingProductId: product.id },
       });
-      await sendReply(phone, T.askQty(localName(product, user.language)));
+      // Show the photo with the price, and ask for the quantity in the same message
+      const label = localName(product, user.language);
+      await sendImage(phone, product.imageKey!, `${label} - ₹${product.price}\n\n${T.askQty(label)}`);
       return;
     }
 

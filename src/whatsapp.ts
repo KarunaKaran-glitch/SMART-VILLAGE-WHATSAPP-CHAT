@@ -37,6 +37,48 @@ export async function sendWhatsAppText(to: string, text: string): Promise<void> 
   }
 }
 
+// Sends a photo by link (the link must be reachable by Meta, so PUBLIC_BASE_URL must be set when live).
+// Never throws, like sendWhatsAppText.
+export async function sendWhatsAppImage(to: string, link: string, caption: string): Promise<void> {
+  if (!sendingEnabled) return;
+  try {
+    await axios.post(
+      `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        to,
+        type: 'image',
+        image: { link, caption },
+      },
+      { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 10000 }
+    );
+  } catch (err: any) {
+    const detail = err?.response?.data?.error ?? err?.message ?? err;
+    console.error(`WhatsApp image to ${to} failed:`, JSON.stringify(detail));
+  }
+}
+
+// Downloads a photo a user sent (WhatsApp only gives us a media ID). Returns null on failure.
+export async function downloadWhatsAppMedia(
+  mediaId: string
+): Promise<{ data: Buffer; mimeType: string } | null> {
+  if (!sendingEnabled) return null;
+  try {
+    const auth = { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 10000 };
+    const info = await axios.get(`https://graph.facebook.com/${API_VERSION}/${mediaId}`, auth);
+    const file = await axios.get(info.data.url, {
+      ...auth,
+      responseType: 'arraybuffer',
+      maxContentLength: 5 * 1024 * 1024,
+    });
+    return { data: Buffer.from(file.data), mimeType: info.data.mime_type };
+  } catch (err: any) {
+    const detail = err?.response?.data?.error ?? err?.message ?? err;
+    console.error(`WhatsApp media download ${mediaId} failed:`, JSON.stringify(detail));
+    return null;
+  }
+}
+
 // Checks that a webhook call really comes from Meta (header X-Hub-Signature-256).
 // When no app secret is set (local testing), every call is accepted.
 export function validSignature(rawBody: Buffer | undefined, header: string | undefined): boolean {
