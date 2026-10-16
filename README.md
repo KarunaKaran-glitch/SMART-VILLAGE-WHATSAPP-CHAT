@@ -6,9 +6,10 @@ The bot works in five languages: English, Tamil, Hindi, Telugu and Malayalam.
 
 **Stack:** Node.js, TypeScript, Express 5, Prisma 6, PostgreSQL
 
-> **Status: work in progress**
-> - Replies are only **printed to the console** for now (`sendReply` in [src/index.ts](src/index.ts)). Sending through the WhatsApp Cloud API is not wired up yet.
-> - The payment flow is being rewritten. `placeOrder` was removed in the last commit, but the `ORDER` command still calls it, so `npm run build` fails until it is added back. The `PAID` command shown to customers in [src/payText.ts](src/payText.ts) is not handled yet either.
+> **Status: works locally, not live on WhatsApp yet**
+> - The full flow is built and tested with fake messages: shopping, one order per seller, UPI payment reporting and confirmation, delivery steps, seller registration and admin tools.
+> - Replies are only **printed to the console** for now (`sendReply` in [src/index.ts](src/index.ts)). Sending through the WhatsApp Cloud API is not wired up yet; it waits for Meta business verification.
+> - Before going live: verify the `X-Hub-Signature-256` header on incoming webhooks, and use approved message templates for messages sent more than 24 hours after the customer's last message.
 
 ## How it works
 
@@ -77,13 +78,23 @@ curl -X POST http://localhost:3000/webhook \
 
 Use a new `id` for every message. A repeated ID is ignored as a duplicate.
 
+On Windows PowerShell, define this helper once per terminal (paste it as one line), then send messages with `Send-Msg '917777777777' 'Meena' 'MENU'`:
+
+```powershell
+function Send-Msg($phone,$name,$text,$id=('wamid.'+[guid]::NewGuid().ToString())){ $obj=@{entry=@(@{changes=@(@{value=@{contacts=@(@{profile=@{name=$name};wa_id=$phone});messages=@(@{from=$phone;id=$id;type='text';text=@{body=$text}})}})})}; $json=$obj | ConvertTo-Json -Depth 10; Invoke-RestMethod -Uri http://localhost:3000/webhook -Method Post -ContentType "application/json" -Body $json }
+```
+
+If PowerShell blocks `npm` or `npx` ("not digitally signed"), use `npm.cmd` and `npx.cmd` instead.
+
 ### Make someone an admin
 
-There is no chat command to create the first admin. Set the role in the database directly, for example with `npx prisma studio`, or:
+The **first** admin must be set in the database directly, for example with `npx prisma studio`, or:
 
 ```sql
 UPDATE "User" SET role = 'ADMIN', state = 'BROWSING' WHERE phone = '91XXXXXXXXXX';
 ```
+
+After that, an admin can make more admins from WhatsApp with `MAKEADMIN <phone>`.
 
 ## Chat commands
 
@@ -100,9 +111,10 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 | `REMOVE <line>` | Remove one line from the cart |
 | `CLEAR` | Empty the cart |
 | `ADDRESS` | Set or change the delivery address |
-| `ORDER` | Place an order from the cart (asks for an address the first time) |
+| `ORDER` | Place an order from the cart (asks for an address the first time). Creates one order per seller and shows each seller's UPI ID |
+| `PAID <order id> <transaction no.>` | Report a UPI payment; the seller is asked to check it (`PAID` alone shows how) |
 | `MYORDERS` | Show your last 5 orders with order and payment status |
-| `CANCELORDER <id>` | Cancel an order while every item is still pending |
+| `CANCELORDER <id>` | Cancel an order while every item is still pending and no payment has been reported |
 | `SELL` | Ask to become a seller (asks for a shop name, then waits for an admin) |
 | `CANCEL` | Stop the current step (quantity, address, shop name, new product) |
 
@@ -117,7 +129,8 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 | `HIDE <id>` / `SHOW <id>` | Hide a product from the menu, or show it again |
 | `UPI` / `UPI <name@bank>` | Show or set the UPI ID that customers pay |
 | `MYORDERS` | Show the last 10 order items for your products |
-| `CONFIRM <id>` → `SHIP <id>` → `DELIVER <id>` | Move your items in an order forward. The customer is told at each step |
+| `RECEIVED <id>` / `NOTRECEIVED <id>` | Answer a customer's `PAID`: the money reached your bank, or it did not |
+| `CONFIRM <id>` → `SHIP <id>` → `DELIVER <id>` | Move your items in an order forward. The customer is told at each step. A UPI order can only be confirmed after `RECEIVED` |
 | `MYPURCHASES` | Show orders you placed as a customer |
 | `HELP` | Show seller help |
 
@@ -129,6 +142,9 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 | `APPROVE <user id>` / `REJECT <user id>` | Decide a seller request |
 | `BLOCK <user id>` | Remove a seller's role and hide all their products |
 | `UNBLOCK <user id>` | Let a blocked seller sell again (their products stay hidden) |
+| `OPENORDERS <user id>` | List a seller's orders that are not delivered or cancelled |
+| `ADMINCANCEL <order id>` | Cancel any order that is not delivered yet. Stock is returned; if the customer already paid, the admin is told to arrange a refund |
+| `MAKEADMIN <phone>` | Make an existing customer an admin (a 10-digit number gets `91` in front) |
 | `SALES` | Marketplace totals and delivered sales per seller |
 | `HELP` | Show admin help |
 
@@ -137,6 +153,7 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 - **Stock:** `stock = null` means unlimited. Products that are out of stock or hidden do not appear in `MENU`. Cancelling an order puts the quantities back into stock.
 - **Order status:** each order item moves `PENDING`/`PAID` → `CONFIRMED` → `SHIPPED` → `DELIVERED`. The order itself takes a status once all of its items have it.
 - **Payments:** [src/paymentConfig.ts](src/paymentConfig.ts) chooses the method for new orders. `UPI_DIRECT` (the current setting) means the customer pays each seller's UPI ID directly. `COD` means cash on delivery, and a COD payment is marked `SUCCESS` when the order is delivered.
+- **UPI flow:** payment `INITIATED` → customer sends `PAID` → `AWAITING_CONFIRMATION` → seller sends `RECEIVED` (payment `SUCCESS`, order `PAID`) or `NOTRECEIVED` (back to `INITIATED`). A transaction number can be used for only one payment. Only the UPI ID is stored, never bank account or card numbers.
 - **Notifications:** customers, sellers and admins get a message when something changes for them (status updates, cancellations, seller requests). If a notification fails, the change is still saved.
 
 ## Project structure
@@ -154,7 +171,7 @@ src/
   seed.ts              Sample seller and products
   messages.ts          Language menu and main customer texts
   *Text.ts             Translated texts for one feature each (address, cart,
-                       cancel, orders, payment, registration, seller, stock)
+                       cancel, orders, payment, UPI flow, registration, seller, stock)
 ```
 
 ### Adding a language
@@ -171,4 +188,4 @@ Edit [prisma/schema.prisma](prisma/schema.prisma), then:
 npx prisma migrate dev --name describe_the_change
 ```
 
-This creates the migration and regenerates the client.
+This creates the migration and regenerates the client. `migrate dev` needs an interactive terminal; in scripts or CI, write the migration SQL into a new `prisma/migrations/<timestamp>_<name>/` folder and run `npx prisma migrate deploy` and `npx prisma generate`.
