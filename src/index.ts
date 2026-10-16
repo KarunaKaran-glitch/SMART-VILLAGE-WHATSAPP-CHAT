@@ -13,16 +13,56 @@ import { st } from './stockText';
 import { pay } from './payText';
 import { uf } from './upiFlowText';
 import { ACTIVE_PAYMENT_METHOD } from './paymentConfig';
+import {
+  maskDigits,
+  sendWhatsAppText,
+  sendingEnabled,
+  signatureCheckEnabled,
+  validSignature,
+} from './whatsapp';
 
 const app = express();
-app.use(express.json());
+// Keep the raw request body: the Meta signature is calculated over the exact bytes
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      (req as any).rawBody = buf;
+    },
+  })
+);
 
 const PORT = process.env.PORT || 3000;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
-// For now this only prints the reply. Later it will send it through the WhatsApp API.
+// Prints the reply (long numbers hidden) and, when WhatsApp is set up in .env, sends it
 async function sendReply(to: string, text: string) {
-  console.log(`>> Reply to ${to}:\n${text}\n`);
+  console.log(`>> Reply to ${to}:\n${maskDigits(text)}\n`);
+  await sendWhatsAppText(to, text);
+}
+
+// At most 20 messages per phone per minute; extra messages are ignored without a reply
+const RATE_LIMIT = 20;
+const recentMessages = new Map<string, number[]>();
+
+function tooManyMessages(phone: string): boolean {
+  const now = Date.now();
+  const times = (recentMessages.get(phone) ?? []).filter((t) => now - t < 60_000);
+  times.push(now);
+  recentMessages.set(phone, times);
+  return times.length > RATE_LIMIT;
+}
+
+// Message IDs are only needed while Meta might resend them; delete those older than 7 days
+async function cleanupProcessedMessages() {
+  try {
+    const removed = await prisma.processedMessage.deleteMany({
+      where: { createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+    });
+    if (removed.count > 0) console.log(`Removed ${removed.count} old message IDs`);
+  } catch (err) {
+    console.error('Message ID cleanup failed:', err);
+  }
+  recentMessages.clear();
 }
 
 type Named = { name: string; translations: { language: string; name: string }[] };
@@ -794,7 +834,12 @@ async function handleWebhook(body: any) {
     const text: string = (message.text?.body ?? '').trim();
     const command = text.toUpperCase();
 
-    console.log('Message from:', phone, '| text:', text);
+    if (tooManyMessages(phone)) {
+      console.log('Too many messages, ignored:', phone);
+      return;
+    }
+
+    console.log('Message from:', phone, '| text:', maskDigits(text));
 
     const user = await prisma.user.findUnique({ where: { phone } });
 
@@ -1401,6 +1446,13 @@ async function handleWebhook(body: any) {
 }
 
 app.post('/webhook', async (req: Request, res: Response) => {
+  // Reject calls that were not signed by Meta (only when WHATSAPP_APP_SECRET is set)
+  if (!validSignature((req as any).rawBody, req.get('x-hub-signature-256'))) {
+    console.log('Webhook call with a wrong or missing signature rejected');
+    res.sendStatus(401);
+    return;
+  }
+
   try {
     await handleWebhook(req.body);
     res.sendStatus(200);
@@ -1412,4 +1464,18 @@ app.post('/webhook', async (req: Request, res: Response) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(
+    sendingEnabled
+      ? 'WhatsApp sending: ON'
+      : 'WhatsApp sending: OFF (replies are only printed; set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID to turn it on)'
+  );
+  console.log(
+    signatureCheckEnabled
+      ? 'Webhook signature check: ON'
+      : 'Webhook signature check: OFF (set WHATSAPP_APP_SECRET before going live)'
+  );
 });
+
+// Clean up once at start and then once a day
+cleanupProcessedMessages();
+setInterval(cleanupProcessedMessages, 24 * 60 * 60 * 1000);
