@@ -630,7 +630,7 @@ async function salesReport(): Promise<string> {
   return [
     'Marketplace summary:',
     `Orders: ${orders} (open ${open}, delivered ${delivered}, cancelled ${cancelled})`,
-    `Cash collected: ₹${Number(cash._sum.amount ?? 0)}`,
+    `Payments received (UPI and cash): ₹${Number(cash._sum.amount ?? 0)}`,
     `Sellers: ${sellers}, customers: ${customers}`,
     sellerLines.length > 0
       ? `Delivered sales per seller:\n${sellerLines.join('\n')}`
