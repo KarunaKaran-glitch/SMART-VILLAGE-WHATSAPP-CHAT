@@ -24,12 +24,32 @@ export const REG_TEXT = {
   notBlocked: (id: number) => `User #${id} is not blocked.`,
   blocked: (id: number, open: number) =>
     `Seller #${id} is blocked and their products are hidden.` +
-    (open > 0 ? ` ${open} open order item(s) still need handling.` : ''),
+    (open > 0
+      ? ` ${open} open order item(s) still need handling. Send OPENORDERS ${id} to see them.`
+      : ''),
   unblocked: (id: number) =>
     `Seller #${id} is allowed again. Their products stay hidden until they send SHOW for each one.`,
   blockedNotice: 'Your seller account has been blocked by the admin. Please contact the admin.',
   unblockedNotice:
     'Your seller account is active again. Send SELLER to see your menu. Your products are still hidden: send SHOW with a product number to bring each one back.',
+  openOrdersTitle: (sellerId: number) => `Open orders of seller #${sellerId}:`,
+  noOpenOrders: (sellerId: number) => `Seller #${sellerId} has no open orders.`,
+  orderMissing: (orderId: number) => `Order #${orderId} was not found.`,
+  cannotAdminCancel: (orderId: number, status: string) =>
+    `Order #${orderId} is ${status}, so it cannot be cancelled.`,
+  adminCancelled: (orderId: number) =>
+    `Order #${orderId} is cancelled. Stock was returned, and the customer and seller have been told.`,
+  adminCancelledPaid: (orderId: number, amount: number) =>
+    `Order #${orderId} is cancelled. Stock was returned, and the customer and seller have been told.\n` +
+    `IMPORTANT: the customer already paid ₹${amount} to the seller by UPI. Arrange the refund with the seller outside WhatsApp.`,
+  makeAdminUsage: 'Send MAKEADMIN with the phone number, for example: MAKEADMIN 919876543210',
+  userNotFound: (phone: string) =>
+    `No user with phone ${phone}. Ask them to send any message to this WhatsApp number first, then try again.`,
+  alreadyAdmin: (phone: string) => `${phone} is already an admin.`,
+  cannotMakeAdmin: (phone: string) =>
+    `${phone} is a seller or has a seller request. A seller cannot also be an admin.`,
+  madeAdmin: (phone: string) => `${phone} is now an admin and has been told.`,
+  newAdminNotice: 'You are now an admin of this marketplace. Send ADMIN to see the admin menu.',
   adminHelp:
     'Admin menu:\n' +
     'PENDINGSELLERS - requests waiting\n' +
@@ -37,6 +57,9 @@ export const REG_TEXT = {
     'REJECT 7 - reject request #7\n' +
     'BLOCK 7 - block seller #7 and hide their products\n' +
     'UNBLOCK 7 - allow seller #7 again\n' +
+    'OPENORDERS 7 - open orders of seller #7\n' +
+    'ADMINCANCEL 12 - cancel order #12 (not yet delivered)\n' +
+    'MAKEADMIN 919876543210 - make that user an admin\n' +
     'SALES - totals for the marketplace\n' +
     'MENU - shop as a customer',
 };

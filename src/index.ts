@@ -7,7 +7,7 @@ import { SELLER_TEXT } from './sellerText';
 import { ct } from './cartEditText';
 import { mo } from './myOrdersText';
 import { ad } from './addressText';
-import { cn, sellerCancelNotice } from './cancelText';
+import { cn, sellerAdminCancelNotice, sellerCancelNotice } from './cancelText';
 import { REG_TEXT } from './registerText';
 import { st } from './stockText';
 import { pay } from './payText';
@@ -598,6 +598,119 @@ async function unblockSeller(sellerId: number): Promise<string> {
   return REG_TEXT.unblocked(sellerId);
 }
 
+// OPENORDERS n: orders with items of seller n that are not delivered or cancelled yet
+async function openOrders(sellerId: number): Promise<string> {
+  const items = await prisma.orderItem.findMany({
+    where: { sellerId, status: { in: ['PENDING', 'PAID', 'CONFIRMED', 'SHIPPED'] } },
+    include: {
+      order: {
+        include: { customer: true, payments: { orderBy: { id: 'desc' }, take: 1 } },
+      },
+      product: true,
+    },
+    orderBy: { orderId: 'asc' },
+  });
+  if (items.length === 0) return REG_TEXT.noOpenOrders(sellerId);
+
+  // One block per order
+  const byOrder = new Map<number, typeof items>();
+  for (const it of items) {
+    const list = byOrder.get(it.orderId) ?? [];
+    list.push(it);
+    byOrder.set(it.orderId, list);
+  }
+  const blocks = [...byOrder.values()].map((list) => {
+    const o = list[0].order;
+    const lines = list.map((it) => `  ${it.product.name} x ${it.quantity} | ${it.status}`).join('\n');
+    const payment = o.payments[0] ? ` | payment ${o.payments[0].status}` : '';
+    const who = o.customer.name ?? o.customer.phone;
+    return `#${o.id} - ₹${o.total}${payment} | ${who} (${o.customer.phone})\n${lines}`;
+  });
+  return `${REG_TEXT.openOrdersTitle(sellerId)}\n${blocks.join('\n')}\n\nSend ADMINCANCEL <order> to cancel one.`;
+}
+
+// ADMINCANCEL n: the admin cancels any order that is not delivered yet
+async function adminCancelOrder(orderId: number): Promise<string> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: { include: { seller: true } }, customer: true, payments: true },
+  });
+  if (!order) return REG_TEXT.orderMissing(orderId);
+  if (order.status === 'DELIVERED' || order.status === 'CANCELLED') {
+    return REG_TEXT.cannotAdminCancel(orderId, order.status);
+  }
+
+  const openItems = order.items.filter(
+    (i) => i.status !== 'DELIVERED' && i.status !== 'CANCELLED'
+  );
+  // Money that already reached the seller must be refunded outside the bot
+  const paid = order.payments.find((p) => p.status === 'SUCCESS');
+
+  await prisma.$transaction([
+    prisma.orderItem.updateMany({
+      where: { orderId, status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+      data: { status: 'CANCELLED' },
+    }),
+    prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } }),
+    prisma.payment.updateMany({
+      where: { orderId, status: { in: ['INITIATED', 'AWAITING_CONFIRMATION'] } },
+      data: { status: 'CANCELLED' },
+    }),
+    // Put the quantities back into stock (only for products that track stock)
+    ...openItems.map((i) =>
+      prisma.product.updateMany({
+        where: { id: i.productId, stock: { not: null } },
+        data: { stock: { increment: i.quantity } },
+      })
+    ),
+  ]);
+
+  // Tell the customer and the sellers. A failure here must not undo the cancellation.
+  try {
+    const C = cn(order.customer.language);
+    await sendReply(order.customer.phone, paid ? C.byAdminPaid(orderId) : C.byAdmin(orderId));
+    const sellerPhones = new Set(openItems.map((i) => i.seller.phone));
+    for (const sellerPhone of sellerPhones) {
+      await sendReply(sellerPhone, sellerAdminCancelNotice(orderId, !!paid));
+    }
+  } catch (err) {
+    console.error('Admin cancel notice failed:', err);
+  }
+
+  return paid
+    ? REG_TEXT.adminCancelledPaid(orderId, Number(paid.amount))
+    : REG_TEXT.adminCancelled(orderId);
+}
+
+// MAKEADMIN phone: gives an existing customer the admin role
+async function makeAdmin(rawPhone: string): Promise<string> {
+  // A 10-digit Indian number is stored with the 91 country code, like WhatsApp sends it
+  const phone = rawPhone.length === 10 ? `91${rawPhone}` : rawPhone;
+
+  const target = await prisma.user.findUnique({ where: { phone } });
+  if (!target) return REG_TEXT.userNotFound(phone);
+  if (target.role === 'ADMIN') return REG_TEXT.alreadyAdmin(phone);
+  if (
+    target.role === 'SELLER' ||
+    (target.sellerStatus !== 'NONE' && target.sellerStatus !== 'REJECTED')
+  ) {
+    return REG_TEXT.cannotMakeAdmin(phone);
+  }
+
+  await prisma.user.update({
+    where: { id: target.id },
+    data: { role: 'ADMIN', state: 'BROWSING', pendingProductId: null },
+  });
+
+  try {
+    await sendReply(phone, REG_TEXT.newAdminNotice);
+  } catch (err) {
+    console.error('New admin notice failed:', err);
+  }
+
+  return REG_TEXT.madeAdmin(phone);
+}
+
 // Totals for the whole marketplace
 async function salesReport(): Promise<string> {
   const [orders, delivered, cancelled, cash, sellers, customers] = await Promise.all([
@@ -954,6 +1067,28 @@ async function handleWebhook(body: any) {
       }
       if (command === 'SALES') {
         await sendReply(phone, await salesReport());
+        return;
+      }
+
+      const openMatch = command.match(/^OPENORDERS\s+#?(\d+)$/);
+      if (openMatch) {
+        await sendReply(phone, await openOrders(Number(openMatch[1])));
+        return;
+      }
+
+      const adminCancelMatch = command.match(/^ADMINCANCEL\s+#?(\d+)$/);
+      if (adminCancelMatch) {
+        await sendReply(phone, await adminCancelOrder(Number(adminCancelMatch[1])));
+        return;
+      }
+
+      if (command === 'MAKEADMIN') {
+        await sendReply(phone, REG_TEXT.makeAdminUsage);
+        return;
+      }
+      const makeAdminMatch = command.match(/^MAKEADMIN\s+\+?(\d{10,15})$/);
+      if (makeAdminMatch) {
+        await sendReply(phone, await makeAdmin(makeAdminMatch[1]));
         return;
       }
 
