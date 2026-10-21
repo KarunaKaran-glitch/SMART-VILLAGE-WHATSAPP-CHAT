@@ -1,3 +1,5 @@
+import { byLang } from './lang';
+
 // Texts for tap buttons and lists (WhatsApp limits: button 20 characters, list row 24)
 export const BUTTON_TEXT = {
   en: {
@@ -38,6 +40,7 @@ export const BUTTON_TEXT = {
     qrAutoBody: (id: number, shop: string, total: number) =>
       `Scan to pay ₹${total} to ${shop}. The amount and the note "Order ${id}" are already filled in. Then tap "I have paid".`,
     ordersBody: 'Your latest orders. Tap "Choose" to see one.',
+    noProducts: 'No products are available right now. Please check again later.',
   },
   hi: {
     products: 'उत्पाद',
@@ -78,6 +81,7 @@ export const BUTTON_TEXT = {
     qrAutoBody: (id: number, shop: string, total: number) =>
       `${shop} को ₹${total} भुगतान के लिए स्कैन करें। राशि और नोट "Order ${id}" पहले से भरे हैं। फिर "मैंने भुगतान किया" पर टैप करें।`,
     ordersBody: 'आपके हाल के ऑर्डर। देखने के लिए "चुनें" पर टैप करें।',
+    noProducts: 'अभी कोई उत्पाद उपलब्ध नहीं है। कृपया बाद में फिर देखें।',
   },
   or: {
     products: 'ଉତ୍ପାଦ',
@@ -118,6 +122,7 @@ export const BUTTON_TEXT = {
     qrAutoBody: (id: number, shop: string, total: number) =>
       `${shop} କୁ ₹${total} ଦେବା ପାଇଁ ସ୍କାନ କରନ୍ତୁ। ରାଶି ଏବଂ ନୋଟ "Order ${id}" ପୂର୍ବରୁ ଭରା ହୋଇଛି। ତା\'ପରେ "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
     ordersBody: 'ଆପଣଙ୍କ ସାମ୍ପ୍ରତିକ ଅର୍ଡର। ଦେଖିବା ପାଇଁ "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।',
+    noProducts: 'ଏବେ କୌଣସି ଉତ୍ପାଦ ଉପଲବ୍ଧ ନାହିଁ। ଦୟାକରି ପରେ ପୁଣି ଦେଖନ୍ତୁ।',
   },
   as: {
     products: 'সামগ্ৰী',
@@ -158,6 +163,7 @@ export const BUTTON_TEXT = {
     qrAutoBody: (id: number, shop: string, total: number) =>
       `${shop} ক ₹${total} দিবলৈ স্কেন কৰক। পৰিমাণ আৰু টোকা "Order ${id}" আগতেই ভৰোৱা আছে। তাৰ পিছত "মই ধন দিলোঁ" টিপক।`,
     ordersBody: 'আপোনাৰ শেহতীয়া অৰ্ডাৰ। চাবলৈ "বাছক" টিপক।',
+    noProducts: 'এতিয়া কোনো সামগ্ৰী উপলব্ধ নাই। অনুগ্ৰহ কৰি পিছত আকৌ চাওক।',
   },
 };
 
@@ -165,13 +171,42 @@ export function bt(language: string) {
   return BUTTON_TEXT[language as keyof typeof BUTTON_TEXT] ?? BUTTON_TEXT.en;
 }
 
-// Seller and admin button labels (English, like their other messages)
-export const STAFF_BUTTONS = {
-  received: 'Received',
-  notReceived: 'Not received',
-  confirm: 'Confirm order',
-  ship: 'Mark shipped',
-  deliver: 'Mark delivered',
-  approve: 'Approve',
-  reject: 'Reject',
-};
+// Seller and admin button labels, in the language of the person who gets them (see lang.ts)
+export const STAFF_BUTTONS = byLang({
+  en: {
+    received: 'Received',
+    notReceived: 'Not received',
+    confirm: 'Confirm order',
+    ship: 'Mark shipped',
+    deliver: 'Mark delivered',
+    approve: 'Approve',
+    reject: 'Reject',
+  },
+  hi: {
+    received: 'मिल गया',
+    notReceived: 'नहीं मिला',
+    confirm: 'ऑर्डर पक्का करें',
+    ship: 'भेज दिया',
+    deliver: 'डिलीवर हो गया',
+    approve: 'मंज़ूर',
+    reject: 'नामंज़ूर',
+  },
+  or: {
+    received: 'ମିଳିଲା',
+    notReceived: 'ମିଳିନାହିଁ',
+    confirm: 'ଅର୍ଡର ନିଶ୍ଚିତ',
+    ship: 'ପଠାଗଲା',
+    deliver: 'ଡେଲିଭରି ହେଲା',
+    approve: 'ଅନୁମୋଦନ',
+    reject: 'ପ୍ରତ୍ୟାଖ୍ୟାନ',
+  },
+  as: {
+    received: 'পালোঁ',
+    notReceived: 'পোৱা নাই',
+    confirm: 'অৰ্ডাৰ নিশ্চিত',
+    ship: "পঠিওৱা হ'ল",
+    deliver: "ডেলিভাৰী হ'ল",
+    approve: 'অনুমোদন',
+    reject: 'নাকচ',
+  },
+});

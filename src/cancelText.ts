@@ -1,3 +1,5 @@
+import { byLang } from './lang';
+
 export const CANCEL_TEXT = {
   en: {
     notFound: (id: number) => `Order #${id} was not found in your orders. Send MYORDERS to see them.`,
@@ -45,14 +47,38 @@ export function cn(language: string) {
   return CANCEL_TEXT[language as keyof typeof CANCEL_TEXT] ?? CANCEL_TEXT.en;
 }
 
-// Message to the seller (English for now)
+// Notices to the seller, in the seller's language (built inside inLang, see lang.ts)
+const SELLER_CANCEL = byLang({
+  en: {
+    byCustomer: (id: number) => `Order #${id} was cancelled by the customer. Please do not prepare it.`,
+    byAdmin: (id: number) =>
+      `Order #${id} was cancelled by the marketplace admin. Please do not prepare or ship it.`,
+    paidNote: ' The customer already paid you by UPI; the admin will contact you about the refund.',
+  },
+  hi: {
+    byCustomer: (id: number) => `ऑर्डर #${id} ग्राहक ने रद्द कर दिया। कृपया इसे तैयार न करें।`,
+    byAdmin: (id: number) =>
+      `ऑर्डर #${id} मार्केटप्लेस एडमिन ने रद्द कर दिया। कृपया इसे तैयार न करें और न भेजें।`,
+    paidNote: ' ग्राहक आपको UPI से भुगतान कर चुका है; रिफंड के बारे में एडमिन आपसे संपर्क करेंगे।',
+  },
+  or: {
+    byCustomer: (id: number) => `ଅର୍ଡର #${id} ଗ୍ରାହକ ବାତିଲ କରିଛନ୍ତି। ଦୟାକରି ଏହା ପ୍ରସ୍ତୁତ କରନ୍ତୁ ନାହିଁ।`,
+    byAdmin: (id: number) =>
+      `ଅର୍ଡର #${id} ମାର୍କେଟପ୍ଲେସ୍ ଆଡମିନ ବାତିଲ କରିଛନ୍ତି। ଦୟାକରି ଏହା ପ୍ରସ୍ତୁତ କରନ୍ତୁ ନାହିଁ କି ପଠାନ୍ତୁ ନାହିଁ।`,
+    paidNote: ' ଗ୍ରାହକ ଆପଣଙ୍କୁ UPI ରେ ପଇସା ଦେଇସାରିଛନ୍ତି; ରିଫଣ୍ଡ ବିଷୟରେ ଆଡମିନ ଆପଣଙ୍କ ସହ ଯୋଗାଯୋଗ କରିବେ।',
+  },
+  as: {
+    byCustomer: (id: number) => `অৰ্ডাৰ #${id} গ্ৰাহকে বাতিল কৰিলে। অনুগ্ৰহ কৰি ইয়াক সাজু নকৰিব।`,
+    byAdmin: (id: number) =>
+      `অৰ্ডাৰ #${id} মাৰ্কেটপ্লেচৰ এডমিনে বাতিল কৰিলে। অনুগ্ৰহ কৰি ইয়াক সাজু নকৰিব বা নপঠিয়াব।`,
+    paidNote: ' গ্ৰাহকে আপোনাক UPI ৰে ধন দিছে; ধন ঘূৰাই দিয়াৰ বিষয়ে এডমিনে আপোনাৰ সৈতে যোগাযোগ কৰিব।',
+  },
+});
+
 export function sellerCancelNotice(orderId: number): string {
-  return `Order #${orderId} was cancelled by the customer. Please do not prepare it.`;
+  return SELLER_CANCEL.byCustomer(orderId);
 }
 
 export function sellerAdminCancelNotice(orderId: number, paid: boolean): string {
-  return (
-    `Order #${orderId} was cancelled by the marketplace admin. Please do not prepare or ship it.` +
-    (paid ? ' The customer already paid you by UPI; the admin will contact you about the refund.' : '')
-  );
+  return SELLER_CANCEL.byAdmin(orderId) + (paid ? SELLER_CANCEL.paidNote : '');
 }

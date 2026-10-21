@@ -13,6 +13,7 @@ import { st } from './stockText';
 import { pay } from './payText';
 import { uf } from './upiFlowText';
 import { bt, STAFF_BUTTONS } from './buttonText';
+import { currentLang, inLang, setLang } from './lang';
 import { ACTIVE_PAYMENT_METHOD } from './paymentConfig';
 import {
   downloadWhatsAppMedia,
@@ -239,27 +240,29 @@ function welcomeReply(language: string, text?: string): RichReply {
 
 // The first screen after "hi" depends on the role: sellers and admins see their own work first
 function homeReply(user: { language: string; role: string }): RichReply {
-  if (user.role === 'SELLER') {
-    return {
-      text: 'Welcome back! What would you like to do with your shop?',
-      buttons: [
-        { id: 'MYORDERS', title: 'Orders for my shop' },
-        { id: 'ADD', title: 'Add a product' },
-        { id: 'SELLER', title: 'Seller menu' },
-      ],
-    };
-  }
-  if (user.role === 'ADMIN') {
-    return {
-      text: 'Welcome, admin! What would you like to check?',
-      buttons: [
-        { id: 'PENDINGPRODUCTS', title: 'Check products' },
-        { id: 'PENDINGSELLERS', title: 'Seller requests' },
-        { id: 'ADMIN', title: 'Admin menu' },
-      ],
-    };
-  }
-  return welcomeReply(user.language);
+  return inLang(user.language, () => {
+    if (user.role === 'SELLER') {
+      return {
+        text: SELLER_TEXT.home,
+        buttons: [
+          { id: 'MYORDERS', title: SELLER_TEXT.btnOrders },
+          { id: 'ADD', title: SELLER_TEXT.btnAdd },
+          { id: 'SELLER', title: SELLER_TEXT.btnMenu },
+        ],
+      };
+    }
+    if (user.role === 'ADMIN') {
+      return {
+        text: REG_TEXT.adminHome,
+        buttons: [
+          { id: 'PENDINGPRODUCTS', title: REG_TEXT.btnCheckProducts },
+          { id: 'PENDINGSELLERS', title: REG_TEXT.btnSellerRequests },
+          { id: 'ADMIN', title: REG_TEXT.btnAdminMenu },
+        ],
+      };
+    }
+    return welcomeReply(user.language);
+  });
 }
 
 // Everything a customer can do, in one list (sellers and admins also get their own menu)
@@ -282,7 +285,7 @@ function mainMenuReply(user: { language: string; role: string }): RichReply {
 async function productListReply(language: string, page: number): Promise<Reply> {
   const B = bt(language);
   const products = await loadProducts();
-  if (products.length === 0) return 'No products yet.';
+  if (products.length === 0) return { text: B.noProducts, buttons: [{ id: 'MAINMENU', title: B.menu }] };
 
   const perPage = 9;
   const pages = Math.ceil(products.length / perPage);
@@ -518,6 +521,12 @@ async function customerOrders(userId: number, language: string): Promise<string>
   return `${M.title}\n\n${blocks.join('\n\n')}`;
 }
 
+// The different sellers of some order items, with the language each one reads
+function sellersOf(items: { seller: { phone: string; language: string } }[]) {
+  const byPhone = new Map(items.map((i) => [i.seller.phone, i.seller.language]));
+  return [...byPhone].map(([phone, language]) => ({ phone, language }));
+}
+
 // Customer cancels an order, only while every item is still PENDING
 async function cancelOrder(userId: number, language: string, orderId: number): Promise<string> {
   const C = cn(language);
@@ -555,9 +564,8 @@ async function cancelOrder(userId: number, language: string, orderId: number): P
 
   // Tell each seller. A failure here must not undo the cancellation.
   try {
-    const sellerPhones = new Set(order.items.map((i) => i.seller.phone));
-    for (const sellerPhone of sellerPhones) {
-      await sendReply(sellerPhone, sellerCancelNotice(orderId));
+    for (const s of sellersOf(order.items)) {
+      await sendReply(s.phone, inLang(s.language, () => sellerCancelNotice(orderId)));
     }
   } catch (err) {
     console.error('Seller cancel notice failed:', err);
@@ -620,15 +628,17 @@ async function reportPaid(
 
   // Tell the seller. A failure here must not undo the report.
   try {
-    const sellerPhones = new Set(order.items.map((i) => i.seller.phone));
-    for (const sellerPhone of sellerPhones) {
-      await sendReply(sellerPhone, {
-        text: SELLER_TEXT.paymentReported(orderId, Number(payment.amount), ref),
-        buttons: [
-          { id: `RECEIVED ${orderId}`, title: STAFF_BUTTONS.received },
-          { id: `NOTRECEIVED ${orderId}`, title: STAFF_BUTTONS.notReceived },
-        ],
-      });
+    for (const s of sellersOf(order.items)) {
+      await sendReply(
+        s.phone,
+        inLang(s.language, () => ({
+          text: SELLER_TEXT.paymentReported(orderId, Number(payment.amount), ref),
+          buttons: [
+            { id: `RECEIVED ${orderId}`, title: STAFF_BUTTONS.received },
+            { id: `NOTRECEIVED ${orderId}`, title: STAFF_BUTTONS.notReceived },
+          ],
+        }))
+      );
     }
   } catch (err) {
     console.error('Seller payment notice failed:', err);
@@ -749,6 +759,7 @@ async function placeOrder(userId: number, language: string, address: string): Pr
   type Placed = {
     orderId: number;
     sellerPhone: string;
+    sellerLanguage: string;
     shop: string;
     upiId: string | null;
     total: number;
@@ -800,6 +811,7 @@ async function placeOrder(userId: number, language: string, address: string): Pr
         results.push({
           orderId: created.id,
           sellerPhone: seller.phone,
+          sellerLanguage: seller.language,
           shop: seller.shopName ?? seller.phone,
           upiId: seller.upiId,
           total,
@@ -829,15 +841,16 @@ async function placeOrder(userId: number, language: string, address: string): Pr
   // Tell each seller. A failure here must not break the order.
   try {
     const customer = await prisma.user.findUnique({ where: { id: userId } });
-    const customerLabel = `${customer?.name ?? 'Customer'} (${customer?.phone})\nDeliver to: ${address}`;
     for (const p of placed) {
-      const note =
-        ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT'
-          ? 'Payment: by UPI. Wait for the customer to confirm, then check your bank app.'
-          : 'Payment: cash on delivery.';
       await sendReply(
         p.sellerPhone,
-        SELLER_TEXT.newOrder(p.orderId, [...p.lines, note], customerLabel)
+        inLang(p.sellerLanguage, () => {
+          const note = ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT' ? SELLER_TEXT.upiNote : SELLER_TEXT.codNote;
+          const customerLabel =
+            `${customer?.name ?? SELLER_TEXT.customer} (${customer?.phone})\n` +
+            `${SELLER_TEXT.deliverTo}: ${address}`;
+          return SELLER_TEXT.newOrder(p.orderId, [...p.lines, note], customerLabel);
+        })
       );
     }
   } catch (err) {
@@ -963,15 +976,17 @@ async function decideSeller(applicantId: number, approve: boolean): Promise<stri
   try {
     await sendReply(
       applicant.phone,
-      approve
-        ? {
-            text: REG_TEXT.approvedNotice(applicant.shopName ?? 'your shop'),
-            buttons: [
-              { id: 'ADD', title: 'Add a product' },
-              { id: 'SELLER', title: 'Seller menu' },
-            ],
-          }
-        : REG_TEXT.rejectedNotice
+      inLang(applicant.language, () =>
+        approve
+          ? {
+              text: REG_TEXT.approvedNotice(applicant.shopName ?? '-'),
+              buttons: [
+                { id: 'ADD', title: SELLER_TEXT.btnAdd },
+                { id: 'SELLER', title: SELLER_TEXT.btnMenu },
+              ],
+            }
+          : REG_TEXT.rejectedNotice
+      )
     );
   } catch (err) {
     console.error('Applicant notification failed:', err);
@@ -1004,7 +1019,7 @@ async function blockSeller(sellerId: number): Promise<string> {
   });
 
   try {
-    await sendReply(seller.phone, REG_TEXT.blockedNotice);
+    await sendReply(seller.phone, inLang(seller.language, () => REG_TEXT.blockedNotice));
   } catch (err) {
     console.error('Seller notification failed:', err);
   }
@@ -1023,7 +1038,7 @@ async function unblockSeller(sellerId: number): Promise<string> {
   });
 
   try {
-    await sendReply(seller.phone, REG_TEXT.unblockedNotice);
+    await sendReply(seller.phone, inLang(seller.language, () => REG_TEXT.unblockedNotice));
   } catch (err) {
     console.error('Seller notification failed:', err);
   }
@@ -1054,12 +1069,13 @@ async function openOrders(sellerId: number): Promise<string> {
   }
   const blocks = [...byOrder.values()].map((list) => {
     const o = list[0].order;
-    const lines = list.map((it) => `  ${it.product.name} x ${it.quantity} | ${it.status}`).join('\n');
-    const payment = o.payments[0] ? ` | payment ${o.payments[0].status}` : '';
+    const M = mo(currentLang());
+    const lines = list.map((it) => `  ${it.product.name} x ${it.quantity} | ${M.status(it.status)}`).join('\n');
+    const payment = o.payments[0] ? ` | ${M.pay(o.payments[0].status, o.payments[0].method)}` : '';
     const who = o.customer.name ?? o.customer.phone;
     return `#${o.id} - ₹${o.total}${payment} | ${who} (${o.customer.phone})\n${lines}`;
   });
-  return `${REG_TEXT.openOrdersTitle(sellerId)}\n${blocks.join('\n')}\n\nSend ADMINCANCEL <order> to cancel one.`;
+  return `${REG_TEXT.openOrdersTitle(sellerId)}\n${blocks.join('\n')}\n\n${REG_TEXT.openOrdersHint}`;
 }
 
 // ADMINCANCEL n: the admin cancels any order that is not delivered yet
@@ -1102,9 +1118,8 @@ async function adminCancelOrder(orderId: number): Promise<string> {
   try {
     const C = cn(order.customer.language);
     await sendReply(order.customer.phone, paid ? C.byAdminPaid(orderId) : C.byAdmin(orderId));
-    const sellerPhones = new Set(openItems.map((i) => i.seller.phone));
-    for (const sellerPhone of sellerPhones) {
-      await sendReply(sellerPhone, sellerAdminCancelNotice(orderId, !!paid));
+    for (const s of sellersOf(openItems)) {
+      await sendReply(s.phone, inLang(s.language, () => sellerAdminCancelNotice(orderId, !!paid)));
     }
   } catch (err) {
     console.error('Admin cancel notice failed:', err);
@@ -1136,7 +1151,7 @@ async function makeAdmin(rawPhone: string): Promise<string> {
   });
 
   try {
-    await sendReply(phone, REG_TEXT.newAdminNotice);
+    await sendReply(phone, inLang(target.language, () => REG_TEXT.newAdminNotice));
   } catch (err) {
     console.error('New admin notice failed:', err);
   }
@@ -1237,9 +1252,11 @@ async function decideProduct(productId: number, approve: boolean): Promise<strin
   try {
     await sendReply(
       product.seller.phone,
-      approve
-        ? SELLER_TEXT.productApproved(productId, product.name)
-        : SELLER_TEXT.productRejected(productId, product.name)
+      inLang(product.seller.language, () =>
+        approve
+          ? SELLER_TEXT.productApproved(productId, product.name)
+          : SELLER_TEXT.productRejected(productId, product.name)
+      )
     );
   } catch (err) {
     console.error('Seller product notice failed:', err);
@@ -1258,7 +1275,8 @@ async function notifyAdminsOfProduct(productId: number) {
     if (!product?.imageKey) return;
     const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
     for (const a of admins) {
-      await sendReply(a.phone, adminProductReply({ ...product, imageKey: product.imageKey }));
+      const imageKey = product.imageKey;
+      await sendReply(a.phone, inLang(a.language, () => adminProductReply({ ...product, imageKey })));
     }
   } catch (err) {
     console.error('Admin product notice failed:', err);
@@ -1295,13 +1313,13 @@ async function salesReport(): Promise<string> {
   );
 
   return [
-    'Marketplace summary:',
-    `Orders: ${orders} (open ${open}, delivered ${delivered}, cancelled ${cancelled})`,
-    `Payments received (UPI and cash): ₹${Number(cash._sum.amount ?? 0)}`,
-    `Sellers: ${sellers}, customers: ${customers}`,
+    REG_TEXT.salesTitle,
+    REG_TEXT.salesOrders(orders, open, delivered, cancelled),
+    REG_TEXT.salesPaid(Number(cash._sum.amount ?? 0)),
+    REG_TEXT.salesPeople(sellers, customers),
     sellerLines.length > 0
-      ? `Delivered sales per seller:\n${sellerLines.join('\n')}`
-      : 'No delivered sales yet.',
+      ? `${REG_TEXT.salesPerSeller}\n${sellerLines.join('\n')}`
+      : REG_TEXT.salesNone,
   ].join('\n');
 }
 
@@ -1384,6 +1402,8 @@ async function handleWebhook(body: any) {
       return;
     }
 
+    // Everything written for this person is in their language (seller and admin texts too)
+    setLang(user.language);
     const T = t(user.language);
     const B = bt(user.language);
 
@@ -1580,12 +1600,11 @@ async function handleWebhook(body: any) {
           if (mine.length === 0) {
             await sendReply(phone, SELLER_TEXT.noProducts);
           } else {
-            const approvalLabel = { PENDING: 'waiting for admin', APPROVED: 'approved', REJECTED: 'rejected' };
             const lines = mine.map(
               (p) =>
-                `#${p.id} ${p.name} - ₹${p.price} - stock: ${p.stock ?? 'unlimited'}` +
-                ` - ${p.imageKey ? approvalLabel[p.approval] : `no photo (send PHOTO ${p.id})`}` +
-                `${p.isActive ? '' : ' (hidden)'}`
+                `#${p.id} ${p.name} - ₹${p.price} - ${SELLER_TEXT.stockLabel(p.stock)}` +
+                ` - ${p.imageKey ? SELLER_TEXT.approval(p.approval) : SELLER_TEXT.noPhoto(p.id)}` +
+                `${p.isActive ? '' : ' ' + SELLER_TEXT.hiddenTag}`
             );
             await sendReply(phone, `${SELLER_TEXT.myProductsTitle}\n${lines.join('\n')}`);
           }
@@ -1604,7 +1623,13 @@ async function handleWebhook(body: any) {
             const lines = items.map((it) => {
               const who = it.order.customer.name ?? it.order.customer.phone;
               const lineTotal = Number(it.unitPrice) * it.quantity;
-              return `Order #${it.orderId} | ${it.product.name} x ${it.quantity} = ₹${lineTotal} | ${it.status} | ${who} (${it.order.customer.phone})`;
+              return SELLER_TEXT.orderLine(
+                it.orderId,
+                `${it.product.name} x ${it.quantity}`,
+                lineTotal,
+                it.status,
+                `${who} (${it.order.customer.phone})`
+              );
             });
             await sendReply(phone, `${SELLER_TEXT.myOrdersTitle}\n${lines.join('\n')}`);
           }
@@ -1741,26 +1766,29 @@ async function handleWebhook(body: any) {
           );
           return;
         }
-        if (command === 'SELLER' || command === 'HELP') {
-          // The everyday seller actions as a tap list; the full typed command list follows it
-          await sendReply(phone, [
-            SELLER_TEXT.help,
-            {
-              text: 'Seller menu: tap "Choose".',
-              list: {
-                button: 'Seller menu',
-                rows: [
-                  { id: 'ADD', title: 'Add a product' },
-                  { id: 'MYPRODUCTS', title: 'My products' },
-                  { id: 'MYORDERS', title: 'Orders for my shop' },
-                  { id: 'UPI', title: 'My UPI ID and QR' },
-                  { id: 'QR', title: 'Upload my QR photo' },
-                  { id: 'MYPURCHASES', title: 'My own purchases' },
-                  { id: 'MAINMENU', title: 'Shop as a customer' },
-                ],
-              },
+        // HELP: the full list of typed commands (also the last row of the seller menu)
+        if (command === 'HELP') {
+          await sendReply(phone, SELLER_TEXT.help);
+          return;
+        }
+        // SELLER: the everyday seller actions as a tap list
+        if (command === 'SELLER') {
+          await sendReply(phone, {
+            text: SELLER_TEXT.menuBody,
+            list: {
+              button: SELLER_TEXT.btnMenu,
+              rows: [
+                { id: 'ADD', title: SELLER_TEXT.btnAdd },
+                { id: 'MYPRODUCTS', title: SELLER_TEXT.rowProducts },
+                { id: 'MYORDERS', title: SELLER_TEXT.btnOrders },
+                { id: 'UPI', title: SELLER_TEXT.rowUpi },
+                { id: 'QR', title: SELLER_TEXT.rowQr },
+                { id: 'MYPURCHASES', title: SELLER_TEXT.rowPurchases },
+                { id: 'MAINMENU', title: SELLER_TEXT.rowShop },
+                { id: 'HELP', title: SELLER_TEXT.rowAllCommands },
+              ],
             },
-          ]);
+          });
           return;
         }
       }
@@ -1780,7 +1808,7 @@ async function handleWebhook(body: any) {
           await sendReply(
             phone,
             waiting.slice(0, 10).map((u) => ({
-              text: `Seller request #${u.id}\nShop: ${u.shopName ?? '-'}\nPhone: ${u.phone}`,
+              text: REG_TEXT.sellerRequestCard(u.id, u.shopName ?? '-', u.phone),
               buttons: [
                 { id: `APPROVE ${u.id}`, title: STAFF_BUTTONS.approve },
                 { id: `REJECT ${u.id}`, title: STAFF_BUTTONS.reject },
@@ -1853,23 +1881,26 @@ async function handleWebhook(body: any) {
         );
         return;
       }
-      if (command === 'ADMIN' || command === 'HELP') {
-        // The everyday admin actions as a tap list; the full typed command list follows it
-        await sendReply(phone, [
-          REG_TEXT.adminHelp,
-          {
-            text: 'Admin menu: tap "Choose".',
-            list: {
-              button: 'Admin menu',
-              rows: [
-                { id: 'PENDINGPRODUCTS', title: 'Products to check' },
-                { id: 'PENDINGSELLERS', title: 'Seller requests' },
-                { id: 'SALES', title: 'Sales summary' },
-                { id: 'MAINMENU', title: 'Shop as a customer' },
-              ],
-            },
+      // HELP: the full list of typed admin commands (also the last row of the admin menu)
+      if (command === 'HELP') {
+        await sendReply(phone, REG_TEXT.adminHelp);
+        return;
+      }
+      // ADMIN: the everyday admin actions as a tap list
+      if (command === 'ADMIN') {
+        await sendReply(phone, {
+          text: REG_TEXT.adminMenuBody,
+          list: {
+            button: REG_TEXT.btnAdminMenu,
+            rows: [
+              { id: 'PENDINGPRODUCTS', title: REG_TEXT.rowProductsToCheck },
+              { id: 'PENDINGSELLERS', title: REG_TEXT.rowSellerRequests },
+              { id: 'SALES', title: REG_TEXT.rowSales },
+              { id: 'MAINMENU', title: REG_TEXT.rowShop },
+              { id: 'HELP', title: REG_TEXT.rowAllCommands },
+            ],
           },
-        ]);
+        });
         return;
       }
     }
@@ -1885,6 +1916,7 @@ async function handleWebhook(body: any) {
         where: { id: user.id },
         data: { language: chosen.code, state: 'BROWSING' },
       });
+      setLang(chosen.code);
       await sendReply(phone, homeReply({ ...user, language: chosen.code }));
       return;
     }
@@ -1963,13 +1995,16 @@ async function handleWebhook(body: any) {
       try {
         const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
         for (const a of admins) {
-          await sendReply(a.phone, {
-            text: REG_TEXT.adminNotice(user.id, text, user.phone),
-            buttons: [
-              { id: `APPROVE ${user.id}`, title: STAFF_BUTTONS.approve },
-              { id: `REJECT ${user.id}`, title: STAFF_BUTTONS.reject },
-            ],
-          });
+          await sendReply(
+            a.phone,
+            inLang(a.language, () => ({
+              text: REG_TEXT.adminNotice(user.id, text, user.phone),
+              buttons: [
+                { id: `APPROVE ${user.id}`, title: STAFF_BUTTONS.approve },
+                { id: `REJECT ${user.id}`, title: STAFF_BUTTONS.reject },
+              ],
+            }))
+          );
         }
       } catch (err) {
         console.error('Admin notification failed:', err);
@@ -2249,7 +2284,8 @@ app.post('/webhook', async (req: Request, res: Response) => {
   }
 
   try {
-    await handleWebhook(req.body);
+    // Each webhook call gets its own language setting (handleWebhook sets the sender's)
+    await inLang('en', () => handleWebhook(req.body));
     res.sendStatus(200);
   } catch (err) {
     console.error('Webhook error:', err);
