@@ -33,7 +33,7 @@ export const BUTTON_TEXT = {
     added: (name: string, qty: number) => `Added ${qty} x ${name} to your cart.`,
     removeWhich: 'Which item should be removed?',
     confirmOrder: (total: number, address: string) =>
-      `Total: ₹${total}\nDeliver to:\n${address}\n\nPlace the order?`,
+      `Total: ₹${total} (free delivery)\nDeliver to:\n${address}\n\nPlace the order?`,
     payTapHint: 'Pay in your UPI app, then tap "I have paid". Prefer scanning? Tap "Show QR code".',
     qrSellerBody: (id: number, shop: string, total: number) =>
       `Scan to pay ${shop}. Enter the amount ₹${total} and write "Order ${id}" in the note. Then tap "I have paid".`,
@@ -78,7 +78,7 @@ export const BUTTON_TEXT = {
     added: (name: string, qty: number) => `${qty} x ${name} कार्ट में जोड़ा गया।`,
     removeWhich: 'कौन सा आइटम हटाना है?',
     confirmOrder: (total: number, address: string) =>
-      `कुल: ₹${total}\nडिलीवरी पता:\n${address}\n\nऑर्डर करें?`,
+      `कुल: ₹${total} (डिलीवरी मुफ़्त)\nडिलीवरी पता:\n${address}\n\nऑर्डर करें?`,
     payTapHint:
       'अपने UPI ऐप में भुगतान करें, फिर "मैंने भुगतान किया" पर टैप करें। स्कैन करना है? "QR दिखाएँ" पर टैप करें।',
     qrSellerBody: (id: number, shop: string, total: number) =>
@@ -124,7 +124,7 @@ export const BUTTON_TEXT = {
     added: (name: string, qty: number) => `${qty} x ${name} କାର୍ଟରେ ଯୋଡ଼ାଗଲା।`,
     removeWhich: 'କେଉଁ ଜିନିଷ ହଟାଇବେ?',
     confirmOrder: (total: number, address: string) =>
-      `ମୋଟ: ₹${total}\nଡେଲିଭରି ଠିକଣା:\n${address}\n\nଅର୍ଡର କରିବେ?`,
+      `ମୋଟ: ₹${total} (ଡେଲିଭରି ମାଗଣା)\nଡେଲିଭରି ଠିକଣା:\n${address}\n\nଅର୍ଡର କରିବେ?`,
     payTapHint:
       'ଆପଣଙ୍କ UPI ଆପରେ ପଇସା ଦିଅନ୍ତୁ, ତା\'ପରେ "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରନ୍ତୁ। ସ୍କାନ କରିବେ? "QR ଦେଖାନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।',
     qrSellerBody: (id: number, shop: string, total: number) =>
@@ -170,7 +170,7 @@ export const BUTTON_TEXT = {
     added: (name: string, qty: number) => `${qty} x ${name} কাৰ্টত যোগ কৰা হ'ল।`,
     removeWhich: 'কোনটো সামগ্ৰী আঁতৰাব?',
     confirmOrder: (total: number, address: string) =>
-      `মুঠ: ₹${total}\nডেলিভাৰী ঠিকনা:\n${address}\n\nঅৰ্ডাৰ দিবনে?`,
+      `মুঠ: ₹${total} (ডেলিভাৰী বিনামূলীয়া)\nডেলিভাৰী ঠিকনা:\n${address}\n\nঅৰ্ডাৰ দিবনে?`,
     payTapHint:
       'আপোনাৰ UPI এপত ধন দিয়ক, তাৰ পিছত "মই ধন দিলোঁ" টিপক। স্কেন কৰিব বিচাৰে? "QR দেখুৱাওক" টিপক।',
     qrSellerBody: (id: number, shop: string, total: number) =>

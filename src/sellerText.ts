@@ -77,7 +77,7 @@ const en = {
   qrRemoved: 'Your UPI QR code photo is removed. Customers will get a QR code made from your UPI ID instead.',
   invalidName: 'The name must be 2 to 60 characters. Try again, or send CANCEL.',
   askPrice: (name: string) =>
-    `Price for "${name}" in rupees? Send a number like 80 or 49.50, or CANCEL.`,
+    `Price for "${name}" in rupees? Delivery is free for customers, so include your courier cost in the price. Send a number like 80 or 49.50, or CANCEL.`,
   invalidPrice: 'Please send a price above 0, like 80 or 49.50, or CANCEL.',
   added: (id: number, name: string, price: number) =>
     `Product #${id} added: ${name} - ₹${price}.`,
@@ -204,7 +204,7 @@ const hi: typeof en = {
   qrRemoved: 'आपका UPI QR फोटो हटा दिया गया। अब ग्राहकों को आपकी UPI ID से बना QR मिलेगा।',
   invalidName: 'नाम 2 से 60 अक्षर का होना चाहिए। फिर से भेजें, या CANCEL।',
   askPrice: (name: string) =>
-    `"${name}" का दाम रुपये में? 80 या 49.50 जैसी संख्या भेजें, या CANCEL।`,
+    `"${name}" का दाम रुपये में? ग्राहकों के लिए डिलीवरी मुफ़्त है, इसलिए कूरियर का खर्च दाम में जोड़ें। 80 या 49.50 जैसी संख्या भेजें, या CANCEL।`,
   invalidPrice: 'कृपया 0 से ज़्यादा दाम भेजें, जैसे 80 या 49.50, या CANCEL।',
   added: (id: number, name: string, price: number) => `उत्पाद #${id} जोड़ा गया: ${name} - ₹${price}।`,
   cancelled: 'रद्द किया गया।',
@@ -326,7 +326,7 @@ const or: typeof en = {
   qrRemoved: 'ଆପଣଙ୍କ UPI QR ଫଟୋ ହଟାଗଲା। ଏବେ ଗ୍ରାହକ ଆପଣଙ୍କ UPI ID ରୁ ତିଆରି QR ପାଇବେ।',
   invalidName: 'ନାମ 2 ରୁ 60 ଅକ୍ଷର ହେବା ଦରକାର। ପୁଣି ପଠାନ୍ତୁ, କିମ୍ବା CANCEL।',
   askPrice: (name: string) =>
-    `"${name}" ର ଦାମ ଟଙ୍କାରେ? 80 ବା 49.50 ପରି ସଂଖ୍ୟା ପଠାନ୍ତୁ, କିମ୍ବା CANCEL।`,
+    `"${name}" ର ଦାମ ଟଙ୍କାରେ? ଗ୍ରାହକଙ୍କ ପାଇଁ ଡେଲିଭରି ମାଗଣା, ତେଣୁ କୁରିଅର ଖର୍ଚ୍ଚ ଦାମରେ ଯୋଡ଼ନ୍ତୁ। 80 ବା 49.50 ପରି ସଂଖ୍ୟା ପଠାନ୍ତୁ, କିମ୍ବା CANCEL।`,
   invalidPrice: 'ଦୟାକରି 0 ରୁ ଅଧିକ ଦାମ ପଠାନ୍ତୁ, ଯେପରି 80 ବା 49.50, କିମ୍ବା CANCEL।',
   added: (id: number, name: string, price: number) => `ଉତ୍ପାଦ #${id} ଯୋଡ଼ାଗଲା: ${name} - ₹${price}।`,
   cancelled: 'ବାତିଲ ହେଲା।',
@@ -448,7 +448,7 @@ const as: typeof en = {
   qrRemoved: 'আপোনাৰ UPI QR ফটো আঁতৰোৱা হ\'ল। এতিয়া গ্ৰাহকে আপোনাৰ UPI ID ৰ পৰা বনোৱা QR পাব।',
   invalidName: 'নাম 2 ৰ পৰা 60 আখৰৰ হ\'ব লাগিব। আকৌ পঠিয়াওক, নহয় CANCEL।',
   askPrice: (name: string) =>
-    `"${name}" ৰ দাম টকাত কিমান? 80 বা 49.50 ৰ দৰে সংখ্যা পঠিয়াওক, নহয় CANCEL।`,
+    `"${name}" ৰ দাম টকাত কিমান? গ্ৰাহকৰ বাবে ডেলিভাৰী বিনামূলীয়া, সেয়েহে কুৰিয়াৰৰ খৰচ দামত যোগ কৰক। 80 বা 49.50 ৰ দৰে সংখ্যা পঠিয়াওক, নহয় CANCEL।`,
   invalidPrice: 'অনুগ্ৰহ কৰি 0 তকৈ বেছি দাম পঠিয়াওক, যেনে 80 বা 49.50, নহয় CANCEL।',
   added: (id: number, name: string, price: number) => `সামগ্ৰী #${id} যোগ কৰা হ'ল: ${name} - ₹${price}।`,
   cancelled: 'বাতিল কৰা হ\'ল।',
