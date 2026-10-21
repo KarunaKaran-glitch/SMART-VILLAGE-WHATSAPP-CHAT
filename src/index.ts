@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import { prisma } from './db';
-import { LANGUAGES, WELCOME, languageMenu, t } from './messages';
+import { LANGUAGES, t } from './messages';
 import { ot } from './orderText';
 import { SELLER_TEXT } from './sellerText';
 import { ct } from './cartEditText';
@@ -12,11 +12,13 @@ import { REG_TEXT } from './registerText';
 import { st } from './stockText';
 import { pay } from './payText';
 import { uf } from './upiFlowText';
+import { bt, STAFF_BUTTONS } from './buttonText';
 import { ACTIVE_PAYMENT_METHOD } from './paymentConfig';
 import {
   downloadWhatsAppMedia,
   maskDigits,
   sendWhatsAppImage,
+  sendWhatsAppInteractive,
   sendWhatsAppText,
   sendingEnabled,
   signatureCheckEnabled,
@@ -39,10 +41,78 @@ app.use(
 const PORT = process.env.PORT || 3000;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
+// A reply is plain text, or a message with tap buttons (max 3) or a tap list (max 10 rows),
+// optionally with a photo on top (buttons only). Several replies can be sent as an array.
+// Every button and row id is a normal command (like "QR 12"), so tapping and typing do the same.
+type Button = { id: string; title: string };
+type Row = { id: string; title: string; description?: string };
+type RichReply = {
+  text: string;
+  buttons?: Button[];
+  list?: { button: string; rows: Row[] };
+  imageKey?: string;
+};
+type Reply = string | RichReply | Reply[];
+
+// WhatsApp rejects texts that are too long, so cut them to its limits
+function clip(text: string, max: number): string {
+  const chars = Array.from(text);
+  return chars.length <= max ? text : chars.slice(0, max - 1).join('') + '…';
+}
+
 // Prints the reply (long numbers hidden) and, when WhatsApp is set up in .env, sends it
-async function sendReply(to: string, text: string) {
-  console.log(`>> Reply to ${to}:\n${maskDigits(text)}\n`);
-  await sendWhatsAppText(to, text);
+async function sendReply(to: string, reply: Reply): Promise<void> {
+  if (Array.isArray(reply)) {
+    for (const r of reply) await sendReply(to, r);
+    return;
+  }
+  if (typeof reply === 'string') {
+    console.log(`>> Reply to ${to}:\n${maskDigits(reply)}\n`);
+    await sendWhatsAppText(to, reply);
+    return;
+  }
+
+  const body = clip(reply.text, 1024);
+  if (reply.list && reply.list.rows.length > 0) {
+    const rows = reply.list.rows.slice(0, 10).map((r) => ({
+      id: r.id,
+      title: clip(r.title, 24),
+      ...(r.description ? { description: clip(r.description, 72) } : {}),
+    }));
+    console.log(
+      `>> List to ${to}:\n${maskDigits(body)}\n` +
+        rows.map((r) => `   (${r.title}${r.description ? ' | ' + r.description : ''}) -> ${r.id}`).join('\n') +
+        '\n'
+    );
+    await sendWhatsAppInteractive(to, {
+      type: 'list',
+      body: { text: body },
+      action: { button: clip(reply.list.button, 20), sections: [{ title: clip(reply.list.button, 24), rows }] },
+    });
+    return;
+  }
+
+  if (reply.buttons && reply.buttons.length > 0) {
+    const buttons = reply.buttons.slice(0, 3).map((b) => ({ id: b.id, title: clip(b.title, 20) }));
+    const link = reply.imageKey ? imageUrl(reply.imageKey) : null;
+    console.log(
+      `>> Buttons to ${to}:${link ? ' ' + link : ''}\n${maskDigits(body)}\n` +
+        '   ' + buttons.map((b) => `[${b.title}] -> ${b.id}`).join('   ') + '\n'
+    );
+    await sendWhatsAppInteractive(to, {
+      type: 'button',
+      ...(link ? { header: { type: 'image', image: { link } } } : {}),
+      body: { text: body },
+      action: { buttons: buttons.map((b) => ({ type: 'reply', reply: b })) },
+    });
+    return;
+  }
+
+  if (reply.imageKey) {
+    await sendImage(to, reply.imageKey, body);
+    return;
+  }
+  await sendReply(to, body);
 }
 
 // Same for a photo: prints its link (open it in a browser to see it) and sends it when live
@@ -108,6 +178,7 @@ function loadProducts() {
       isActive: true,
       approval: 'APPROVED', // checked by the admin: handmade only
       imageKey: { not: null }, // every product on the menu has a photo
+      seller: { upiId: { not: null } }, // customers can only pay sellers who set a UPI ID
       OR: [{ stock: null }, { stock: { gt: 0 } }],
     },
     include: { translations: true },
@@ -115,18 +186,7 @@ function loadProducts() {
   });
 }
 
-async function productList(language: string): Promise<string> {
-  const T = t(language);
-  const products = await loadProducts();
-  if (products.length === 0) return 'No products yet.';
-
-  const lines = products.map(
-    (p, i) => `${i + 1}. ${localName(p, language)} - ₹${p.price}`
-  );
-  return `${T.productsTitle}\n${lines.join('\n')}\n\n${T.productsHint}`;
-}
-
-async function cartText(userId: number, language: string): Promise<string> {
+async function cartText(userId: number, language: string, withHint = true): Promise<string> {
   const T = t(language);
   const cart = await prisma.cart.findUnique({
     where: { customerId: userId },
@@ -145,34 +205,287 @@ async function cartText(userId: number, language: string): Promise<string> {
     total += lineTotal;
     return `${i + 1}. ${localName(item.product, language)} x ${item.quantity} - ₹${lineTotal}`;
   });
-  return `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}\n\n${ct(language).hint}`;
+  const summary = `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}`;
+  return withHint ? `${summary}\n\n${ct(language).hint}` : summary;
+}
+
+// ---- Tap screens (buttons and lists) ----
+
+function languageReply(): RichReply {
+  return {
+    text: 'Welcome! Please choose your language.\nவணக்கம்! உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்.',
+    list: {
+      button: 'Language / மொழி',
+      rows: Object.entries(LANGUAGES).map(([num, l]) => ({ id: num, title: l.label })),
+    },
+  };
+}
+
+function welcomeReply(language: string, text?: string): RichReply {
+  const B = bt(language);
+  return {
+    text: text ?? B.welcome,
+    buttons: [
+      { id: 'MENU', title: B.products },
+      { id: 'CART', title: B.cart },
+      { id: 'MAINMENU', title: B.menu },
+    ],
+  };
+}
+
+// The first screen after "hi" depends on the role: sellers and admins see their own work first
+function homeReply(user: { language: string; role: string }): RichReply {
+  if (user.role === 'SELLER') {
+    return {
+      text: 'Welcome back! What would you like to do with your shop?',
+      buttons: [
+        { id: 'MYORDERS', title: 'Orders for my shop' },
+        { id: 'ADD', title: 'Add a product' },
+        { id: 'SELLER', title: 'Seller menu' },
+      ],
+    };
+  }
+  if (user.role === 'ADMIN') {
+    return {
+      text: 'Welcome, admin! What would you like to check?',
+      buttons: [
+        { id: 'PENDINGPRODUCTS', title: 'Check products' },
+        { id: 'PENDINGSELLERS', title: 'Seller requests' },
+        { id: 'ADMIN', title: 'Admin menu' },
+      ],
+    };
+  }
+  return welcomeReply(user.language);
+}
+
+// Everything a customer can do, in one list (sellers and admins also get their own menu)
+function mainMenuReply(user: { language: string; role: string }): RichReply {
+  const B = bt(user.language);
+  const rows: Row[] = [
+    { id: 'MENU', title: B.products },
+    { id: 'CART', title: B.cart },
+    { id: 'MYORDERS', title: B.myOrders },
+    { id: 'ADDRESS', title: B.address },
+    { id: 'LANG', title: B.language },
+  ];
+  if (user.role === 'SELLER') rows.push({ id: 'SELLER', title: B.sellerMenu });
+  else if (user.role === 'ADMIN') rows.push({ id: 'ADMIN', title: B.adminMenu });
+  else rows.push({ id: 'SELL', title: B.sell });
+  return { text: B.whatNext, list: { button: B.menu, rows } };
+}
+
+// Products as a tap list, 9 per page plus "More products"
+async function productListReply(language: string, page: number): Promise<Reply> {
+  const B = bt(language);
+  const products = await loadProducts();
+  if (products.length === 0) return 'No products yet.';
+
+  const perPage = 9;
+  const pages = Math.ceil(products.length / perPage);
+  const current = Math.min(Math.max(page, 1), pages);
+  const rows: Row[] = products.slice((current - 1) * perPage, current * perPage).map((p) => ({
+    id: `PRODUCT ${p.id}`,
+    title: localName(p, language),
+    description: `₹${p.price}`,
+  }));
+  if (current < pages) rows.push({ id: `MENU ${current + 1}`, title: `${B.more} ›` });
+  return { text: B.productsBody, list: { button: B.products, rows } };
+}
+
+// One product: its photo, name and price, with Add to cart / Back
+async function productReply(language: string, productId: number): Promise<Reply> {
+  const B = bt(language);
+  const p = await prisma.product.findUnique({ where: { id: productId }, include: { translations: true } });
+  if (!p || !p.isActive || p.approval !== 'APPROVED' || !p.imageKey || p.stock === 0) {
+    return welcomeReply(language, t(language).invalidProduct);
+  }
+  return {
+    text: `${localName(p, language)} - ₹${p.price}`,
+    imageKey: p.imageKey,
+    buttons: [
+      { id: `BUY ${p.id}`, title: B.addToCart },
+      { id: 'MENU', title: B.back },
+    ],
+  };
+}
+
+// Quantity as a tap list: 1 to 10 (typing a bigger number up to 99 still works)
+function qtyReply(language: string, name: string): RichReply {
+  const B = bt(language);
+  return {
+    text: B.askQty(name),
+    list: {
+      button: B.choose,
+      rows: Array.from({ length: 10 }, (_, i) => ({ id: String(i + 1), title: String(i + 1) })),
+    },
+  };
+}
+
+function afterAddReply(language: string, text: string): RichReply {
+  const B = bt(language);
+  return {
+    text,
+    buttons: [
+      { id: 'ORDER', title: B.placeOrder },
+      { id: 'MENU', title: B.shopMore },
+      { id: 'CART', title: B.viewCart },
+    ],
+  };
+}
+
+async function cartReply(userId: number, language: string, prefix?: string): Promise<Reply> {
+  const B = bt(language);
+  const T = t(language);
+  const summary = await cartText(userId, language, false);
+  const text = prefix ? `${prefix}\n\n${summary}` : summary;
+  if (summary === T.emptyCart) {
+    return { text, buttons: [{ id: 'MENU', title: B.products }] };
+  }
+  return {
+    text,
+    buttons: [
+      { id: 'ORDER', title: B.placeOrder },
+      { id: 'REMOVEMENU', title: B.removeItem },
+      { id: 'MENU', title: B.shopMore },
+    ],
+  };
+}
+
+// Which cart line to remove (same numbering as the cart), or empty the cart
+async function removeMenuReply(userId: number, language: string): Promise<Reply> {
+  const B = bt(language);
+  const cart = await prisma.cart.findUnique({
+    where: { customerId: userId },
+    include: { items: { include: { product: { include: { translations: true } } }, orderBy: { id: 'asc' } } },
+  });
+  if (!cart || cart.items.length === 0) return cartReply(userId, language);
+  const rows: Row[] = cart.items.slice(0, 9).map((item, i) => ({
+    id: `REMOVE ${i + 1}`,
+    title: localName(item.product, language),
+    description: `x ${item.quantity}`,
+  }));
+  rows.push({ id: 'CLEAR', title: B.clearCart });
+  return { text: B.removeWhich, list: { button: B.removeItem, rows } };
+}
+
+// Before placing the order: total and delivery address, so the customer can check them
+async function confirmOrderReply(userId: number, language: string, address: string): Promise<Reply> {
+  const B = bt(language);
+  const cart = await prisma.cart.findUnique({
+    where: { customerId: userId },
+    include: { items: { include: { product: true } } },
+  });
+  if (!cart || cart.items.length === 0) return cartReply(userId, language);
+  const total = cart.items.reduce((sum, i) => sum + Number(i.product.price) * i.quantity, 0);
+  return {
+    text: B.confirmOrder(total, address),
+    buttons: [
+      { id: 'PLACEORDER', title: B.placeOrder },
+      { id: 'ADDRESS', title: B.changeAddress },
+      { id: 'CART', title: B.viewCart },
+    ],
+  };
+}
+
+// The customer's last orders as a tap list
+async function ordersListReply(userId: number, language: string): Promise<Reply> {
+  const B = bt(language);
+  const M = mo(language);
+  const orders = await prisma.order.findMany({
+    where: { customerId: userId },
+    include: { payments: { orderBy: { id: 'desc' }, take: 1 } },
+    orderBy: { id: 'desc' },
+    take: 10,
+  });
+  if (orders.length === 0) return { text: M.none, buttons: [{ id: 'MENU', title: B.products }] };
+  return {
+    text: B.ordersBody,
+    list: {
+      button: B.myOrders,
+      rows: orders.map((o) => ({
+        id: `ORDERINFO ${o.id}`,
+        title: `#${o.id} - ₹${o.total}`,
+        description: `${M.status(o.status)}${o.payments[0] ? ' · ' + M.pay(o.payments[0].status, o.payments[0].method) : ''}`,
+      })),
+    },
+  };
+}
+
+// One order with the buttons that make sense for it right now
+async function orderInfoReply(userId: number, language: string, orderId: number): Promise<Reply> {
+  const B = bt(language);
+  const M = mo(language);
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, customerId: userId },
+    include: {
+      items: { include: { product: { include: { translations: true } }, seller: true } },
+      payments: { orderBy: { id: 'desc' }, take: 1 },
+    },
+  });
+  if (!order) return welcomeReply(language, uf(language).notFound(orderId));
+
+  const payment = order.payments[0];
+  const seller = order.items[0]?.seller;
+  const lines = order.items.map((i) => `  ${localName(i.product, language)} x ${i.quantity}`).join('\n');
+  let text = `#${order.id} - ${M.status(order.status)} - ₹${order.total}\n${lines}`;
+  if (payment) text += `\n  ${M.pay(payment.status, payment.method)}`;
+
+  const waitingForPayment =
+    payment?.method === 'UPI_DIRECT' && payment.status === 'INITIATED' && order.status !== 'CANCELLED';
+  if (waitingForPayment && seller) {
+    text += `\n\n${pay(language).block(order.id, seller.shopName ?? seller.phone, Number(order.total), seller.upiId ?? '')}\n\n${B.payTapHint}`;
+    const buttons: Button[] = [
+      { id: `QR ${order.id}`, title: B.showQr },
+      { id: `PAID ${order.id}`, title: B.paid },
+    ];
+    if (order.items.every((i) => i.status === 'PENDING')) {
+      buttons.push({ id: `CANCELORDER ${order.id}`, title: B.cancelOrder });
+    }
+    return { text, buttons };
+  }
+  return {
+    text,
+    buttons: [
+      { id: 'MYORDERS', title: B.myOrders },
+      { id: 'MENU', title: B.products },
+    ],
+  };
 }
 
 // REMOVE n: removes line n of the cart (same numbering as the CART message)
-async function removeFromCart(userId: number, language: string, line: number): Promise<string> {
+async function removeFromCart(userId: number, language: string, line: number): Promise<Reply> {
   const cart = await prisma.cart.findUnique({
     where: { customerId: userId },
     include: { items: { orderBy: { id: 'asc' } } },
   });
-  if (!cart || cart.items.length === 0) return t(language).emptyCart;
+  if (!cart || cart.items.length === 0) return cartReply(userId, language);
 
   const item = cart.items[line - 1];
-  if (!item) return ct(language).invalidLine;
+  if (!item) return cartReply(userId, language, ct(language).invalidLine);
 
   await prisma.cartItem.delete({ where: { id: item.id } });
-  return `${ct(language).removed}\n\n${await cartText(userId, language)}`;
+  return cartReply(userId, language, ct(language).removed);
 }
 
 // CLEAR: empties the cart
-async function clearCart(userId: number, language: string): Promise<string> {
+async function clearCart(userId: number, language: string): Promise<Reply> {
   const cart = await prisma.cart.findUnique({
     where: { customerId: userId },
     include: { items: true },
   });
-  if (!cart || cart.items.length === 0) return t(language).emptyCart;
+  if (cart && cart.items.length > 0) {
+    await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+  }
+  return { text: ct(language).cleared, buttons: [{ id: 'MENU', title: bt(language).products }] };
+}
 
-  await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-  return ct(language).cleared;
+// Buttons to carry on after a customer message that has no next step of its own
+function nextButtons(language: string): Button[] {
+  const B = bt(language);
+  return [
+    { id: 'MYORDERS', title: B.myOrders },
+    { id: 'MENU', title: B.products },
+  ];
 }
 
 // Customer's last 5 orders with status and payment
@@ -249,18 +562,19 @@ async function cancelOrder(userId: number, language: string, orderId: number): P
   return C.cancelled(orderId);
 }
 
-// PAID n ref: the customer reports a UPI payment; the seller is asked to check it
+// PAID n (tap "I have paid") or PAID n ref: the customer reports a UPI payment;
+// the seller is asked to check their bank app. The transaction number is optional.
 async function reportPaid(
   userId: number,
   language: string,
   orderId: number,
-  rawRef: string
-): Promise<string> {
+  rawRef?: string
+): Promise<Reply> {
   const U = uf(language);
 
   // UPI transaction numbers are usually 12 digits; allow 8 to 24 letters or digits
-  const ref = rawRef.toUpperCase();
-  if (!/^[A-Z0-9]{8,24}$/.test(ref)) return U.invalidRef;
+  const ref = rawRef ? rawRef.toUpperCase() : null;
+  if (ref && !/^[A-Z0-9]{8,24}$/.test(ref)) return U.invalidRef;
 
   const order = await prisma.order.findFirst({
     where: { id: orderId, customerId: userId },
@@ -282,10 +596,12 @@ async function reportPaid(
   }
 
   // The same transaction number cannot pay for two orders
-  const usedElsewhere = await prisma.payment.findFirst({
-    where: { reference: ref, id: { not: payment.id } },
-  });
-  if (usedElsewhere) return U.refUsed;
+  if (ref) {
+    const usedElsewhere = await prisma.payment.findFirst({
+      where: { reference: ref, id: { not: payment.id } },
+    });
+    if (usedElsewhere) return U.refUsed;
+  }
 
   try {
     await prisma.payment.update({
@@ -302,16 +618,19 @@ async function reportPaid(
   try {
     const sellerPhones = new Set(order.items.map((i) => i.seller.phone));
     for (const sellerPhone of sellerPhones) {
-      await sendReply(
-        sellerPhone,
-        SELLER_TEXT.paymentReported(orderId, Number(payment.amount), ref)
-      );
+      await sendReply(sellerPhone, {
+        text: SELLER_TEXT.paymentReported(orderId, Number(payment.amount), ref),
+        buttons: [
+          { id: `RECEIVED ${orderId}`, title: STAFF_BUTTONS.received },
+          { id: `NOTRECEIVED ${orderId}`, title: STAFF_BUTTONS.notReceived },
+        ],
+      });
     }
   } catch (err) {
     console.error('Seller payment notice failed:', err);
   }
 
-  return U.paidThanks(orderId);
+  return { text: U.paidThanks(orderId), buttons: nextButtons(language) };
 }
 
 // RECEIVED n / NOTRECEIVED n: the seller answers a reported UPI payment
@@ -319,7 +638,7 @@ async function decidePayment(
   sellerId: number,
   orderId: number,
   received: boolean
-): Promise<string> {
+): Promise<Reply> {
   // Only this seller's own orders
   const mine = await prisma.orderItem.count({ where: { orderId, sellerId } });
   if (mine === 0) return SELLER_TEXT.orderNotFound(orderId);
@@ -359,17 +678,32 @@ async function decidePayment(
       include: { customer: true },
     });
     if (order) {
-      const U = uf(order.customer.language);
+      const lang = order.customer.language;
+      const U = uf(lang);
+      const B = bt(lang);
       await sendReply(
         order.customer.phone,
-        received ? U.received(orderId) : U.notReceived(orderId)
+        received
+          ? { text: U.received(orderId), buttons: nextButtons(lang) }
+          : {
+              text: U.notReceived(orderId),
+              buttons: [
+                { id: `QR ${orderId}`, title: B.showQr },
+                { id: `PAID ${orderId}`, title: B.paid },
+              ],
+            }
       );
     }
   } catch (err) {
     console.error('Customer payment notice failed:', err);
   }
 
-  return received ? SELLER_TEXT.receivedDone(orderId) : SELLER_TEXT.notReceivedDone(orderId);
+  return received
+    ? {
+        text: SELLER_TEXT.receivedDone(orderId),
+        buttons: [{ id: `CONFIRM ${orderId}`, title: STAFF_BUTTONS.confirm }],
+      }
+    : SELLER_TEXT.notReceivedDone(orderId);
 }
 
 // Thrown when a product has too little stock (or was hidden) while placing an order
@@ -383,7 +717,7 @@ class StockError extends Error {
 
 // Turns the cart into one order per seller (each with a payment), empties the cart,
 // and tells each seller
-async function placeOrder(userId: number, language: string, address: string): Promise<string> {
+async function placeOrder(userId: number, language: string, address: string): Promise<Reply> {
   const T = t(language);
   const P = pay(language);
   const cart = await prisma.cart.findUnique({
@@ -506,10 +840,18 @@ async function placeOrder(userId: number, language: string, address: string): Pr
     console.error('Seller notification failed:', err);
   }
 
-  // Tell the customer how to pay
+  // Tell the customer how to pay: one message per seller, with Show QR / I have paid buttons
   if (ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT') {
-    const blocks = placed.map((p) => P.block(p.orderId, p.shop, p.total, p.upiId ?? ''));
-    return `${P.header}\n\n${blocks.join('\n\n')}\n\n${P.footer}\n${uf(language).qrHint}`;
+    const B = bt(language);
+    return placed.map((p, i) => ({
+      text:
+        (i === 0 ? `${P.header}\n\n` : '') +
+        `${P.block(p.orderId, p.shop, p.total, p.upiId ?? '')}\n\n${B.payTapHint}`,
+      buttons: [
+        { id: `QR ${p.orderId}`, title: B.showQr },
+        { id: `PAID ${p.orderId}`, title: B.paid },
+      ],
+    }));
   }
   return placed.map((p) => ot(language).placed(p.orderId, p.total)).join('\n\n');
 }
@@ -525,7 +867,7 @@ async function updateOrderStatus(
   sellerId: number,
   orderId: number,
   action: string
-): Promise<string> {
+): Promise<Reply> {
   const rule = STATUS_FLOW[action];
 
   // Only this seller's own items in this order
@@ -574,16 +916,24 @@ async function updateOrderStatus(
       include: { customer: true },
     });
     if (order) {
-      await sendReply(
-        order.customer.phone,
-        ot(order.customer.language).status(orderId, rule.to)
-      );
+      await sendReply(order.customer.phone, {
+        text: ot(order.customer.language).status(orderId, rule.to),
+        buttons: nextButtons(order.customer.language),
+      });
     }
   } catch (err) {
     console.error('Customer notification failed:', err);
   }
 
-  return SELLER_TEXT.statusUpdated(orderId, rule.to);
+  // Offer the seller the next step as a button
+  const next =
+    rule.to === 'CONFIRMED'
+      ? { id: `SHIP ${orderId}`, title: STAFF_BUTTONS.ship }
+      : rule.to === 'SHIPPED'
+        ? { id: `DELIVER ${orderId}`, title: STAFF_BUTTONS.deliver }
+        : null;
+  const text = SELLER_TEXT.statusUpdated(orderId, rule.to);
+  return next ? { text, buttons: [next] } : text;
 }
 
 // Admin approves or rejects a seller request
@@ -610,7 +960,13 @@ async function decideSeller(applicantId: number, approve: boolean): Promise<stri
     await sendReply(
       applicant.phone,
       approve
-        ? REG_TEXT.approvedNotice(applicant.shopName ?? 'your shop')
+        ? {
+            text: REG_TEXT.approvedNotice(applicant.shopName ?? 'your shop'),
+            buttons: [
+              { id: 'ADD', title: 'Add a product' },
+              { id: 'SELLER', title: 'Seller menu' },
+            ],
+          }
         : REG_TEXT.rejectedNotice
     );
   } catch (err) {
@@ -787,14 +1143,10 @@ async function makeAdmin(rawPhone: string): Promise<string> {
 // QR n: sends the customer a QR code to pay order n.
 // The seller's own QR photo if they uploaded one, otherwise a QR made from their UPI ID
 // with the amount and note filled in. Either way the money goes straight to the seller.
-// Returns a text reply only when there is no QR to send.
-async function sendPaymentQr(
-  userId: number,
-  phone: string,
-  language: string,
-  orderId: number
-): Promise<string | null> {
+// The QR comes with an "I have paid" button.
+async function paymentQrReply(userId: number, language: string, orderId: number): Promise<Reply> {
   const U = uf(language);
+  const B = bt(language);
   const order = await prisma.order.findFirst({
     where: { id: orderId, customerId: userId },
     include: {
@@ -802,7 +1154,7 @@ async function sendPaymentQr(
       payments: { orderBy: { id: 'desc' }, take: 1 },
     },
   });
-  if (!order) return U.notFound(orderId);
+  if (!order) return { text: U.notFound(orderId), buttons: nextButtons(language) };
 
   const payment = order.payments[0];
   const seller = order.items[0]?.seller;
@@ -813,21 +1165,38 @@ async function sendPaymentQr(
     payment.method !== 'UPI_DIRECT' ||
     payment.status !== 'INITIATED'
   ) {
-    return U.nothingToPay(orderId);
+    return { text: U.nothingToPay(orderId), buttons: nextButtons(language) };
   }
 
   const shop = seller.shopName ?? seller.phone;
   const total = Number(payment.amount);
+  const paidButton = [{ id: `PAID ${orderId}`, title: B.paid }];
 
   if (seller.upiQrKey && (await getImage(seller.upiQrKey))) {
-    await sendImage(phone, seller.upiQrKey, U.qrSellerCaption(orderId, shop, total));
-    return null;
+    return { text: B.qrSellerBody(orderId, shop, total), imageKey: seller.upiQrKey, buttons: paidButton };
   }
-  if (!seller.upiId) return U.nothingToPay(orderId);
+  if (!seller.upiId) return { text: U.nothingToPay(orderId), buttons: nextButtons(language) };
 
   const key = await makeUpiQr(seller.upiId, shop, total, `Order ${orderId}`);
-  await sendImage(phone, key, U.qrAutoCaption(orderId, shop, total));
-  return null;
+  return { text: B.qrAutoBody(orderId, shop, total), imageKey: key, buttons: paidButton };
+}
+
+// The admin's view of a product to check: photo, details, Approve / Reject
+function adminProductReply(p: {
+  id: number;
+  name: string;
+  price: unknown;
+  imageKey: string;
+  seller: { shopName: string | null; phone: string };
+}): RichReply {
+  return {
+    text: REG_TEXT.adminProductNotice(p.id, p.name, Number(p.price), p.seller.shopName ?? p.seller.phone),
+    imageKey: p.imageKey,
+    buttons: [
+      { id: `APPROVEPRODUCT ${p.id}`, title: STAFF_BUTTONS.approve },
+      { id: `REJECTPRODUCT ${p.id}`, title: STAFF_BUTTONS.reject },
+    ],
+  };
 }
 
 // PENDINGPRODUCTS: sends the admin the photo of every product waiting for approval
@@ -841,11 +1210,7 @@ async function pendingProducts(adminPhone: string): Promise<string> {
   if (waiting.length === 0) return REG_TEXT.noPendingProducts;
 
   for (const p of waiting) {
-    await sendImage(
-      adminPhone,
-      p.imageKey!,
-      REG_TEXT.adminProductNotice(p.id, p.name, Number(p.price), p.seller.shopName ?? p.seller.phone)
-    );
+    await sendReply(adminPhone, adminProductReply({ ...p, imageKey: p.imageKey! }));
   }
   return REG_TEXT.pendingProductsSent(waiting.length);
 }
@@ -889,16 +1254,7 @@ async function notifyAdminsOfProduct(productId: number) {
     if (!product?.imageKey) return;
     const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
     for (const a of admins) {
-      await sendImage(
-        a.phone,
-        product.imageKey,
-        REG_TEXT.adminProductNotice(
-          product.id,
-          product.name,
-          Number(product.price),
-          product.seller.shopName ?? product.seller.phone
-        )
-      );
+      await sendReply(a.phone, adminProductReply({ ...product, imageKey: product.imageKey }));
     }
   } catch (err) {
     console.error('Admin product notice failed:', err);
@@ -1003,7 +1359,9 @@ async function handleWebhook(body: any) {
 
     const phone: string = message.from;
     const name: string | undefined = value?.contacts?.[0]?.profile?.name;
-    const text: string = (message.text?.body ?? '').trim();
+    // A tapped button or list row arrives with the command we gave it as its id
+    const tapId = message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id;
+    const text: string = String(tapId ?? message.text?.body ?? '').trim();
     const command = text.toUpperCase();
 
     if (tooManyMessages(phone)) {
@@ -1011,18 +1369,19 @@ async function handleWebhook(body: any) {
       return;
     }
 
-    console.log('Message from:', phone, '| text:', maskDigits(text));
+    console.log('Message from:', phone, tapId ? '| tap:' : '| text:', maskDigits(text));
 
     const user = await prisma.user.findUnique({ where: { phone } });
 
     // New customer: save them and ask for a language
     if (!user) {
       await prisma.user.create({ data: { phone, name } });
-      await sendReply(phone, languageMenu());
+      await sendReply(phone, languageReply());
       return;
     }
 
     const T = t(user.language);
+    const B = bt(user.language);
 
     // LANG works in every state
     if (command === 'LANG') {
@@ -1030,8 +1389,34 @@ async function handleWebhook(body: any) {
         where: { id: user.id },
         data: { state: 'CHOOSING_LANGUAGE', pendingProductId: null },
       });
-      await sendReply(phone, languageMenu());
+      await sendReply(phone, languageReply());
       return;
+    }
+
+    // A tap while the bot waits for typed text (a name, price, address, shop name or photo)
+    // means the person moved on: leave that step and handle the tap as a normal command.
+    // (Taps on the quantity list are numbers and stay in the quantity step.)
+    const typingStates = [
+      'ADDING_PRODUCT_NAME',
+      'ADDING_PRODUCT_PRICE',
+      'ADDING_PRODUCT_PHOTO',
+      'SETTING_UPI_QR',
+      'ENTERING_ADDRESS',
+      'ENTERING_SHOP_NAME',
+      'CHOOSING_QUANTITY',
+    ];
+    if (
+      tapId &&
+      typingStates.includes(user.state) &&
+      !(user.state === 'CHOOSING_QUANTITY' && /^\d+$/.test(text))
+    ) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { state: 'BROWSING', pendingProductId: null, pendingProductName: null },
+      });
+      user.state = 'BROWSING';
+      user.pendingProductId = null;
+      user.pendingProductName = null;
     }
 
     // ---- Seller commands (only for users with the SELLER role) ----
@@ -1253,11 +1638,14 @@ async function handleWebhook(body: any) {
           await sendReply(phone, SELLER_TEXT.askPhotoFor(productId));
           return;
         }
-        const upiMatch = text.match(/^UPI\s+(\S+)$/i);
+        // "UPI name@bank", or just "name@bank" on its own (sellers often forget the word UPI)
+        const upiMatch =
+          text.match(/^UPI\s+(\S+)$/i) ?? text.match(/^([A-Za-z0-9._-]{2,64}@[A-Za-z]{2,32})$/);
         if (upiMatch) {
           const upi = upiMatch[1].trim();
           // A UPI ID looks like name@bank. Card and account numbers have no "@", so they are rejected.
-          if (!/^[A-Za-z0-9._-]{2,64}@[A-Za-z]{2,32}$/.test(upi)) {
+          // Also refuse the example from our own messages, so nobody saves it by mistake
+          if (!/^[A-Za-z0-9._-]{2,64}@[A-Za-z]{2,32}$/.test(upi) || /^yourname@/i.test(upi)) {
             await sendReply(phone, SELLER_TEXT.upiInvalid);
             return;
           }
@@ -1350,7 +1738,25 @@ async function handleWebhook(body: any) {
           return;
         }
         if (command === 'SELLER' || command === 'HELP') {
-          await sendReply(phone, SELLER_TEXT.help);
+          // The everyday seller actions as a tap list; the full typed command list follows it
+          await sendReply(phone, [
+            SELLER_TEXT.help,
+            {
+              text: 'Seller menu: tap "Choose".',
+              list: {
+                button: 'Seller menu',
+                rows: [
+                  { id: 'ADD', title: 'Add a product' },
+                  { id: 'MYPRODUCTS', title: 'My products' },
+                  { id: 'MYORDERS', title: 'Orders for my shop' },
+                  { id: 'UPI', title: 'My UPI ID and QR' },
+                  { id: 'QR', title: 'Upload my QR photo' },
+                  { id: 'MYPURCHASES', title: 'My own purchases' },
+                  { id: 'MAINMENU', title: 'Shop as a customer' },
+                ],
+              },
+            },
+          ]);
           return;
         }
       }
@@ -1366,8 +1772,17 @@ async function handleWebhook(body: any) {
         if (waiting.length === 0) {
           await sendReply(phone, REG_TEXT.noPending);
         } else {
-          const lines = waiting.map((u) => `#${u.id} ${u.shopName ?? '-'} (${u.phone})`);
-          await sendReply(phone, `${REG_TEXT.pendingTitle}\n${lines.join('\n')}`);
+          // One message per request, each with Approve / Reject buttons
+          await sendReply(
+            phone,
+            waiting.slice(0, 10).map((u) => ({
+              text: `Seller request #${u.id}\nShop: ${u.shopName ?? '-'}\nPhone: ${u.phone}`,
+              buttons: [
+                { id: `APPROVE ${u.id}`, title: STAFF_BUTTONS.approve },
+                { id: `REJECT ${u.id}`, title: STAFF_BUTTONS.reject },
+              ],
+            }))
+          );
         }
         return;
       }
@@ -1435,7 +1850,22 @@ async function handleWebhook(body: any) {
         return;
       }
       if (command === 'ADMIN' || command === 'HELP') {
-        await sendReply(phone, REG_TEXT.adminHelp);
+        // The everyday admin actions as a tap list; the full typed command list follows it
+        await sendReply(phone, [
+          REG_TEXT.adminHelp,
+          {
+            text: 'Admin menu: tap "Choose".',
+            list: {
+              button: 'Admin menu',
+              rows: [
+                { id: 'PENDINGPRODUCTS', title: 'Products to check' },
+                { id: 'PENDINGSELLERS', title: 'Seller requests' },
+                { id: 'SALES', title: 'Sales summary' },
+                { id: 'MAINMENU', title: 'Shop as a customer' },
+              ],
+            },
+          },
+        ]);
         return;
       }
     }
@@ -1444,25 +1874,28 @@ async function handleWebhook(body: any) {
     if (user.state === 'CHOOSING_LANGUAGE') {
       const chosen = LANGUAGES[text];
       if (!chosen) {
-        await sendReply(phone, languageMenu());
+        await sendReply(phone, languageReply());
         return;
       }
       await prisma.user.update({
         where: { id: user.id },
         data: { language: chosen.code, state: 'BROWSING' },
       });
-      await sendReply(phone, WELCOME[chosen.code]);
+      await sendReply(phone, homeReply({ ...user, language: chosen.code }));
       return;
     }
 
     // While waiting for a quantity, an address or a shop name,
-    // these commands leave that step automatically
+    // these typed commands leave that step automatically
     if (
       (user.state === 'CHOOSING_QUANTITY' ||
         user.state === 'ENTERING_ADDRESS' ||
         user.state === 'ENTERING_SHOP_NAME') &&
-      (['MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER', 'SELL'].includes(command) ||
-        /^(REMOVE|CANCELORDER|QR)\s+#?\d+$/.test(command) ||
+      ([
+        'MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER', 'SELL',
+        'MAINMENU', 'REMOVEMENU', 'PLACEORDER',
+      ].includes(command) ||
+        /^(REMOVE|CANCELORDER|QR|PRODUCT|BUY|ORDERINFO|MENU)\s+#?\d+$/.test(command) ||
         /^PAID(\s|$)/.test(command))
     ) {
       await prisma.user.update({
@@ -1481,7 +1914,7 @@ async function handleWebhook(body: any) {
           where: { id: user.id },
           data: { state: 'BROWSING' },
         });
-        await sendReply(phone, A.cancelled);
+        await sendReply(phone, welcomeReply(user.language, A.cancelled));
         return;
       }
       if (text.length < 10 || text.length > 200) {
@@ -1492,7 +1925,14 @@ async function handleWebhook(body: any) {
         where: { id: user.id },
         data: { address: text, state: 'BROWSING' },
       });
-      await sendReply(phone, A.saved);
+      // If there is something in the cart, go straight to the order check
+      const cartCount = await prisma.cartItem.count({ where: { cart: { customerId: user.id } } });
+      await sendReply(
+        phone,
+        cartCount > 0
+          ? await confirmOrderReply(user.id, user.language, text)
+          : welcomeReply(user.language, A.saved)
+      );
       return;
     }
 
@@ -1519,7 +1959,13 @@ async function handleWebhook(body: any) {
       try {
         const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
         for (const a of admins) {
-          await sendReply(a.phone, REG_TEXT.adminNotice(user.id, text, user.phone));
+          await sendReply(a.phone, {
+            text: REG_TEXT.adminNotice(user.id, text, user.phone),
+            buttons: [
+              { id: `APPROVE ${user.id}`, title: STAFF_BUTTONS.approve },
+              { id: `REJECT ${user.id}`, title: STAFF_BUTTONS.reject },
+            ],
+          });
         }
       } catch (err) {
         console.error('Admin notification failed:', err);
@@ -1536,13 +1982,13 @@ async function handleWebhook(body: any) {
           where: { id: user.id },
           data: { state: 'BROWSING', pendingProductId: null },
         });
-        await sendReply(phone, T.cancelled);
+        await sendReply(phone, welcomeReply(user.language, T.cancelled));
         return;
       }
 
       const qty = Number(text);
       if (!Number.isInteger(qty) || qty < 1 || qty > 99) {
-        await sendReply(phone, T.invalidQty);
+        await sendReply(phone, { ...qtyReply(user.language, ''), text: T.invalidQty });
         return;
       }
 
@@ -1558,7 +2004,7 @@ async function handleWebhook(body: any) {
           where: { id: user.id },
           data: { state: 'BROWSING', pendingProductId: null },
         });
-        await sendReply(phone, T.invalidProduct);
+        await sendReply(phone, welcomeReply(user.language, T.invalidProduct));
         return;
       }
 
@@ -1574,12 +2020,20 @@ async function handleWebhook(body: any) {
       const already = existing?.quantity ?? 0;
       const productLabel = localName(product, user.language);
       if (!product.isActive || product.approval !== 'APPROVED') {
-        await sendReply(phone, st(user.language).unavailable(productLabel));
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'BROWSING', pendingProductId: null },
+        });
+        await sendReply(phone, welcomeReply(user.language, st(user.language).unavailable(productLabel)));
         return;
       }
       if (product.stock !== null && already + qty > product.stock) {
+        // Stay in the quantity step so a smaller number can be chosen
         const left = Math.max(product.stock - already, 0);
-        await sendReply(phone, st(user.language).onlyLeft(productLabel, left));
+        await sendReply(phone, {
+          ...qtyReply(user.language, productLabel),
+          text: st(user.language).onlyLeft(productLabel, left),
+        });
         return;
       }
 
@@ -1593,18 +2047,56 @@ async function handleWebhook(body: any) {
         where: { id: user.id },
         data: { state: 'BROWSING', pendingProductId: null },
       });
-      await sendReply(phone, T.added(localName(product, user.language), qty));
+      await sendReply(phone, afterAddReply(user.language, B.added(productLabel, qty)));
       return;
     }
 
     // ---- State: browsing ----
-    if (command === 'MENU') {
-      await sendReply(phone, await productList(user.language));
+    // MENU (or MENU 2, MENU 3 ... for the next pages): the product list
+    const menuMatch = command.match(/^MENU(?:\s+(\d+))?$/);
+    if (menuMatch) {
+      await sendReply(phone, await productListReply(user.language, Number(menuMatch[1] ?? 1)));
+      return;
+    }
+
+    if (command === 'MAINMENU') {
+      await sendReply(phone, mainMenuReply(user));
+      return;
+    }
+
+    // PRODUCT n: one product's photo with Add to cart / Back
+    const productMatch = command.match(/^PRODUCT\s+#?(\d+)$/);
+    if (productMatch) {
+      await sendReply(phone, await productReply(user.language, Number(productMatch[1])));
+      return;
+    }
+
+    // BUY n: start choosing the quantity for product n
+    const buyMatch = command.match(/^BUY\s+#?(\d+)$/);
+    if (buyMatch) {
+      const product = await prisma.product.findUnique({
+        where: { id: Number(buyMatch[1]) },
+        include: { translations: true },
+      });
+      if (!product || !product.isActive || product.approval !== 'APPROVED' || product.stock === 0) {
+        await sendReply(phone, welcomeReply(user.language, T.invalidProduct));
+        return;
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { state: 'CHOOSING_QUANTITY', pendingProductId: product.id },
+      });
+      await sendReply(phone, qtyReply(user.language, localName(product, user.language)));
       return;
     }
 
     if (command === 'CART') {
-      await sendReply(phone, await cartText(user.id, user.language));
+      await sendReply(phone, await cartReply(user.id, user.language));
+      return;
+    }
+
+    if (command === 'REMOVEMENU') {
+      await sendReply(phone, await removeMenuReply(user.id, user.language));
       return;
     }
 
@@ -1623,22 +2115,28 @@ async function handleWebhook(body: any) {
     }
 
     if (command === 'MYORDERS') {
-      await sendReply(phone, await customerOrders(user.id, user.language));
+      await sendReply(phone, await ordersListReply(user.id, user.language));
+      return;
+    }
+
+    const orderInfoMatch = command.match(/^ORDERINFO\s+#?(\d+)$/);
+    if (orderInfoMatch) {
+      await sendReply(phone, await orderInfoReply(user.id, user.language, Number(orderInfoMatch[1])));
       return;
     }
 
     const cancelMatch = command.match(/^CANCELORDER\s+#?(\d+)$/);
     if (cancelMatch) {
-      await sendReply(
-        phone,
-        await cancelOrder(user.id, user.language, Number(cancelMatch[1]))
-      );
+      await sendReply(phone, {
+        text: await cancelOrder(user.id, user.language, Number(cancelMatch[1])),
+        buttons: nextButtons(user.language),
+      });
       return;
     }
 
-    // PAID n ref: the customer reports a UPI payment (plain PAID shows how)
+    // PAID n (the "I have paid" button) or PAID n <transaction number>; plain PAID shows how
     if (/^PAID(\s|$)/.test(command)) {
-      const paidMatch = text.match(/^PAID\s+#?(\d+)\s+(\S+)$/i);
+      const paidMatch = text.match(/^PAID\s+#?(\d+)(?:\s+(\S+))?$/i);
       await sendReply(
         phone,
         paidMatch
@@ -1648,11 +2146,10 @@ async function handleWebhook(body: any) {
       return;
     }
 
-    // QR n: the customer wants a QR code instead of typing the UPI ID
+    // QR n: the QR code for paying order n, with an "I have paid" button
     const qrMatch = command.match(/^QR\s+#?(\d+)$/);
     if (qrMatch) {
-      const reply = await sendPaymentQr(user.id, phone, user.language, Number(qrMatch[1]));
-      if (reply) await sendReply(phone, reply);
+      await sendReply(phone, await paymentQrReply(user.id, user.language, Number(qrMatch[1])));
       return;
     }
 
@@ -1691,17 +2188,15 @@ async function handleWebhook(body: any) {
       return;
     }
 
-    if (command === 'ORDER') {
-      // First order: ask for the delivery address (only if the cart has items)
+    // ORDER (Place order): check the cart and the address first; PLACEORDER really places it
+    if (command === 'ORDER' || command === 'PLACEORDER') {
+      const cartCount = await prisma.cartItem.count({ where: { cart: { customerId: user.id } } });
+      if (cartCount === 0) {
+        await sendReply(phone, await cartReply(user.id, user.language));
+        return;
+      }
+      // First order: ask for the delivery address (the only thing that must be typed)
       if (!user.address) {
-        const cart = await prisma.cart.findUnique({
-          where: { customerId: user.id },
-          include: { items: true },
-        });
-        if (!cart || cart.items.length === 0) {
-          await sendReply(phone, T.emptyCart);
-          return;
-        }
         await prisma.user.update({
           where: { id: user.id },
           data: { state: 'ENTERING_ADDRESS' },
@@ -1709,32 +2204,29 @@ async function handleWebhook(body: any) {
         await sendReply(phone, ad(user.language).ask);
         return;
       }
-
-      await sendReply(phone, await placeOrder(user.id, user.language, user.address));
+      await sendReply(
+        phone,
+        command === 'ORDER'
+          ? await confirmOrderReply(user.id, user.language, user.address)
+          : await placeOrder(user.id, user.language, user.address)
+      );
       return;
     }
 
-    // A number picks a product from the list
+    // A typed number picks a product from the list (same order as MENU)
     const n = Number(text);
     if (Number.isInteger(n) && n >= 1) {
       const products = await loadProducts();
       const product = products[n - 1];
-      if (!product) {
-        await sendReply(phone, T.invalidProduct);
-        return;
-      }
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { state: 'CHOOSING_QUANTITY', pendingProductId: product.id },
-      });
-      // Show the photo with the price, and ask for the quantity in the same message
-      const label = localName(product, user.language);
-      await sendImage(phone, product.imageKey!, `${label} - ₹${product.price}\n\n${T.askQty(label)}`);
+      await sendReply(
+        phone,
+        product ? await productReply(user.language, product.id) : welcomeReply(user.language, T.invalidProduct)
+      );
       return;
     }
 
-    // Anything else
-    await sendReply(phone, T.help);
+    // Anything else (for example "hi"): the home screen for this person's role
+    await sendReply(phone, homeReply(user));
   } catch (err) {
     // Forget this message ID so Meta's retry can be processed
     if (messageId) {

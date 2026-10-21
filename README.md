@@ -117,6 +117,8 @@ After that, an admin can make more admins from WhatsApp with `MAKEADMIN <phone>`
 
 ## Chat commands
 
+People mostly **tap**: the bot sends WhatsApp reply buttons (up to 3) and lists (up to 10 rows) for languages, products, quantities, the cart, ordering, the QR code, "I have paid", and the seller's Received / Confirm / Ship / Deliver steps. Only the delivery address (first order) and the seller's product name, price and UPI ID are typed. Every button and list row sends one of the commands below as its id (for example `QR 12`), so typing a command does exactly the same as tapping. Extra tap-only commands: `MAINMENU`, `PRODUCT <id>`, `BUY <id>`, `REMOVEMENU`, `PLACEORDER`, `ORDERINFO <id>`, `MENU <page>`. `PAID <order>` works without a transaction number.
+
 Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and `SHIP #12` both work).
 
 ### Everyone

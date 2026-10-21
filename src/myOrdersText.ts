@@ -48,7 +48,7 @@ const PAYMENT: Record<string, Record<string, string>> = {
     CANCELLED: 'Payment: cancelled',
     FAILED: 'Payment: failed',
     REFUNDED: 'Payment: refunded',
-    UPI_INITIATED: 'Payment: pay the seller by UPI, then send PAID',
+    UPI_INITIATED: 'Payment: not paid yet (pay the seller by UPI)',
     AWAITING_CONFIRMATION: 'Payment: waiting for the seller to confirm',
   },
   ta: {
@@ -57,7 +57,7 @@ const PAYMENT: Record<string, Record<string, string>> = {
     CANCELLED: 'பணம்: ரத்து',
     FAILED: 'பணம்: தோல்வி',
     REFUNDED: 'பணம்: திரும்பத் தரப்பட்டது',
-    UPI_INITIATED: 'பணம்: விற்பனையாளருக்கு UPI மூலம் செலுத்தி, PAID அனுப்பவும்',
+    UPI_INITIATED: 'பணம்: இன்னும் செலுத்தவில்லை (விற்பனையாளருக்கு UPI மூலம் செலுத்தவும்)',
     AWAITING_CONFIRMATION: 'பணம்: விற்பனையாளரின் உறுதிப்படுத்தலுக்காகக் காத்திருக்கிறது',
   },
   hi: {
@@ -66,7 +66,7 @@ const PAYMENT: Record<string, Record<string, string>> = {
     CANCELLED: 'भुगतान: रद्द',
     FAILED: 'भुगतान: विफल',
     REFUNDED: 'भुगतान: वापस किया गया',
-    UPI_INITIATED: 'भुगतान: विक्रेता को UPI से भुगतान करें, फिर PAID भेजें',
+    UPI_INITIATED: 'भुगतान: अभी बाकी है (विक्रेता को UPI से भुगतान करें)',
     AWAITING_CONFIRMATION: 'भुगतान: विक्रेता की पुष्टि का इंतज़ार',
   },
   te: {
@@ -75,7 +75,7 @@ const PAYMENT: Record<string, Record<string, string>> = {
     CANCELLED: 'చెల్లింపు: రద్దు',
     FAILED: 'చెల్లింపు: విఫలమైంది',
     REFUNDED: 'చెల్లింపు: తిరిగి ఇవ్వబడింది',
-    UPI_INITIATED: 'చెల్లింపు: విక్రేతకు UPI ద్వారా చెల్లించి, PAID పంపండి',
+    UPI_INITIATED: 'చెల్లింపు: ఇంకా చెల్లించలేదు (విక్రేతకు UPI ద్వారా చెల్లించండి)',
     AWAITING_CONFIRMATION: 'చెల్లింపు: విక్రేత ధృవీకరణ కోసం వేచి ఉంది',
   },
   ml: {
@@ -84,7 +84,7 @@ const PAYMENT: Record<string, Record<string, string>> = {
     CANCELLED: 'പേയ്‌മെന്റ്: റദ്ദാക്കി',
     FAILED: 'പേയ്‌മെന്റ്: പരാജയപ്പെട്ടു',
     REFUNDED: 'പേയ്‌മെന്റ്: തിരികെ നൽകി',
-    UPI_INITIATED: 'പേയ്‌മെന്റ്: വിൽപ്പനക്കാരന് UPI വഴി പണമടച്ച്, PAID അയയ്ക്കുക',
+    UPI_INITIATED: 'പേയ്‌മെന്റ്: ഇതുവരെ അടച്ചിട്ടില്ല (വിൽപ്പനക്കാരന് UPI വഴി അടയ്ക്കുക)',
     AWAITING_CONFIRMATION: 'പേയ്‌മെന്റ്: വിൽപ്പനക്കാരന്റെ സ്ഥിരീകരണത്തിനായി കാത്തിരിക്കുന്നു',
   },
 };

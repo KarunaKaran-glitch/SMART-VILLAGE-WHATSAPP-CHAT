@@ -58,6 +58,21 @@ export async function sendWhatsAppImage(to: string, link: string, caption: strin
   }
 }
 
+// Sends a tap message (reply buttons or a list). Never throws, like sendWhatsAppText.
+export async function sendWhatsAppInteractive(to: string, interactive: object): Promise<void> {
+  if (!sendingEnabled) return;
+  try {
+    await axios.post(
+      `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
+      { messaging_product: 'whatsapp', to, type: 'interactive', interactive },
+      { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 10000 }
+    );
+  } catch (err: any) {
+    const detail = err?.response?.data?.error ?? err?.message ?? err;
+    console.error(`WhatsApp interactive to ${to} failed:`, JSON.stringify(detail));
+  }
+}
+
 // Downloads a photo a user sent (WhatsApp only gives us a media ID). Returns null on failure.
 export async function downloadWhatsAppMedia(
   mediaId: string

@@ -75,9 +75,13 @@ export const SELLER_TEXT = {
   upiSet: (upi: string) =>
     `Your UPI ID is saved: ${upi}\nCustomers will see it when they pay you. Never share your bank account number or card details here.`,
   upiInvalid:
-    'That does not look like a UPI ID. It looks like yourname@bank. Please send it again, for example: UPI yourname@bank',
-  paymentReported: (orderId: number, amount: number, ref: string) =>
-    `The customer says they paid ₹${amount} for order #${orderId}.\nUPI transaction number: ${ref}\nCheck your bank or UPI app. If the money is there, send RECEIVED ${orderId}. If not, send NOTRECEIVED ${orderId}.`,
+    'That does not look like a UPI ID. It looks like yourname@bank. Please send it again, for example: yourname@okicici',
+  paymentReported: (orderId: number, amount: number, ref: string | null) =>
+    `The customer says they paid ₹${amount} for order #${orderId}.\n` +
+    (ref
+      ? `UPI transaction number: ${ref}\n`
+      : `Look for a payment of ₹${amount} with the note "Order ${orderId}".\n`) +
+    'Check your bank or UPI app, then tap Received or Not received.',
   needPayment: (orderId: number) =>
     `Order #${orderId} is not paid yet. Wait for the customer to pay by UPI, check your bank app, then send RECEIVED ${orderId} before CONFIRM.`,
   receivedDone: (orderId: number) =>
@@ -88,8 +92,8 @@ export const SELLER_TEXT = {
     `Order #${orderId} has no UPI payment waiting for your answer. The customer must send PAID first.`,
   upiCurrent: (upi: string | null, hasQr: boolean) =>
     (upi
-      ? `Your UPI ID: ${upi}\nSend UPI yourname@bank to change it.`
-      : 'You have not set a UPI ID yet. Send UPI yourname@bank to set it.') +
+      ? `Your UPI ID: ${upi}\nTo change it, just send the new UPI ID (for example yourname@okicici).`
+      : 'You have not set a UPI ID yet, so customers cannot see your products.\nJust send your UPI ID now, for example: yourname@okicici') +
     (hasQr
       ? '\nYour UPI QR code photo is saved (QR to change it, QR REMOVE to delete it).'
       : '\nNo QR code photo saved. Send QR to add one; otherwise customers get a QR made from your UPI ID.'),
