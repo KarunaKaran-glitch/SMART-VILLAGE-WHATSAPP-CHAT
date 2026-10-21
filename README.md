@@ -176,6 +176,8 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 
 ## Business rules
 
+- **Categories:** each seller makes one kind of product (for example Keychains, Handbags, Wallets) and chooses it when applying; every product they add goes into that category. Customers first pick a category, then a product. Admins list categories with `CATEGORIES` and add one with `ADDCATEGORY <name>`.
+- **Batch approval:** new products are drafts. When the seller taps "Send all to admin" (`SUBMIT`), each admin gets one message with "Review now" (`REVIEW <seller id>`) and "Approve all" (`APPROVEALL <seller id>`).
 - **Handmade only:** a product appears in `MENU` only when it has a photo and an admin has approved it. A new photo sends it back for approval.
 - **Photos:** stored in the `Image` table (JPG, PNG or WebP, up to 5 MB) under a random key and served at `GET /images/<key>`.
 - **Stock:** `stock = null` means unlimited. Products that are out of stock or hidden do not appear in `MENU`. Cancelling an order puts the quantities back into stock.

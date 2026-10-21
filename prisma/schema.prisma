@@ -60,13 +60,29 @@ enum UserState {
   CHOOSING_PAYMENT
   ADDING_PRODUCT_PHOTO
   SETTING_UPI_QR
+  CHOOSING_CATEGORY
 }
 
-// Every product is checked by an admin (handmade products only) before customers see it
+// Every product is checked by an admin (handmade products only) before customers see it.
+// DRAFT: the seller is still adding products; they go to PENDING when the seller taps
+// "Send all to admin", so the admin gets one message for the whole batch.
 enum ProductApproval {
   PENDING
   APPROVED
   REJECTED
+  DRAFT
+}
+
+// Product groups the customer chooses first (Keychains, Handbags, Wallets ...).
+// A seller makes one kind of product, so the category belongs to the seller and
+// every new product of that seller gets it.
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique // English name, also used when no translation exists
+  names     Json? // translations, for example { "hi": "चाबी के छल्ले" }
+  sellers   User[]
+  products  Product[]
+  createdAt DateTime  @default(now())
 }
 
 model User {
@@ -83,6 +99,8 @@ model User {
   upiId              String?
   upiQrKey           String? // Image.key of the seller's UPI QR code photo
   sellerStatus       SellerStatus @default(NONE)
+  categoryId         Int? // the kind of product this seller makes
+  category           Category?    @relation(fields: [categoryId], references: [id])
   createdAt          DateTime     @default(now())
   products           Product[]
   orders             Order[]      @relation("CustomerOrders")
@@ -103,6 +121,8 @@ model Product {
   stock        Int?
   imageKey     String? // Image.key of the product photo
   approval     ProductApproval      @default(PENDING)
+  categoryId   Int?
+  category     Category?            @relation(fields: [categoryId], references: [id])
   createdAt    DateTime             @default(now())
 }
 

@@ -41,6 +41,11 @@ export const BUTTON_TEXT = {
       `Scan to pay ₹${total} to ${shop}. The amount and the note "Order ${id}" are already filled in. Then tap "I have paid".`,
     ordersBody: 'Your latest orders. Tap "Choose" to see one.',
     noProducts: 'No products are available right now. Please check again later.',
+    categoriesBody: 'What are you looking for? Tap "Choose" and pick a category.',
+    categoriesButton: 'Categories',
+    categoryBody: (name: string) => `${name}: tap "Choose" to see the products.`,
+    itemCount: (n: number) => `${n} products`,
+    allCategories: '« All categories',
   },
   hi: {
     products: 'उत्पाद',
@@ -82,6 +87,11 @@ export const BUTTON_TEXT = {
       `${shop} को ₹${total} भुगतान के लिए स्कैन करें। राशि और नोट "Order ${id}" पहले से भरे हैं। फिर "मैंने भुगतान किया" पर टैप करें।`,
     ordersBody: 'आपके हाल के ऑर्डर। देखने के लिए "चुनें" पर टैप करें।',
     noProducts: 'अभी कोई उत्पाद उपलब्ध नहीं है। कृपया बाद में फिर देखें।',
+    categoriesBody: 'आप क्या ढूँढ रहे हैं? "चुनें" पर टैप करके एक श्रेणी चुनें।',
+    categoriesButton: 'श्रेणियाँ',
+    categoryBody: (name: string) => `${name}: उत्पाद देखने के लिए "चुनें" पर टैप करें।`,
+    itemCount: (n: number) => `${n} उत्पाद`,
+    allCategories: '« सभी श्रेणियाँ',
   },
   or: {
     products: 'ଉତ୍ପାଦ',
@@ -123,6 +133,11 @@ export const BUTTON_TEXT = {
       `${shop} କୁ ₹${total} ଦେବା ପାଇଁ ସ୍କାନ କରନ୍ତୁ। ରାଶି ଏବଂ ନୋଟ "Order ${id}" ପୂର୍ବରୁ ଭରା ହୋଇଛି। ତା\'ପରେ "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
     ordersBody: 'ଆପଣଙ୍କ ସାମ୍ପ୍ରତିକ ଅର୍ଡର। ଦେଖିବା ପାଇଁ "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।',
     noProducts: 'ଏବେ କୌଣସି ଉତ୍ପାଦ ଉପଲବ୍ଧ ନାହିଁ। ଦୟାକରି ପରେ ପୁଣି ଦେଖନ୍ତୁ।',
+    categoriesBody: `ଆପଣ କ'ଣ ଖୋଜୁଛନ୍ତି? "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରି ଏକ ବର୍ଗ ବାଛନ୍ତୁ।`,
+    categoriesButton: 'ବର୍ଗ',
+    categoryBody: (name: string) => `${name}: ଉତ୍ପାଦ ଦେଖିବା ପାଇଁ "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
+    itemCount: (n: number) => `${n}ଟି ଉତ୍ପାଦ`,
+    allCategories: '« ସମସ୍ତ ବର୍ଗ',
   },
   as: {
     products: 'সামগ্ৰী',
@@ -164,6 +179,11 @@ export const BUTTON_TEXT = {
       `${shop} ক ₹${total} দিবলৈ স্কেন কৰক। পৰিমাণ আৰু টোকা "Order ${id}" আগতেই ভৰোৱা আছে। তাৰ পিছত "মই ধন দিলোঁ" টিপক।`,
     ordersBody: 'আপোনাৰ শেহতীয়া অৰ্ডাৰ। চাবলৈ "বাছক" টিপক।',
     noProducts: 'এতিয়া কোনো সামগ্ৰী উপলব্ধ নাই। অনুগ্ৰহ কৰি পিছত আকৌ চাওক।',
+    categoriesBody: 'আপুনি কি বিচাৰিছে? "বাছক" টিপি এটা শ্ৰেণী বাছক।',
+    categoriesButton: 'শ্ৰেণী',
+    categoryBody: (name: string) => `${name}: সামগ্ৰী চাবলৈ "বাছক" টিপক।`,
+    itemCount: (n: number) => `${n}টা সামগ্ৰী`,
+    allCategories: '« সকলো শ্ৰেণী',
   },
 };
 

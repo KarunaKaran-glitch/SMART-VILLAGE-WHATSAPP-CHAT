@@ -15,6 +15,20 @@ const en = {
   rowPurchases: 'My own purchases',
   rowShop: 'Shop as a customer',
   rowAllCommands: 'All commands',
+  rowCategory: 'My category',
+  askCategory: 'What kind of products do you make? Tap "Choose" and pick your category.',
+  categorySet: (name: string) =>
+    `Your category is now: ${name}. All your new products go into this category.`,
+  needCategory: 'First choose what kind of products you make.',
+  btnAddAnother: 'Add another product',
+  btnSubmit: 'Send all to admin',
+  draftSaved: (id: number) =>
+    `Product #${id} is saved. Add more products, or tap "Send all to admin" when you have finished.`,
+  submitted: (n: number) =>
+    `${n} product(s) sent to the admin. You will get a message when they are checked.`,
+  nothingToSubmit: 'You have no new products waiting to be sent. Add a product first.',
+  approvedAll: (n: number) =>
+    `Good news: ${n} of your products were approved and are now on the menu for customers.`,
   help:
     'Seller menu (you can also type these):\n' +
     'ADD - add a new handmade product (name, price, photo)\n' +
@@ -29,7 +43,7 @@ const en = {
     'MYORDERS - see orders for your products\n' +
     'MYPURCHASES - orders you placed as a customer',
   approval: (a: string) =>
-    ({ PENDING: 'waiting for admin', APPROVED: 'approved', REJECTED: 'rejected' })[a] ?? a,
+    ({ PENDING: 'waiting for admin', APPROVED: 'approved', REJECTED: 'rejected', DRAFT: 'not sent to admin yet' })[a] ?? a,
   noPhoto: (id: number) => `no photo (send PHOTO ${id})`,
   stockLabel: (n: number | null) => `stock: ${n ?? 'unlimited'}`,
   hiddenTag: '(hidden)',
@@ -129,6 +143,19 @@ const hi: typeof en = {
   rowPurchases: 'मेरी अपनी खरीदारी',
   rowShop: 'ग्राहक की तरह खरीदें',
   rowAllCommands: 'सभी कमांड',
+  rowCategory: 'मेरी श्रेणी',
+  askCategory: 'आप किस तरह के उत्पाद बनाते हैं? "चुनें" पर टैप करके अपनी श्रेणी चुनें।',
+  categorySet: (name: string) =>
+    `आपकी श्रेणी अब: ${name}। आपके सभी नए उत्पाद इसी श्रेणी में जाएँगे।`,
+  needCategory: 'पहले चुनें कि आप किस तरह के उत्पाद बनाते हैं।',
+  btnAddAnother: 'एक और उत्पाद',
+  btnSubmit: 'सब एडमिन को भेजें',
+  draftSaved: (id: number) =>
+    `उत्पाद #${id} सहेज लिया गया। और उत्पाद जोड़ें, या पूरा होने पर "सब एडमिन को भेजें" पर टैप करें।`,
+  submitted: (n: number) => `${n} उत्पाद एडमिन को भेजे गए। जाँच होने पर आपको संदेश मिलेगा।`,
+  nothingToSubmit: 'भेजने के लिए कोई नया उत्पाद नहीं है। पहले उत्पाद जोड़ें।',
+  approvedAll: (n: number) =>
+    `अच्छी खबर: आपके ${n} उत्पाद मंज़ूर हो गए और अब ग्राहकों के मेनू में हैं।`,
   help:
     'विक्रेता मेनू (ये आप टाइप भी कर सकते हैं):\n' +
     'ADD - नया हस्तनिर्मित उत्पाद जोड़ें (नाम, दाम, फोटो)\n' +
@@ -143,7 +170,7 @@ const hi: typeof en = {
     'MYORDERS - अपने उत्पादों के ऑर्डर देखें\n' +
     'MYPURCHASES - ग्राहक के रूप में आपके ऑर्डर',
   approval: (a: string) =>
-    ({ PENDING: 'एडमिन की मंज़ूरी बाकी', APPROVED: 'मंज़ूर', REJECTED: 'नामंज़ूर' })[a] ?? a,
+    ({ PENDING: 'एडमिन की मंज़ूरी बाकी', APPROVED: 'मंज़ूर', REJECTED: 'नामंज़ूर', DRAFT: 'एडमिन को अभी नहीं भेजा' })[a] ?? a,
   noPhoto: (id: number) => `फोटो नहीं (PHOTO ${id} भेजें)`,
   stockLabel: (n: number | null) => `स्टॉक: ${n ?? 'असीमित'}`,
   hiddenTag: '(छिपा हुआ)',
@@ -238,6 +265,19 @@ const or: typeof en = {
   rowPurchases: 'ମୋ ନିଜ କିଣାକିଣି',
   rowShop: 'ଗ୍ରାହକ ଭାବେ କିଣନ୍ତୁ',
   rowAllCommands: 'ସମସ୍ତ କମାଣ୍ଡ',
+  rowCategory: 'ମୋ ବର୍ଗ',
+  askCategory: 'ଆପଣ କେଉଁ ପ୍ରକାରର ଉତ୍ପାଦ ତିଆରି କରନ୍ତି? "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରି ଆପଣଙ୍କ ବର୍ଗ ବାଛନ୍ତୁ।',
+  categorySet: (name: string) =>
+    `ଆପଣଙ୍କ ବର୍ଗ ଏବେ: ${name}। ଆପଣଙ୍କ ସମସ୍ତ ନୂଆ ଉତ୍ପାଦ ଏହି ବର୍ଗରେ ଯିବ।`,
+  needCategory: 'ପ୍ରଥମେ ବାଛନ୍ତୁ ଆପଣ କେଉଁ ପ୍ରକାରର ଉତ୍ପାଦ ତିଆରି କରନ୍ତି।',
+  btnAddAnother: 'ଆଉ ଏକ ଉତ୍ପାଦ',
+  btnSubmit: 'ଆଡମିନଙ୍କୁ ପଠାନ୍ତୁ',
+  draftSaved: (id: number) =>
+    `ଉତ୍ପାଦ #${id} ସେଭ୍ ହେଲା। ଆଉ ଉତ୍ପାଦ ଯୋଡ଼ନ୍ତୁ, କିମ୍ବା ଶେଷ ହେଲେ "ଆଡମିନଙ୍କୁ ପଠାନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
+  submitted: (n: number) => `${n}ଟି ଉତ୍ପାଦ ଆଡମିନଙ୍କୁ ପଠାଗଲା। ଯାଞ୍ଚ ହେଲେ ଆପଣ ବାର୍ତ୍ତା ପାଇବେ।`,
+  nothingToSubmit: 'ପଠାଇବାକୁ କୌଣସି ନୂଆ ଉତ୍ପାଦ ନାହିଁ। ପ୍ରଥମେ ଉତ୍ପାଦ ଯୋଡ଼ନ୍ତୁ।',
+  approvedAll: (n: number) =>
+    `ଖୁସି ଖବର: ଆପଣଙ୍କ ${n}ଟି ଉତ୍ପାଦ ଅନୁମୋଦିତ ହେଲା ଏବଂ ଏବେ ଗ୍ରାହକଙ୍କ ମେନୁରେ ଅଛି।`,
   help:
     'ବିକ୍ରେତା ମେନୁ (ଏଗୁଡ଼ିକ ଟାଇପ୍ ମଧ୍ୟ କରିପାରିବେ):\n' +
     'ADD - ନୂଆ ହାତତିଆରି ଉତ୍ପାଦ ଯୋଡ଼ନ୍ତୁ (ନାମ, ଦାମ, ଫଟୋ)\n' +
@@ -252,7 +292,7 @@ const or: typeof en = {
     'MYORDERS - ଆପଣଙ୍କ ଉତ୍ପାଦର ଅର୍ଡର ଦେଖନ୍ତୁ\n' +
     'MYPURCHASES - ଗ୍ରାହକ ଭାବେ ଆପଣଙ୍କ ଅର୍ଡର',
   approval: (a: string) =>
-    ({ PENDING: 'ଆଡମିନଙ୍କ ଅନୁମୋଦନ ବାକି', APPROVED: 'ଅନୁମୋଦିତ', REJECTED: 'ପ୍ରତ୍ୟାଖ୍ୟାତ' })[a] ?? a,
+    ({ PENDING: 'ଆଡମିନଙ୍କ ଅନୁମୋଦନ ବାକି', APPROVED: 'ଅନୁମୋଦିତ', REJECTED: 'ପ୍ରତ୍ୟାଖ୍ୟାତ', DRAFT: 'ଆଡମିନଙ୍କୁ ଏପର୍ଯ୍ୟନ୍ତ ପଠାଯାଇନାହିଁ' })[a] ?? a,
   noPhoto: (id: number) => `ଫଟୋ ନାହିଁ (PHOTO ${id} ପଠାନ୍ତୁ)`,
   stockLabel: (n: number | null) => `ଷ୍ଟକ: ${n ?? 'ଅସୀମିତ'}`,
   hiddenTag: '(ଲୁଚାଯାଇଛି)',
@@ -347,6 +387,19 @@ const as: typeof en = {
   rowPurchases: 'মোৰ নিজৰ কিনা বস্তু',
   rowShop: 'গ্ৰাহক হিচাপে কিনক',
   rowAllCommands: 'সকলো কমাণ্ড',
+  rowCategory: 'মোৰ শ্ৰেণী',
+  askCategory: 'আপুনি কেনেধৰণৰ সামগ্ৰী বনায়? "বাছক" টিপি আপোনাৰ শ্ৰেণী বাছক।',
+  categorySet: (name: string) =>
+    `আপোনাৰ শ্ৰেণী এতিয়া: ${name}। আপোনাৰ সকলো নতুন সামগ্ৰী এই শ্ৰেণীত যাব।`,
+  needCategory: 'প্ৰথমে বাছক আপুনি কেনেধৰণৰ সামগ্ৰী বনায়।',
+  btnAddAnother: 'আৰু এটা সামগ্ৰী',
+  btnSubmit: 'এডমিনলৈ পঠিয়াওক',
+  draftSaved: (id: number) =>
+    `সামগ্ৰী #${id} সংৰক্ষণ কৰা হ'ল। আৰু সামগ্ৰী যোগ কৰক, নহয় শেষ হ'লে "এডমিনলৈ পঠিয়াওক" টিপক।`,
+  submitted: (n: number) => `${n}টা সামগ্ৰী এডমিনলৈ পঠিওৱা হ'ল। পৰীক্ষা হ'লে আপুনি বাৰ্তা পাব।`,
+  nothingToSubmit: 'পঠিয়াবলৈ কোনো নতুন সামগ্ৰী নাই। প্ৰথমে সামগ্ৰী যোগ কৰক।',
+  approvedAll: (n: number) =>
+    `সুখবৰ: আপোনাৰ ${n}টা সামগ্ৰী অনুমোদিত হ'ল আৰু এতিয়া গ্ৰাহকৰ মেনুত আছে।`,
   help:
     'বিক্ৰেতা মেনু (এইবোৰ টাইপো কৰিব পাৰে):\n' +
     'ADD - নতুন হাতে বনোৱা সামগ্ৰী যোগ কৰক (নাম, দাম, ফটো)\n' +
@@ -361,7 +414,7 @@ const as: typeof en = {
     'MYORDERS - আপোনাৰ সামগ্ৰীৰ অৰ্ডাৰ চাওক\n' +
     'MYPURCHASES - গ্ৰাহক হিচাপে আপোনাৰ অৰ্ডাৰ',
   approval: (a: string) =>
-    ({ PENDING: 'এডমিনৰ অনুমোদন বাকী', APPROVED: 'অনুমোদিত', REJECTED: 'নাকচ' })[a] ?? a,
+    ({ PENDING: 'এডমিনৰ অনুমোদন বাকী', APPROVED: 'অনুমোদিত', REJECTED: 'নাকচ', DRAFT: 'এডমিনলৈ এতিয়াও পঠিওৱা নাই' })[a] ?? a,
   noPhoto: (id: number) => `ফটো নাই (PHOTO ${id} পঠিয়াওক)`,
   stockLabel: (n: number | null) => `ষ্টক: ${n ?? 'অসীমিত'}`,
   hiddenTag: '(লুকুওৱা)',

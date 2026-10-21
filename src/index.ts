@@ -173,9 +173,33 @@ function localName(product: Named, language: string): string {
   return tr ? tr.name : product.name;
 }
 
-function loadProducts() {
+// A category's name in the reader's language (admin-added categories may only have English)
+function categoryName(c: { name: string; names: unknown }, language: string): string {
+  const names = (c.names ?? {}) as Record<string, string>;
+  return names[language] ?? c.name;
+}
+
+// The category list (tap one to choose it); used by customers, sellers and applicants
+async function categoryRows(language: string, idPrefix: string, withCounts: boolean): Promise<Row[]> {
+  const categories = await prisma.category.findMany({ orderBy: { id: 'asc' }, take: 10 });
+  const rows: Row[] = [];
+  for (const c of categories) {
+    let description: string | undefined;
+    if (withCounts) {
+      const n = (await loadProducts(c.id)).length;
+      if (n === 0) continue; // customers only see categories that have products
+      description = bt(language).itemCount(n);
+    }
+    rows.push({ id: `${idPrefix} ${c.id}`, title: categoryName(c, language), description });
+  }
+  return rows;
+}
+
+// Products a customer can buy (optionally only one category)
+function loadProducts(categoryId?: number) {
   return prisma.product.findMany({
     where: {
+      ...(categoryId ? { categoryId } : {}),
       isActive: true,
       approval: 'APPROVED', // checked by the admin: handmade only
       imageKey: { not: null }, // every product on the menu has a photo
@@ -282,12 +306,22 @@ function mainMenuReply(user: { language: string; role: string }): RichReply {
 }
 
 // Products as a tap list, 9 per page plus "More products"
-async function productListReply(language: string, page: number): Promise<Reply> {
+async function productListReply(language: string): Promise<Reply> {
+  // MENU first shows the categories (Keychains, Handbags, Wallets ...)
   const B = bt(language);
-  const products = await loadProducts();
-  if (products.length === 0) return { text: B.noProducts, buttons: [{ id: 'MAINMENU', title: B.menu }] };
+  const rows = await categoryRows(language, 'CATEGORY', true);
+  if (rows.length === 0) return { text: B.noProducts, buttons: [{ id: 'MAINMENU', title: B.menu }] };
+  return { text: B.categoriesBody, list: { button: B.categoriesButton, rows } };
+}
 
-  const perPage = 9;
+// CATEGORY n: the products of one category, 8 per page, plus "More" and "All categories"
+async function categoryProductsReply(language: string, categoryId: number, page: number): Promise<Reply> {
+  const B = bt(language);
+  const category = await prisma.category.findUnique({ where: { id: categoryId } });
+  const products = category ? await loadProducts(categoryId) : [];
+  if (!category || products.length === 0) return productListReply(language);
+
+  const perPage = 8;
   const pages = Math.ceil(products.length / perPage);
   const current = Math.min(Math.max(page, 1), pages);
   const rows: Row[] = products.slice((current - 1) * perPage, current * perPage).map((p) => ({
@@ -295,8 +329,12 @@ async function productListReply(language: string, page: number): Promise<Reply> 
     title: localName(p, language),
     description: `₹${p.price}`,
   }));
-  if (current < pages) rows.push({ id: `MENU ${current + 1}`, title: `${B.more} ›` });
-  return { text: B.productsBody, list: { button: B.products, rows } };
+  if (current < pages) rows.push({ id: `CATEGORY ${categoryId} ${current + 1}`, title: `${B.more} ›` });
+  rows.push({ id: 'MENU', title: B.allCategories });
+  return {
+    text: B.categoryBody(categoryName(category, language)),
+    list: { button: B.products, rows },
+  };
 }
 
 // One product: its photo, name and price, with Add to cart / Back
@@ -311,7 +349,8 @@ async function productReply(language: string, productId: number): Promise<Reply>
     imageKey: p.imageKey,
     buttons: [
       { id: `BUY ${p.id}`, title: B.addToCart },
-      { id: 'MENU', title: B.back },
+      // Back goes to the same category's list
+      { id: p.categoryId ? `CATEGORY ${p.categoryId}` : 'MENU', title: B.back },
     ],
   };
 }
@@ -1265,22 +1304,123 @@ async function decideProduct(productId: number, approve: boolean): Promise<strin
   return REG_TEXT.productDecided(productId, approve ? 'APPROVED' : 'REJECTED');
 }
 
-// Sends every admin the photo of a product that needs checking
-async function notifyAdminsOfProduct(productId: number) {
+// The category list for a seller or applicant to choose their kind of product
+async function categoryChoiceReply(language: string, intro?: string): Promise<RichReply> {
+  const rows = await categoryRows(language, 'SETCATEGORY', false);
+  return inLang(language, () => ({
+    text: intro ? `${intro}\n${SELLER_TEXT.askCategory}` : SELLER_TEXT.askCategory,
+    list: { button: bt(language).categoriesButton, rows },
+  }));
+}
+
+// SUBMIT: the seller's finished new products (DRAFT with a photo) go to the admin together.
+// Every admin gets ONE message with Review now / Approve all.
+async function submitProducts(seller: {
+  id: number;
+  shopName: string | null;
+  phone: string;
+  categoryId: number | null;
+  upiId: string | null;
+}): Promise<Reply> {
+  const result = await prisma.product.updateMany({
+    where: { sellerId: seller.id, approval: 'DRAFT', imageKey: { not: null } },
+    data: { approval: 'PENDING' },
+  });
+  if (result.count === 0) {
+    return { text: SELLER_TEXT.nothingToSubmit, buttons: [{ id: 'ADD', title: SELLER_TEXT.btnAdd }] };
+  }
+
+  // Everything waiting from this seller (also older ones not reviewed yet)
+  const waiting = await prisma.product.count({
+    where: { sellerId: seller.id, approval: 'PENDING', imageKey: { not: null } },
+  });
   try {
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: { seller: true },
-    });
-    if (!product?.imageKey) return;
+    const category = seller.categoryId
+      ? await prisma.category.findUnique({ where: { id: seller.categoryId } })
+      : null;
     const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
     for (const a of admins) {
-      const imageKey = product.imageKey;
-      await sendReply(a.phone, inLang(a.language, () => adminProductReply({ ...product, imageKey })));
+      await sendReply(
+        a.phone,
+        inLang(a.language, () => ({
+          text: REG_TEXT.batchNotice(
+            seller.shopName ?? seller.phone,
+            waiting,
+            category ? categoryName(category, a.language) : '-'
+          ),
+          buttons: [
+            { id: `REVIEW ${seller.id}`, title: REG_TEXT.btnReviewNow },
+            { id: `APPROVEALL ${seller.id}`, title: REG_TEXT.btnApproveAll(waiting) },
+          ],
+        }))
+      );
     }
   } catch (err) {
-    console.error('Admin product notice failed:', err);
+    console.error('Admin batch notice failed:', err);
   }
+  // Products of a seller without a UPI ID stay hidden from customers, so remind them
+  return seller.upiId
+    ? SELLER_TEXT.submitted(result.count)
+    : `${SELLER_TEXT.submitted(result.count)}\n\n${SELLER_TEXT.upiCurrent(null, false)}`;
+}
+
+// REVIEW n: the admin sees the photos of seller n's waiting products, one by one
+async function reviewProducts(adminPhone: string, sellerId: number): Promise<Reply> {
+  const waiting = await prisma.product.findMany({
+    where: { sellerId, approval: 'PENDING', imageKey: { not: null } },
+    include: { seller: true },
+    orderBy: { id: 'asc' },
+    take: 10,
+  });
+  if (waiting.length === 0) return REG_TEXT.nothingToReview;
+  for (const p of waiting) {
+    await sendReply(adminPhone, adminProductReply({ ...p, imageKey: p.imageKey! }));
+  }
+  return {
+    text: REG_TEXT.pendingProductsSent(waiting.length),
+    buttons: [{ id: `APPROVEALL ${sellerId}`, title: REG_TEXT.btnApproveAll(waiting.length) }],
+  };
+}
+
+// APPROVEALL n: approve all of seller n's waiting products; the seller gets one message
+async function approveAllProducts(sellerId: number): Promise<string> {
+  const seller = await prisma.user.findUnique({ where: { id: sellerId } });
+  if (!seller) return REG_TEXT.nothingToReview;
+  const result = await prisma.product.updateMany({
+    where: { sellerId, approval: 'PENDING', imageKey: { not: null } },
+    data: { approval: 'APPROVED' },
+  });
+  if (result.count === 0) return REG_TEXT.nothingToReview;
+  try {
+    await sendReply(seller.phone, inLang(seller.language, () => SELLER_TEXT.approvedAll(result.count)));
+  } catch (err) {
+    console.error('Seller approval notice failed:', err);
+  }
+  return REG_TEXT.approvedAllDone(result.count, seller.shopName ?? seller.phone);
+}
+
+// CATEGORIES: the admin's list of categories, with how many products each has
+async function categoriesReport(language: string): Promise<string> {
+  const categories = await prisma.category.findMany({
+    include: { _count: { select: { products: true, sellers: true } } },
+    orderBy: { id: 'asc' },
+  });
+  const lines = categories.map(
+    (c) => `#${c.id} ${categoryName(c, language)} - ${bt(language).itemCount(c._count.products)}`
+  );
+  return `${REG_TEXT.categoriesTitle}\n${lines.join('\n')}\n\n${REG_TEXT.addCategoryHint}`;
+}
+
+// ADDCATEGORY name: a new category (English name; shown as typed in every language)
+async function addCategory(rawName: string): Promise<string> {
+  const name = rawName.trim().replace(/\s+/g, ' ');
+  if (name.length < 2 || name.length > 24) return REG_TEXT.addCategoryHint;
+  const existing = await prisma.category.findFirst({
+    where: { name: { equals: name, mode: 'insensitive' } },
+  });
+  if (existing) return REG_TEXT.categoryExists(existing.name);
+  await prisma.category.create({ data: { name } });
+  return REG_TEXT.categoryAdded(name);
 }
 
 // Totals for the whole marketplace
@@ -1417,6 +1557,60 @@ async function handleWebhook(body: any) {
       return;
     }
 
+    // SETCATEGORY n: a seller (or someone applying to be one) picks their kind of product
+    const setCategoryMatch = command.match(/^SETCATEGORY\s+#?(\d+)$/);
+    if (setCategoryMatch) {
+      const category = await prisma.category.findUnique({ where: { id: Number(setCategoryMatch[1]) } });
+      const applying =
+        user.state === 'CHOOSING_CATEGORY' &&
+        user.role === 'CUSTOMER' &&
+        Boolean(user.shopName) &&
+        (user.sellerStatus === 'NONE' || user.sellerStatus === 'REJECTED');
+      if (!category || (user.role !== 'SELLER' && !applying)) {
+        await sendReply(phone, homeReply(user));
+        return;
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          categoryId: category.id,
+          state: 'BROWSING',
+          ...(applying ? { sellerStatus: 'PENDING' as const } : {}),
+        },
+      });
+
+      if (applying) {
+        // The seller request is complete: tell every admin (in their language)
+        try {
+          const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+          for (const a of admins) {
+            await sendReply(
+              a.phone,
+              inLang(a.language, () => ({
+                text:
+                  REG_TEXT.adminNotice(user.id, user.shopName ?? '-', user.phone) +
+                  `\n${REG_TEXT.categoryLabel}: ${categoryName(category, a.language)}`,
+                buttons: [
+                  { id: `APPROVE ${user.id}`, title: STAFF_BUTTONS.approve },
+                  { id: `REJECT ${user.id}`, title: STAFF_BUTTONS.reject },
+                ],
+              }))
+            );
+          }
+        } catch (err) {
+          console.error('Admin notification failed:', err);
+        }
+        await sendReply(phone, REG_TEXT.requested);
+        return;
+      }
+
+      await sendReply(phone, {
+        text: SELLER_TEXT.categorySet(categoryName(category, user.language)),
+        buttons: [{ id: 'ADD', title: SELLER_TEXT.btnAdd }],
+      });
+      return;
+    }
+
     // A tap while the bot waits for typed text (a name, price, address, shop name or photo)
     // means the person moved on: leave that step and handle the tap as a normal command.
     // (Taps on the quantity list are numbers and stay in the quantity step.)
@@ -1428,6 +1622,7 @@ async function handleWebhook(body: any) {
       'ENTERING_ADDRESS',
       'ENTERING_SHOP_NAME',
       'CHOOSING_QUANTITY',
+      'CHOOSING_CATEGORY',
     ];
     if (
       tapId &&
@@ -1500,6 +1695,8 @@ async function handleWebhook(body: any) {
             price,
             sellerId: user.id,
             translations: { create: [{ language: user.language, name: productName }] },
+            categoryId: user.categoryId, // the seller's kind of product
+            approval: 'DRAFT', // goes to the admin when the seller taps "Send all to admin"
           },
         });
 
@@ -1543,7 +1740,8 @@ async function handleWebhook(body: any) {
         // A new photo means the admin checks the product again
         const changed = await prisma.product.updateMany({
           where: { id: productId, sellerId: user.id },
-          data: { imageKey: key, approval: 'PENDING' },
+          // A new photo means the admin checks the product again, after "Send all to admin"
+          data: { imageKey: key, approval: 'DRAFT' },
         });
         await prisma.user.update({
           where: { id: user.id },
@@ -1553,8 +1751,14 @@ async function handleWebhook(body: any) {
           await sendReply(phone, SELLER_TEXT.productNotFound(productId));
           return;
         }
-        await notifyAdminsOfProduct(productId);
-        await sendReply(phone, SELLER_TEXT.photoSaved(productId));
+        // The admin is not told yet: the seller adds more, then sends them all at once
+        await sendReply(phone, {
+          text: SELLER_TEXT.draftSaved(productId),
+          buttons: [
+            { id: 'ADD', title: SELLER_TEXT.btnAddAnother },
+            { id: 'SUBMIT', title: SELLER_TEXT.btnSubmit },
+          ],
+        });
         return;
       }
 
@@ -1585,11 +1789,27 @@ async function handleWebhook(body: any) {
       // Normal seller commands
       if (user.state === 'BROWSING') {
         if (command === 'ADD') {
+          // Every product goes into the seller's category, so that must be chosen first
+          if (!user.categoryId) {
+            await sendReply(phone, await categoryChoiceReply(user.language, SELLER_TEXT.needCategory));
+            return;
+          }
           await prisma.user.update({
             where: { id: user.id },
             data: { state: 'ADDING_PRODUCT_NAME', pendingProductName: null },
           });
           await sendReply(phone, SELLER_TEXT.askName);
+          return;
+        }
+
+        // SUBMIT: send all finished new products to the admin in one message
+        if (command === 'SUBMIT') {
+          await sendReply(phone, await submitProducts(user));
+          return;
+        }
+
+        if (command === 'MYCATEGORY') {
+          await sendReply(phone, await categoryChoiceReply(user.language));
           return;
         }
         if (command === 'MYPRODUCTS') {
@@ -1785,6 +2005,8 @@ async function handleWebhook(body: any) {
                 { id: 'QR', title: SELLER_TEXT.rowQr },
                 { id: 'MYPURCHASES', title: SELLER_TEXT.rowPurchases },
                 { id: 'MAINMENU', title: SELLER_TEXT.rowShop },
+                { id: 'SUBMIT', title: SELLER_TEXT.btnSubmit },
+                { id: 'MYCATEGORY', title: SELLER_TEXT.rowCategory },
                 { id: 'HELP', title: SELLER_TEXT.rowAllCommands },
               ],
             },
@@ -1832,6 +2054,29 @@ async function handleWebhook(body: any) {
       }
       if (command === 'SALES') {
         await sendReply(phone, await salesReport());
+        return;
+      }
+
+      // A seller's batch of new products: look at them one by one, or approve them all
+      const reviewMatch = command.match(/^(REVIEW|APPROVEALL)\s+#?(\d+)$/);
+      if (reviewMatch) {
+        const sellerId = Number(reviewMatch[2]);
+        await sendReply(
+          phone,
+          reviewMatch[1] === 'REVIEW'
+            ? await reviewProducts(phone, sellerId)
+            : await approveAllProducts(sellerId)
+        );
+        return;
+      }
+
+      if (command === 'CATEGORIES') {
+        await sendReply(phone, await categoriesReport(user.language));
+        return;
+      }
+      const addCategoryMatch = text.match(/^ADDCATEGORY\s+(.+)$/i);
+      if (addCategoryMatch) {
+        await sendReply(phone, await addCategory(addCategoryMatch[1]));
         return;
       }
 
@@ -1897,6 +2142,7 @@ async function handleWebhook(body: any) {
               { id: 'PENDINGSELLERS', title: REG_TEXT.rowSellerRequests },
               { id: 'SALES', title: REG_TEXT.rowSales },
               { id: 'MAINMENU', title: REG_TEXT.rowShop },
+              { id: 'CATEGORIES', title: REG_TEXT.rowCategories },
               { id: 'HELP', title: REG_TEXT.rowAllCommands },
             ],
           },
@@ -1932,6 +2178,7 @@ async function handleWebhook(body: any) {
         'MAINMENU', 'REMOVEMENU', 'PLACEORDER',
       ].includes(command) ||
         /^(REMOVE|CANCELORDER|QR|PRODUCT|BUY|ORDERINFO|MENU)\s+#?\d+$/.test(command) ||
+        /^CATEGORY\s+#?\d+(\s+\d+)?$/.test(command) ||
         /^PAID(\s|$)/.test(command))
     ) {
       await prisma.user.update({
@@ -1986,31 +2233,23 @@ async function handleWebhook(body: any) {
         await sendReply(phone, REG_TEXT.invalidShop);
         return;
       }
+      // Next: what kind of products they make (the request goes to the admin after that)
       await prisma.user.update({
         where: { id: user.id },
-        data: { shopName: text, sellerStatus: 'PENDING', state: 'BROWSING' },
+        data: { shopName: text, state: 'CHOOSING_CATEGORY' },
       });
+      await sendReply(phone, await categoryChoiceReply(user.language));
+      return;
+    }
 
-      // Tell every admin. A failure here must not undo the request.
-      try {
-        const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
-        for (const a of admins) {
-          await sendReply(
-            a.phone,
-            inLang(a.language, () => ({
-              text: REG_TEXT.adminNotice(user.id, text, user.phone),
-              buttons: [
-                { id: `APPROVE ${user.id}`, title: STAFF_BUTTONS.approve },
-                { id: `REJECT ${user.id}`, title: STAFF_BUTTONS.reject },
-              ],
-            }))
-          );
-        }
-      } catch (err) {
-        console.error('Admin notification failed:', err);
+    // ---- State: choosing a category (typed text instead of a tap: show the list again) ----
+    if (user.state === 'CHOOSING_CATEGORY') {
+      if (command === 'CANCEL') {
+        await prisma.user.update({ where: { id: user.id }, data: { state: 'BROWSING' } });
+        await sendReply(phone, homeReply(user));
+        return;
       }
-
-      await sendReply(phone, REG_TEXT.requested);
+      await sendReply(phone, await categoryChoiceReply(user.language));
       return;
     }
 
@@ -2091,10 +2330,19 @@ async function handleWebhook(body: any) {
     }
 
     // ---- State: browsing ----
-    // MENU (or MENU 2, MENU 3 ... for the next pages): the product list
-    const menuMatch = command.match(/^MENU(?:\s+(\d+))?$/);
-    if (menuMatch) {
-      await sendReply(phone, await productListReply(user.language, Number(menuMatch[1] ?? 1)));
+    // MENU: the categories (older "MENU 2" links also land here)
+    if (/^MENU(?:\s+\d+)?$/.test(command)) {
+      await sendReply(phone, await productListReply(user.language));
+      return;
+    }
+
+    // CATEGORY n (or CATEGORY n 2 for the next page): the products of one category
+    const categoryMatch = command.match(/^CATEGORY\s+#?(\d+)(?:\s+(\d+))?$/);
+    if (categoryMatch) {
+      await sendReply(
+        phone,
+        await categoryProductsReply(user.language, Number(categoryMatch[1]), Number(categoryMatch[2] ?? 1))
+      );
       return;
     }
 
