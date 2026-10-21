@@ -24,7 +24,7 @@ async function main() {
       translations: {
         create: [
           { language: 'en', name: 'Jute Handbag' },
-          { language: 'ta', name: 'சணல் கைப்பை' },
+          { language: 'or', name: 'ଝୋଟ ହ୍ୟାଣ୍ଡବ୍ୟାଗ' },
           { language: 'hi', name: 'जूट हैंडबैग' },
         ],
       },
@@ -39,7 +39,7 @@ async function main() {
       translations: {
         create: [
           { language: 'en', name: 'Embroidered Girls Bag' },
-          { language: 'ta', name: 'எம்பிராய்டரி பெண்கள் பை' },
+          { language: 'or', name: 'ଏମ୍ବ୍ରଏଡରି ଝିଅମାନଙ୍କ ବ୍ୟାଗ' },
           { language: 'hi', name: 'कढ़ाई वाला लड़कियों का बैग' },
         ],
       },

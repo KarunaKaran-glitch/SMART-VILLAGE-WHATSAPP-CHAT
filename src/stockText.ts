@@ -7,14 +7,6 @@ export const STOCK_TEXT = {
     notEnough: (name: string, n: number) =>
       `Only ${n} of "${name}" left. Send CART and change your cart.`,
   },
-  ta: {
-    onlyLeft: (name: string, n: number) =>
-      `"${name}" ${n} மட்டுமே உள்ளது. சிறிய எண்ணை அனுப்பவும், அல்லது CANCEL.`,
-    unavailable: (name: string) =>
-      `"${name}" இனி கிடைக்காது. CART என்று அனுப்பி, அதை கார்ட்டிலிருந்து REMOVE செய்யவும்.`,
-    notEnough: (name: string, n: number) =>
-      `"${name}" ${n} மட்டுமே மீதம் உள்ளது. CART என்று அனுப்பி கார்ட்டை மாற்றவும்.`,
-  },
   hi: {
     onlyLeft: (name: string, n: number) =>
       `"${name}" केवल ${n} उपलब्ध हैं। कृपया छोटी संख्या भेजें, या CANCEL।`,
@@ -23,21 +15,21 @@ export const STOCK_TEXT = {
     notEnough: (name: string, n: number) =>
       `"${name}" केवल ${n} बचे हैं। CART भेजकर अपना कार्ट बदलें।`,
   },
-  te: {
+  or: {
     onlyLeft: (name: string, n: number) =>
-      `"${name}" ${n} మాత్రమే ఉన్నాయి. దయచేసి చిన్న సంఖ్య పంపండి, లేదా CANCEL.`,
+      `"${name}" କେବଳ ${n}ଟି ଉପଲବ୍ଧ। ଦୟାକରି ଛୋଟ ସଂଖ୍ୟା ପଠାନ୍ତୁ, କିମ୍ବା CANCEL।`,
     unavailable: (name: string) =>
-      `"${name}" ఇక అందుబాటులో లేదు. CART పంపి, దాన్ని కార్ట్ నుండి REMOVE చేయండి.`,
+      `"${name}" ଆଉ ଉପଲବ୍ଧ ନାହିଁ। CART ପଠାଇ ଏହାକୁ କାର୍ଟରୁ REMOVE କରନ୍ତୁ।`,
     notEnough: (name: string, n: number) =>
-      `"${name}" ${n} మాత్రమే మిగిలి ఉన్నాయి. CART పంపి మీ కార్ట్ మార్చండి.`,
+      `"${name}" କେବଳ ${n}ଟି ବାକି ଅଛି। CART ପଠାଇ ଆପଣଙ୍କ କାର୍ଟ ବଦଳାନ୍ତୁ।`,
   },
-  ml: {
+  as: {
     onlyLeft: (name: string, n: number) =>
-      `"${name}" ${n} മാത്രമേ ലഭ്യമുള്ളൂ. ദയവായി ചെറിയ സംഖ്യ അയയ്ക്കുക, അല്ലെങ്കിൽ CANCEL.`,
+      `"${name}" মাত্ৰ ${n}টা উপলব্ধ। অনুগ্ৰহ কৰি সৰু সংখ্যা পঠিয়াওক, নহয় CANCEL।`,
     unavailable: (name: string) =>
-      `"${name}" ഇനി ലഭ്യമല്ല. CART അയച്ച്, ഇത് കാർട്ടിൽ നിന്ന് REMOVE ചെയ്യുക.`,
+      `"${name}" আৰু উপলব্ধ নহয়। CART পঠিয়াই ইয়াক কাৰ্টৰ পৰা REMOVE কৰক।`,
     notEnough: (name: string, n: number) =>
-      `"${name}" ${n} മാത്രമേ ബാക്കിയുള്ളൂ. CART അയച്ച് നിങ്ങളുടെ കാർട്ട് മാറ്റുക.`,
+      `"${name}" মাত্ৰ ${n}টা বাকী আছে। CART পঠিয়াই আপোনাৰ কাৰ্ট সলনি কৰক।`,
   },
 };
 

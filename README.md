@@ -2,7 +2,7 @@
 
 A WhatsApp chatbot backend for a multi-vendor marketplace of **handmade products** (bags, handbags and similar). Customers browse products with photos, fill a cart, place orders and pay the seller by UPI ID or QR code, by sending short text commands. Local sellers list their products with a photo, and admins approve sellers and every product, all inside the same WhatsApp chat.
 
-The bot works in five languages: English, Tamil, Hindi, Telugu and Malayalam.
+The bot works in four languages: English, Hindi, Odia and Assamese.
 
 **Stack:** Node.js, TypeScript, Express 5, Prisma 6, PostgreSQL
 

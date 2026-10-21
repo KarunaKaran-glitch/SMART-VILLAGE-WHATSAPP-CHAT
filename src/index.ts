@@ -213,9 +213,13 @@ async function cartText(userId: number, language: string, withHint = true): Prom
 
 function languageReply(): RichReply {
   return {
-    text: 'Welcome! Please choose your language.\nவணக்கம்! உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்.',
+    text:
+      'Welcome! Please choose your language.\n' +
+      'नमस्ते! कृपया अपनी भाषा चुनें।\n' +
+      'ନମସ୍କାର! ଦୟାକରି ଆପଣଙ୍କ ଭାଷା ବାଛନ୍ତୁ।\n' +
+      'নমস্কাৰ! অনুগ্ৰহ কৰি আপোনাৰ ভাষা বাছক।',
     list: {
-      button: 'Language / மொழி',
+      button: 'Language / भाषा',
       rows: Object.entries(LANGUAGES).map(([num, l]) => ({ id: num, title: l.label })),
     },
   };
