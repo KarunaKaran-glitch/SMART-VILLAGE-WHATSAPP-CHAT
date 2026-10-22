@@ -289,6 +289,37 @@ function homeReply(user: { language: string; role: string }): RichReply {
   });
 }
 
+// Sellers and admins should never be left without a next step: a reply that is only text
+// gets the role's navigation buttons. Replies that already have buttons or a list stay as they are.
+function withNav(role: string, reply: Reply): Reply {
+  if (Array.isArray(reply)) {
+    return reply.map((r, i) => (i === reply.length - 1 ? withNav(role, r) : r));
+  }
+  const rich: RichReply = typeof reply === 'string' ? { text: reply } : reply;
+  if (rich.buttons?.length || rich.list) return reply;
+  if (role === 'SELLER') {
+    return {
+      ...rich,
+      buttons: [
+        { id: 'MYPRODUCTS', title: SELLER_TEXT.rowProducts },
+        { id: 'ADD', title: SELLER_TEXT.btnAdd },
+        { id: 'SELLER', title: SELLER_TEXT.btnMenu },
+      ],
+    };
+  }
+  if (role === 'ADMIN') {
+    return {
+      ...rich,
+      buttons: [
+        { id: 'PENDINGPRODUCTS', title: REG_TEXT.btnCheckProducts },
+        { id: 'PENDINGSELLERS', title: REG_TEXT.btnSellerRequests },
+        { id: 'ADMIN', title: REG_TEXT.btnAdminMenu },
+      ],
+    };
+  }
+  return reply;
+}
+
 // Everything a customer can do, in one list (sellers and admins also get their own menu)
 function mainMenuReply(user: { language: string; role: string }): RichReply {
   const B = bt(user.language);
@@ -1292,9 +1323,12 @@ async function decideProduct(productId: number, approve: boolean): Promise<strin
     await sendReply(
       product.seller.phone,
       inLang(product.seller.language, () =>
-        approve
-          ? SELLER_TEXT.productApproved(productId, product.name)
-          : SELLER_TEXT.productRejected(productId, product.name)
+        withNav(
+          'SELLER',
+          approve
+            ? SELLER_TEXT.productApproved(productId, product.name)
+            : SELLER_TEXT.productRejected(productId, product.name)
+        )
       )
     );
   } catch (err) {
@@ -1392,7 +1426,10 @@ async function approveAllProducts(sellerId: number): Promise<string> {
   });
   if (result.count === 0) return REG_TEXT.nothingToReview;
   try {
-    await sendReply(seller.phone, inLang(seller.language, () => SELLER_TEXT.approvedAll(result.count)));
+    await sendReply(
+      seller.phone,
+      inLang(seller.language, () => withNav('SELLER', SELLER_TEXT.approvedAll(result.count)))
+    );
   } catch (err) {
     console.error('Seller approval notice failed:', err);
   }
@@ -1544,6 +1581,8 @@ async function handleWebhook(body: any) {
 
     // Everything written for this person is in their language (seller and admin texts too)
     setLang(user.language);
+    // Replies to a seller or admin that would end without a next step get navigation buttons
+    const staffSend = (reply: Reply) => sendReply(phone, withNav(user.role, reply));
     const T = t(user.language);
     const B = bt(user.language);
 
@@ -1791,7 +1830,7 @@ async function handleWebhook(body: any) {
         if (command === 'ADD') {
           // Every product goes into the seller's category, so that must be chosen first
           if (!user.categoryId) {
-            await sendReply(phone, await categoryChoiceReply(user.language, SELLER_TEXT.needCategory));
+            await staffSend(await categoryChoiceReply(user.language, SELLER_TEXT.needCategory));
             return;
           }
           await prisma.user.update({
@@ -1804,12 +1843,12 @@ async function handleWebhook(body: any) {
 
         // SUBMIT: send all finished new products to the admin in one message
         if (command === 'SUBMIT') {
-          await sendReply(phone, await submitProducts(user));
+          await staffSend(await submitProducts(user));
           return;
         }
 
         if (command === 'MYCATEGORY') {
-          await sendReply(phone, await categoryChoiceReply(user.language));
+          await staffSend(await categoryChoiceReply(user.language));
           return;
         }
         if (command === 'MYPRODUCTS') {
@@ -1818,7 +1857,7 @@ async function handleWebhook(body: any) {
             orderBy: { id: 'asc' },
           });
           if (mine.length === 0) {
-            await sendReply(phone, SELLER_TEXT.noProducts);
+            await staffSend(SELLER_TEXT.noProducts);
           } else {
             const lines = mine.map(
               (p) =>
@@ -1826,7 +1865,7 @@ async function handleWebhook(body: any) {
                 ` - ${p.imageKey ? SELLER_TEXT.approval(p.approval) : SELLER_TEXT.noPhoto(p.id)}` +
                 `${p.isActive ? '' : ' ' + SELLER_TEXT.hiddenTag}`
             );
-            await sendReply(phone, `${SELLER_TEXT.myProductsTitle}\n${lines.join('\n')}`);
+            await staffSend(`${SELLER_TEXT.myProductsTitle}\n${lines.join('\n')}`);
           }
           return;
         }
@@ -1838,7 +1877,7 @@ async function handleWebhook(body: any) {
             take: 10,
           });
           if (items.length === 0) {
-            await sendReply(phone, SELLER_TEXT.noOrders);
+            await staffSend(SELLER_TEXT.noOrders);
           } else {
             const lines = items.map((it) => {
               const who = it.order.customer.name ?? it.order.customer.phone;
@@ -1851,13 +1890,13 @@ async function handleWebhook(body: any) {
                 `${who} (${it.order.customer.phone})`
               );
             });
-            await sendReply(phone, `${SELLER_TEXT.myOrdersTitle}\n${lines.join('\n')}`);
+            await staffSend(`${SELLER_TEXT.myOrdersTitle}\n${lines.join('\n')}`);
           }
           return;
         }
 
         if (command === 'UPI') {
-          await sendReply(phone, SELLER_TEXT.upiCurrent(user.upiId, Boolean(user.upiQrKey)));
+          await staffSend(SELLER_TEXT.upiCurrent(user.upiId, Boolean(user.upiQrKey)));
           return;
         }
 
@@ -1868,7 +1907,7 @@ async function handleWebhook(body: any) {
         }
         if (command === 'QR REMOVE') {
           await prisma.user.update({ where: { id: user.id }, data: { upiQrKey: null } });
-          await sendReply(phone, SELLER_TEXT.qrRemoved);
+          await staffSend(SELLER_TEXT.qrRemoved);
           return;
         }
 
@@ -1877,7 +1916,7 @@ async function handleWebhook(body: any) {
           const productId = Number(photoMatch[1]);
           const own = await prisma.product.findFirst({ where: { id: productId, sellerId: user.id } });
           if (!own) {
-            await sendReply(phone, SELLER_TEXT.productNotFound(productId));
+            await staffSend(SELLER_TEXT.productNotFound(productId));
             return;
           }
           await prisma.user.update({
@@ -1895,11 +1934,11 @@ async function handleWebhook(body: any) {
           // A UPI ID looks like name@bank. Card and account numbers have no "@", so they are rejected.
           // Also refuse the example from our own messages, so nobody saves it by mistake
           if (!/^[A-Za-z0-9._-]{2,64}@[A-Za-z]{2,32}$/.test(upi) || /^yourname@/i.test(upi)) {
-            await sendReply(phone, SELLER_TEXT.upiInvalid);
+            await staffSend(SELLER_TEXT.upiInvalid);
             return;
           }
           await prisma.user.update({ where: { id: user.id }, data: { upiId: upi } });
-          await sendReply(phone, SELLER_TEXT.upiSet(upi));
+          await staffSend(SELLER_TEXT.upiSet(upi));
           return;
         }
 
@@ -1908,15 +1947,14 @@ async function handleWebhook(body: any) {
           const productId = Number(stockMatch[1]);
           const amount = stockMatch[2] === 'OFF' ? null : Number(stockMatch[2]);
           if (amount !== null && amount > 100000) {
-            await sendReply(phone, SELLER_TEXT.stockInvalid);
+            await staffSend(SELLER_TEXT.stockInvalid);
             return;
           }
           const changed = await prisma.product.updateMany({
             where: { id: productId, sellerId: user.id },
             data: { stock: amount },
           });
-          await sendReply(
-            phone,
+          await staffSend(
             changed.count === 0
               ? SELLER_TEXT.productNotFound(productId)
               : SELLER_TEXT.stockSet(productId, amount)
@@ -1929,15 +1967,14 @@ async function handleWebhook(body: any) {
           const productId = Number(priceMatch[1]);
           const newPrice = Number(priceMatch[2]);
           if (newPrice <= 0 || newPrice > 100000) {
-            await sendReply(phone, SELLER_TEXT.invalidPrice);
+            await staffSend(SELLER_TEXT.invalidPrice);
             return;
           }
           const changed = await prisma.product.updateMany({
             where: { id: productId, sellerId: user.id },
             data: { price: newPrice },
           });
-          await sendReply(
-            phone,
+          await staffSend(
             changed.count === 0
               ? SELLER_TEXT.productNotFound(productId)
               : SELLER_TEXT.priceUpdated(productId, newPrice)
@@ -1953,8 +1990,7 @@ async function handleWebhook(body: any) {
             where: { id: productId, sellerId: user.id },
             data: { isActive: makeActive },
           });
-          await sendReply(
-            phone,
+          await staffSend(
             changed.count === 0
               ? SELLER_TEXT.productNotFound(productId)
               : makeActive
@@ -1965,14 +2001,13 @@ async function handleWebhook(body: any) {
         }
 
         if (command === 'MYPURCHASES') {
-          await sendReply(phone, await customerOrders(user.id, user.language));
+          await staffSend(await customerOrders(user.id, user.language));
           return;
         }
 
         const paymentMatch = command.match(/^(RECEIVED|NOTRECEIVED)\s+#?(\d+)$/);
         if (paymentMatch) {
-          await sendReply(
-            phone,
+          await staffSend(
             await decidePayment(user.id, Number(paymentMatch[2]), paymentMatch[1] === 'RECEIVED')
           );
           return;
@@ -1980,20 +2015,19 @@ async function handleWebhook(body: any) {
 
         const statusMatch = command.match(/^(CONFIRM|SHIP|DELIVER)\s+#?(\d+)$/);
         if (statusMatch) {
-          await sendReply(
-            phone,
+          await staffSend(
             await updateOrderStatus(user.id, Number(statusMatch[2]), statusMatch[1])
           );
           return;
         }
         // HELP: the full list of typed commands (also the last row of the seller menu)
         if (command === 'HELP') {
-          await sendReply(phone, SELLER_TEXT.help);
+          await staffSend(SELLER_TEXT.help);
           return;
         }
         // SELLER: the everyday seller actions as a tap list
         if (command === 'SELLER') {
-          await sendReply(phone, {
+          await staffSend({
             text: SELLER_TEXT.menuBody,
             list: {
               button: SELLER_TEXT.btnMenu,
@@ -2007,7 +2041,6 @@ async function handleWebhook(body: any) {
                 { id: 'MAINMENU', title: SELLER_TEXT.rowShop },
                 { id: 'SUBMIT', title: SELLER_TEXT.btnSubmit },
                 { id: 'MYCATEGORY', title: SELLER_TEXT.rowCategory },
-                { id: 'HELP', title: SELLER_TEXT.rowAllCommands },
               ],
             },
           });
@@ -2024,11 +2057,10 @@ async function handleWebhook(body: any) {
           orderBy: { id: 'asc' },
         });
         if (waiting.length === 0) {
-          await sendReply(phone, REG_TEXT.noPending);
+          await staffSend(REG_TEXT.noPending);
         } else {
           // One message per request, each with Approve / Reject buttons
-          await sendReply(
-            phone,
+          await staffSend(
             waiting.slice(0, 10).map((u) => ({
               text: REG_TEXT.sellerRequestCard(u.id, u.shopName ?? '-', u.phone),
               buttons: [
@@ -2044,8 +2076,7 @@ async function handleWebhook(body: any) {
       const blockMatch = command.match(/^(BLOCK|UNBLOCK)\s+#?(\d+)$/);
       if (blockMatch) {
         const targetId = Number(blockMatch[2]);
-        await sendReply(
-          phone,
+        await staffSend(
           blockMatch[1] === 'BLOCK'
             ? await blockSeller(targetId)
             : await unblockSeller(targetId)
@@ -2053,7 +2084,7 @@ async function handleWebhook(body: any) {
         return;
       }
       if (command === 'SALES') {
-        await sendReply(phone, await salesReport());
+        await staffSend(await salesReport());
         return;
       }
 
@@ -2061,8 +2092,7 @@ async function handleWebhook(body: any) {
       const reviewMatch = command.match(/^(REVIEW|APPROVEALL)\s+#?(\d+)$/);
       if (reviewMatch) {
         const sellerId = Number(reviewMatch[2]);
-        await sendReply(
-          phone,
+        await staffSend(
           reviewMatch[1] === 'REVIEW'
             ? await reviewProducts(phone, sellerId)
             : await approveAllProducts(sellerId)
@@ -2071,23 +2101,22 @@ async function handleWebhook(body: any) {
       }
 
       if (command === 'CATEGORIES') {
-        await sendReply(phone, await categoriesReport(user.language));
+        await staffSend(await categoriesReport(user.language));
         return;
       }
       const addCategoryMatch = text.match(/^ADDCATEGORY\s+(.+)$/i);
       if (addCategoryMatch) {
-        await sendReply(phone, await addCategory(addCategoryMatch[1]));
+        await staffSend(await addCategory(addCategoryMatch[1]));
         return;
       }
 
       if (command === 'PENDINGPRODUCTS') {
-        await sendReply(phone, await pendingProducts(phone));
+        await staffSend(await pendingProducts(phone));
         return;
       }
       const productDecisionMatch = command.match(/^(APPROVEPRODUCT|REJECTPRODUCT)\s+#?(\d+)$/);
       if (productDecisionMatch) {
-        await sendReply(
-          phone,
+        await staffSend(
           await decideProduct(
             Number(productDecisionMatch[2]),
             productDecisionMatch[1] === 'APPROVEPRODUCT'
@@ -2098,42 +2127,41 @@ async function handleWebhook(body: any) {
 
       const openMatch = command.match(/^OPENORDERS\s+#?(\d+)$/);
       if (openMatch) {
-        await sendReply(phone, await openOrders(Number(openMatch[1])));
+        await staffSend(await openOrders(Number(openMatch[1])));
         return;
       }
 
       const adminCancelMatch = command.match(/^ADMINCANCEL\s+#?(\d+)$/);
       if (adminCancelMatch) {
-        await sendReply(phone, await adminCancelOrder(Number(adminCancelMatch[1])));
+        await staffSend(await adminCancelOrder(Number(adminCancelMatch[1])));
         return;
       }
 
       if (command === 'MAKEADMIN') {
-        await sendReply(phone, REG_TEXT.makeAdminUsage);
+        await staffSend(REG_TEXT.makeAdminUsage);
         return;
       }
       const makeAdminMatch = command.match(/^MAKEADMIN\s+\+?(\d{10,15})$/);
       if (makeAdminMatch) {
-        await sendReply(phone, await makeAdmin(makeAdminMatch[1]));
+        await staffSend(await makeAdmin(makeAdminMatch[1]));
         return;
       }
 
       const decideMatch = command.match(/^(APPROVE|REJECT)\s+#?(\d+)$/);
       if (decideMatch) {
-        await sendReply(
-          phone,
+        await staffSend(
           await decideSeller(Number(decideMatch[2]), decideMatch[1] === 'APPROVE')
         );
         return;
       }
       // HELP: the full list of typed admin commands (also the last row of the admin menu)
       if (command === 'HELP') {
-        await sendReply(phone, REG_TEXT.adminHelp);
+        await staffSend(REG_TEXT.adminHelp);
         return;
       }
       // ADMIN: the everyday admin actions as a tap list
       if (command === 'ADMIN') {
-        await sendReply(phone, {
+        await staffSend({
           text: REG_TEXT.adminMenuBody,
           list: {
             button: REG_TEXT.btnAdminMenu,
@@ -2143,7 +2171,6 @@ async function handleWebhook(body: any) {
               { id: 'SALES', title: REG_TEXT.rowSales },
               { id: 'MAINMENU', title: REG_TEXT.rowShop },
               { id: 'CATEGORIES', title: REG_TEXT.rowCategories },
-              { id: 'HELP', title: REG_TEXT.rowAllCommands },
             ],
           },
         });
