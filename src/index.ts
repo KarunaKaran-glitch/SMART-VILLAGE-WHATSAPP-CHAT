@@ -357,16 +357,29 @@ async function categoryProductsReply(language: string, categoryId: number, page:
   const products = category ? await loadProducts(categoryId) : [];
   if (!category || products.length === 0) return productListReply(language);
 
-  const perPage = 8;
-  const pages = Math.ceil(products.length / perPage);
-  const current = Math.min(Math.max(page, 1), pages);
-  const rows: Row[] = products.slice((current - 1) * perPage, current * perPage).map((p) => ({
+  // WhatsApp shows at most 10 rows in a list, so use them for products where possible:
+  // 10 or fewer products fit on one page (with "All categories" if there is room);
+  // more than 10: 9 products + "More products", and the last page ends with "All categories".
+  const toRow = (p: (typeof products)[number]): Row => ({
     id: `PRODUCT ${p.id}`,
     title: localName(p, language),
     description: `₹${p.price}`,
-  }));
-  if (current < pages) rows.push({ id: `CATEGORY ${categoryId} ${current + 1}`, title: `${B.more} ›` });
-  rows.push({ id: 'MENU', title: B.allCategories });
+  });
+  let rows: Row[];
+  if (products.length <= 10) {
+    rows = products.map(toRow);
+    if (rows.length < 10) rows.push({ id: 'MENU', title: B.allCategories });
+  } else {
+    const perPage = 9;
+    const pages = Math.ceil(products.length / perPage);
+    const current = Math.min(Math.max(page, 1), pages);
+    rows = products.slice((current - 1) * perPage, current * perPage).map(toRow);
+    rows.push(
+      current < pages
+        ? { id: `CATEGORY ${categoryId} ${current + 1}`, title: `${B.more} ›` }
+        : { id: 'MENU', title: B.allCategories }
+    );
+  }
   return {
     text: B.categoryBody(categoryName(category, language)),
     list: { button: B.products, rows },
