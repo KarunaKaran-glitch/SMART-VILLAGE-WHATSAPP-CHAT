@@ -350,40 +350,32 @@ async function productListReply(language: string): Promise<Reply> {
   return { text: B.categoriesBody, list: { button: B.categoriesButton, rows } };
 }
 
-// CATEGORY n: the products of one category, 8 per page, plus "More" and "All categories"
+// CATEGORY n (page p): the products of one category as photo cards, so customers choose
+// by colour and design. Each card is the photo with name and price and a [Select] button;
+// a last message offers [More] (next 10) and [All categories].
 async function categoryProductsReply(language: string, categoryId: number, page: number): Promise<Reply> {
   const B = bt(language);
   const category = await prisma.category.findUnique({ where: { id: categoryId } });
   const products = category ? await loadProducts(categoryId) : [];
   if (!category || products.length === 0) return productListReply(language);
 
-  // WhatsApp shows at most 10 rows in a list, so use them for products where possible:
-  // 10 or fewer products fit on one page (with "All categories" if there is room);
-  // more than 10: 9 products + "More products", and the last page ends with "All categories".
-  const toRow = (p: (typeof products)[number]): Row => ({
-    id: `PRODUCT ${p.id}`,
-    title: localName(p, language),
-    description: `₹${p.price}`,
-  });
-  let rows: Row[];
-  if (products.length <= 10) {
-    rows = products.map(toRow);
-    if (rows.length < 10) rows.push({ id: 'MENU', title: B.allCategories });
-  } else {
-    const perPage = 9;
-    const pages = Math.ceil(products.length / perPage);
-    const current = Math.min(Math.max(page, 1), pages);
-    rows = products.slice((current - 1) * perPage, current * perPage).map(toRow);
-    rows.push(
-      current < pages
-        ? { id: `CATEGORY ${categoryId} ${current + 1}`, title: `${B.more} ›` }
-        : { id: 'MENU', title: B.allCategories }
-    );
-  }
-  return {
-    text: B.categoryBody(categoryName(category, language)),
-    list: { button: B.products, rows },
-  };
+  const perPage = 10;
+  const pages = Math.ceil(products.length / perPage);
+  const current = Math.min(Math.max(page, 1), pages);
+  const cards: Reply[] = products.slice((current - 1) * perPage, current * perPage).map((p) => ({
+    text: `${localName(p, language)} - ₹${p.price}`,
+    imageKey: p.imageKey!,
+    buttons: [{ id: `PRODUCT ${p.id}`, title: B.select }],
+  }));
+
+  const nav: Button[] = [];
+  if (current < pages) nav.push({ id: `CATEGORY ${categoryId} ${current + 1}`, title: `${B.moreItems} ›` });
+  nav.push({ id: 'MENU', title: B.allCategories });
+  const shown = `${(current - 1) * perPage + 1}-${(current - 1) * perPage + cards.length} / ${products.length}`;
+  return [
+    ...cards,
+    { text: `${categoryName(category, language)} (${shown})\n${B.pickHint}`, buttons: nav },
+  ];
 }
 
 // One product: its photo, name and price, with Add to cart / Back
@@ -393,13 +385,15 @@ async function productReply(language: string, productId: number): Promise<Reply>
   if (!p || !p.isActive || p.approval !== 'APPROVED' || !p.imageKey || p.stock === 0) {
     return welcomeReply(language, t(language).invalidProduct);
   }
+  // The details screen: photo, name, price and the seller's description.
+  // The other photo cards are still just above in the chat, so the second button
+  // opens the category list instead of sending all photos again.
   return {
-    text: `${localName(p, language)} - ₹${p.price}`,
+    text: `${localName(p, language)} - ₹${p.price}${p.description ? `\n\n${p.description}` : ''}`,
     imageKey: p.imageKey,
     buttons: [
       { id: `BUY ${p.id}`, title: B.addToCart },
-      // Back goes to the same category's list
-      { id: p.categoryId ? `CATEGORY ${p.categoryId}` : 'MENU', title: B.back },
+      { id: 'MENU', title: B.allCategories },
     ],
   };
 }
@@ -1294,10 +1288,13 @@ function adminProductReply(p: {
   name: string;
   price: unknown;
   imageKey: string;
+  description?: string | null;
   seller: { shopName: string | null; phone: string };
 }): RichReply {
   return {
-    text: REG_TEXT.adminProductNotice(p.id, p.name, Number(p.price), p.seller.shopName ?? p.seller.phone),
+    text:
+      REG_TEXT.adminProductNotice(p.id, p.name, Number(p.price), p.seller.shopName ?? p.seller.phone) +
+      (p.description ? `\n\n${p.description}` : ''),
     imageKey: p.imageKey,
     buttons: [
       { id: `APPROVEPRODUCT ${p.id}`, title: STAFF_BUTTONS.approve },
@@ -1680,10 +1677,12 @@ async function handleWebhook(body: any) {
       'ENTERING_SHOP_NAME',
       'CHOOSING_QUANTITY',
       'CHOOSING_CATEGORY',
+      'ADDING_PRODUCT_DESCRIPTION',
     ];
     if (
       tapId &&
-      command !== 'CANCEL' && // the Cancel button is handled by the step itself
+      command !== 'CANCEL' && // the Cancel and Skip buttons are handled by the step itself
+      command !== 'SKIP' &&
       typingStates.includes(user.state) &&
       !(user.state === 'CHOOSING_QUANTITY' && /^\d+$/.test(text))
     ) {
@@ -1758,16 +1757,59 @@ async function handleWebhook(body: any) {
           },
         });
 
-        // Next step: the photo (the product stays hidden until it has one and is approved)
+        // Next step: a short description (or Skip), then the photo
         await prisma.user.update({
           where: { id: user.id },
           data: {
-            state: 'ADDING_PRODUCT_PHOTO',
+            state: 'ADDING_PRODUCT_DESCRIPTION',
             pendingProductName: null,
             pendingProductId: product.id,
           },
         });
-        await sendReply(phone, withCancel(SELLER_TEXT.askPhoto(product.id, productName)));
+        await sendReply(phone, {
+          text: SELLER_TEXT.askDescription(productName),
+          buttons: [
+            { id: 'SKIP', title: SELLER_TEXT.btnSkip },
+            { id: 'CANCEL', title: bt(user.language).cancel },
+          ],
+        });
+        return;
+      }
+
+      // Waiting for the product description (colour, size, material ...) or Skip
+      if (user.state === 'ADDING_PRODUCT_DESCRIPTION') {
+        const productId = user.pendingProductId;
+        if (command === 'CANCEL' || !productId) {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { state: 'BROWSING', pendingProductId: null },
+          });
+          await staffSend(productId ? SELLER_TEXT.photoLater(productId) : SELLER_TEXT.cancelled);
+          return;
+        }
+        if (command !== 'SKIP') {
+          if (message.type !== 'text' || text.length < 2 || text.length > 300) {
+            await sendReply(phone, {
+              text: SELLER_TEXT.invalidDescription,
+              buttons: [
+                { id: 'SKIP', title: SELLER_TEXT.btnSkip },
+                { id: 'CANCEL', title: bt(user.language).cancel },
+              ],
+            });
+            return;
+          }
+          await prisma.product.updateMany({
+            where: { id: productId, sellerId: user.id },
+            data: { description: text },
+          });
+        }
+        // Next step: the photo (the product stays hidden until it has one and is approved)
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { state: 'ADDING_PRODUCT_PHOTO' },
+        });
+        const product = await prisma.product.findUnique({ where: { id: productId } });
+        await sendReply(phone, withCancel(SELLER_TEXT.askPhoto(productId, product?.name ?? '')));
         return;
       }
 
@@ -1924,6 +1966,20 @@ async function handleWebhook(body: any) {
         if (command === 'QR REMOVE') {
           await prisma.user.update({ where: { id: user.id }, data: { upiQrKey: null } });
           await staffSend(SELLER_TEXT.qrRemoved);
+          return;
+        }
+
+        // DESC n text: set or change the description of an existing product
+        const descMatch = text.match(/^DESC\s+#?(\d+)\s+([\s\S]{2,300})$/i);
+        if (descMatch) {
+          const productId = Number(descMatch[1]);
+          const changed = await prisma.product.updateMany({
+            where: { id: productId, sellerId: user.id },
+            data: { description: descMatch[2].trim() },
+          });
+          await staffSend(
+            changed.count === 0 ? SELLER_TEXT.productNotFound(productId) : SELLER_TEXT.descSet(productId)
+          );
           return;
         }
 

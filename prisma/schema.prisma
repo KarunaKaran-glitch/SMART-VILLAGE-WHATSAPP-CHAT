@@ -61,6 +61,7 @@ enum UserState {
   ADDING_PRODUCT_PHOTO
   SETTING_UPI_QR
   CHOOSING_CATEGORY
+  ADDING_PRODUCT_DESCRIPTION
 }
 
 // Every product is checked by an admin (handmade products only) before customers see it.
@@ -120,6 +121,7 @@ model Product {
   isActive     Boolean              @default(true)
   stock        Int?
   imageKey     String? // Image.key of the product photo
+  description  String? // short text from the seller: colour, size, material ...
   approval     ProductApproval      @default(PENDING)
   categoryId   Int?
   category     Category?            @relation(fields: [categoryId], references: [id])

@@ -16,6 +16,10 @@ const en = {
   rowShop: 'Shop as a customer',
   rowAllCommands: 'All commands',
   rowCategory: 'My category',
+  askDescription: (name: string) => `Add a short description of "${name}": colour, size, material (for example: Red, cotton, 30x25 cm, zip pocket). Or tap Skip.`,
+  btnSkip: "Skip",
+  invalidDescription: "Please keep the description under 300 characters, or tap Skip.",
+  descSet: (id: number) => `Description saved for product #${id}. Customers see it when they select the product.`,
   askCategory: 'What kind of products do you make? Tap "Choose" and pick your category.',
   categorySet: (name: string) =>
     `Your category is now: ${name}. All your new products go into this category.`,
@@ -144,6 +148,10 @@ const hi: typeof en = {
   rowShop: 'ग्राहक की तरह खरीदें',
   rowAllCommands: 'सभी कमांड',
   rowCategory: 'मेरी श्रेणी',
+  askDescription: (name: string) => `"${name}" का छोटा विवरण लिखें: रंग, नाप, सामग्री (जैसे: लाल, सूती, 30x25 cm, ज़िप वाली जेब)। या "छोड़ें" पर टैप करें।`,
+  btnSkip: "छोड़ें",
+  invalidDescription: "कृपया विवरण 300 अक्षरों से कम रखें, या \"छोड़ें\" पर टैप करें।",
+  descSet: (id: number) => `उत्पाद #${id} का विवरण सहेज लिया गया। ग्राहक उत्पाद चुनने पर इसे देखेंगे।`,
   askCategory: 'आप किस तरह के उत्पाद बनाते हैं? "चुनें" पर टैप करके अपनी श्रेणी चुनें।',
   categorySet: (name: string) =>
     `आपकी श्रेणी अब: ${name}। आपके सभी नए उत्पाद इसी श्रेणी में जाएँगे।`,
@@ -266,6 +274,10 @@ const or: typeof en = {
   rowShop: 'ଗ୍ରାହକ ଭାବେ କିଣନ୍ତୁ',
   rowAllCommands: 'ସମସ୍ତ କମାଣ୍ଡ',
   rowCategory: 'ମୋ ବର୍ଗ',
+  askDescription: (name: string) => `"${name}" ର ଛୋଟ ବିବରଣୀ ଲେଖନ୍ତୁ: ରଙ୍ଗ, ଆକାର, ସାମଗ୍ରୀ (ଉଦାହରଣ: ଲାଲ, ସୂତା, 30x25 cm, ଜିପ୍ ପକେଟ)। କିମ୍ବା "ଛାଡ଼ନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
+  btnSkip: "ଛାଡ଼ନ୍ତୁ",
+  invalidDescription: "ଦୟାକରି ବିବରଣୀ 300 ଅକ୍ଷରରୁ କମ୍ ରଖନ୍ତୁ, କିମ୍ବା \"ଛାଡ଼ନ୍ତୁ\" ଟ୍ୟାପ୍ କରନ୍ତୁ।",
+  descSet: (id: number) => `ଉତ୍ପାଦ #${id} ର ବିବରଣୀ ସେଭ୍ ହେଲା। ଗ୍ରାହକ ଉତ୍ପାଦ ବାଛିଲେ ଏହା ଦେଖିବେ।`,
   askCategory: 'ଆପଣ କେଉଁ ପ୍ରକାରର ଉତ୍ପାଦ ତିଆରି କରନ୍ତି? "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରି ଆପଣଙ୍କ ବର୍ଗ ବାଛନ୍ତୁ।',
   categorySet: (name: string) =>
     `ଆପଣଙ୍କ ବର୍ଗ ଏବେ: ${name}। ଆପଣଙ୍କ ସମସ୍ତ ନୂଆ ଉତ୍ପାଦ ଏହି ବର୍ଗରେ ଯିବ।`,
@@ -388,6 +400,10 @@ const as: typeof en = {
   rowShop: 'গ্ৰাহক হিচাপে কিনক',
   rowAllCommands: 'সকলো কমাণ্ড',
   rowCategory: 'মোৰ শ্ৰেণী',
+  askDescription: (name: string) => `"${name}" ৰ চমু বিৱৰণ লিখক: ৰং, আকাৰ, সামগ্ৰী (উদাহৰণ: ৰঙা, কপাহী, 30x25 cm, জিপ পকেট)। নহয় "এৰি দিয়ক" টিপক।`,
+  btnSkip: "এৰি দিয়ক",
+  invalidDescription: "অনুগ্ৰহ কৰি বিৱৰণ 300 আখৰতকৈ কম ৰাখক, নহয় \"এৰি দিয়ক\" টিপক।",
+  descSet: (id: number) => `সামগ্ৰী #${id} ৰ বিৱৰণ সংৰক্ষণ কৰা হ'ল। গ্ৰাহকে সামগ্ৰী বাছিলে ইয়াক দেখিব।`,
   askCategory: 'আপুনি কেনেধৰণৰ সামগ্ৰী বনায়? "বাছক" টিপি আপোনাৰ শ্ৰেণী বাছক।',
   categorySet: (name: string) =>
     `আপোনাৰ শ্ৰেণী এতিয়া: ${name}। আপোনাৰ সকলো নতুন সামগ্ৰী এই শ্ৰেণীত যাব।`,
