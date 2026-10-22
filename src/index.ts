@@ -289,6 +289,11 @@ function homeReply(user: { language: string; role: string }): RichReply {
   });
 }
 
+// A question that waits for typed text (name, price, photo, address ...) gets a Cancel button
+function withCancel(text: string): RichReply {
+  return { text, buttons: [{ id: 'CANCEL', title: bt(currentLang()).cancel }] };
+}
+
 // Sellers and admins should never be left without a next step: a reply that is only text
 // gets the role's navigation buttons. Replies that already have buttons or a list stay as they are.
 function withNav(role: string, reply: Reply): Reply {
@@ -1665,6 +1670,7 @@ async function handleWebhook(body: any) {
     ];
     if (
       tapId &&
+      command !== 'CANCEL' && // the Cancel button is handled by the step itself
       typingStates.includes(user.state) &&
       !(user.state === 'CHOOSING_QUANTITY' && /^\d+$/.test(text))
     ) {
@@ -1686,18 +1692,18 @@ async function handleWebhook(body: any) {
             where: { id: user.id },
             data: { state: 'BROWSING', pendingProductName: null },
           });
-          await sendReply(phone, SELLER_TEXT.cancelled);
+          await staffSend(SELLER_TEXT.cancelled);
           return;
         }
         if (text.length < 2 || text.length > 60) {
-          await sendReply(phone, SELLER_TEXT.invalidName);
+          await sendReply(phone, withCancel(SELLER_TEXT.invalidName));
           return;
         }
         await prisma.user.update({
           where: { id: user.id },
           data: { state: 'ADDING_PRODUCT_PRICE', pendingProductName: text },
         });
-        await sendReply(phone, SELLER_TEXT.askPrice(text));
+        await sendReply(phone, withCancel(SELLER_TEXT.askPrice(text)));
         return;
       }
 
@@ -1708,13 +1714,13 @@ async function handleWebhook(body: any) {
             where: { id: user.id },
             data: { state: 'BROWSING', pendingProductName: null },
           });
-          await sendReply(phone, SELLER_TEXT.cancelled);
+          await staffSend(SELLER_TEXT.cancelled);
           return;
         }
 
         const price = Math.round(Number(text) * 100) / 100;
         if (!Number.isFinite(price) || price <= 0 || price > 100000) {
-          await sendReply(phone, SELLER_TEXT.invalidPrice);
+          await sendReply(phone, withCancel(SELLER_TEXT.invalidPrice));
           return;
         }
 
@@ -1724,7 +1730,7 @@ async function handleWebhook(body: any) {
             where: { id: user.id },
             data: { state: 'BROWSING', pendingProductName: null },
           });
-          await sendReply(phone, SELLER_TEXT.cancelled);
+          await staffSend(SELLER_TEXT.cancelled);
           return;
         }
 
@@ -1748,7 +1754,7 @@ async function handleWebhook(body: any) {
             pendingProductId: product.id,
           },
         });
-        await sendReply(phone, SELLER_TEXT.askPhoto(product.id, productName));
+        await sendReply(phone, withCancel(SELLER_TEXT.askPhoto(product.id, productName)));
         return;
       }
 
@@ -1760,19 +1766,16 @@ async function handleWebhook(body: any) {
             where: { id: user.id },
             data: { state: 'BROWSING', pendingProductId: null },
           });
-          await sendReply(
-            phone,
-            productId ? SELLER_TEXT.photoLater(productId) : SELLER_TEXT.cancelled
-          );
+          await staffSend(productId ? SELLER_TEXT.photoLater(productId) : SELLER_TEXT.cancelled);
           return;
         }
         if (message.type !== 'image') {
-          await sendReply(phone, SELLER_TEXT.needPhoto);
+          await sendReply(phone, withCancel(SELLER_TEXT.needPhoto));
           return;
         }
         const key = await saveIncomingImage(message);
         if (!key) {
-          await sendReply(phone, SELLER_TEXT.photoFailed);
+          await sendReply(phone, withCancel(SELLER_TEXT.photoFailed));
           return;
         }
 
@@ -1805,23 +1808,23 @@ async function handleWebhook(body: any) {
       if (user.state === 'SETTING_UPI_QR') {
         if (command === 'CANCEL') {
           await prisma.user.update({ where: { id: user.id }, data: { state: 'BROWSING' } });
-          await sendReply(phone, SELLER_TEXT.qrCancelled);
+          await staffSend(SELLER_TEXT.qrCancelled);
           return;
         }
         if (message.type !== 'image') {
-          await sendReply(phone, SELLER_TEXT.qrNeedPhoto);
+          await sendReply(phone, withCancel(SELLER_TEXT.qrNeedPhoto));
           return;
         }
         const key = await saveIncomingImage(message);
         if (!key) {
-          await sendReply(phone, SELLER_TEXT.photoFailed);
+          await sendReply(phone, withCancel(SELLER_TEXT.photoFailed));
           return;
         }
         await prisma.user.update({
           where: { id: user.id },
           data: { upiQrKey: key, state: 'BROWSING' },
         });
-        await sendReply(phone, SELLER_TEXT.qrSaved);
+        await staffSend(SELLER_TEXT.qrSaved);
         return;
       }
 
@@ -1837,7 +1840,7 @@ async function handleWebhook(body: any) {
             where: { id: user.id },
             data: { state: 'ADDING_PRODUCT_NAME', pendingProductName: null },
           });
-          await sendReply(phone, SELLER_TEXT.askName);
+          await sendReply(phone, withCancel(SELLER_TEXT.askName));
           return;
         }
 
@@ -1902,7 +1905,7 @@ async function handleWebhook(body: any) {
 
         if (command === 'QR') {
           await prisma.user.update({ where: { id: user.id }, data: { state: 'SETTING_UPI_QR' } });
-          await sendReply(phone, SELLER_TEXT.askQr);
+          await sendReply(phone, withCancel(SELLER_TEXT.askQr));
           return;
         }
         if (command === 'QR REMOVE') {
@@ -1923,7 +1926,7 @@ async function handleWebhook(body: any) {
             where: { id: user.id },
             data: { state: 'ADDING_PRODUCT_PHOTO', pendingProductId: productId },
           });
-          await sendReply(phone, SELLER_TEXT.askPhotoFor(productId));
+          await sendReply(phone, withCancel(SELLER_TEXT.askPhotoFor(productId)));
           return;
         }
         // "UPI name@bank", or just "name@bank" on its own (sellers often forget the word UPI)
@@ -2228,7 +2231,7 @@ async function handleWebhook(body: any) {
         return;
       }
       if (text.length < 10 || text.length > 200) {
-        await sendReply(phone, A.invalid);
+        await sendReply(phone, withCancel(A.invalid));
         return;
       }
       await prisma.user.update({
@@ -2253,11 +2256,11 @@ async function handleWebhook(body: any) {
           where: { id: user.id },
           data: { state: 'BROWSING' },
         });
-        await sendReply(phone, REG_TEXT.cancelled);
+        await sendReply(phone, welcomeReply(user.language, REG_TEXT.cancelled));
         return;
       }
       if (text.length < 2 || text.length > 40) {
-        await sendReply(phone, REG_TEXT.invalidShop);
+        await sendReply(phone, withCancel(REG_TEXT.invalidShop));
         return;
       }
       // Next: what kind of products they make (the request goes to the admin after that)
@@ -2488,7 +2491,7 @@ async function handleWebhook(body: any) {
         where: { id: user.id },
         data: { state: 'ENTERING_SHOP_NAME' },
       });
-      await sendReply(phone, REG_TEXT.askShop);
+      await sendReply(phone, withCancel(REG_TEXT.askShop));
       return;
     }
 
@@ -2498,7 +2501,7 @@ async function handleWebhook(body: any) {
         data: { state: 'ENTERING_ADDRESS' },
       });
       const A = ad(user.language);
-      await sendReply(phone, user.address ? A.askChange(user.address) : A.ask);
+      await sendReply(phone, withCancel(user.address ? A.askChange(user.address) : A.ask));
       return;
     }
 
@@ -2515,7 +2518,7 @@ async function handleWebhook(body: any) {
           where: { id: user.id },
           data: { state: 'ENTERING_ADDRESS' },
         });
-        await sendReply(phone, ad(user.language).ask);
+        await sendReply(phone, withCancel(ad(user.language).ask));
         return;
       }
       await sendReply(
