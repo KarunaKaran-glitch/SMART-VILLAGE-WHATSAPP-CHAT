@@ -803,10 +803,15 @@ async function reportPaid(
     if (usedElsewhere) return U.refUsed;
   }
 
+  // Reported before (on the shop page or in the chat) and nothing new: keep the saved
+  // transaction number and do not ask the seller a second time
+  const repeat = payment.status === 'AWAITING_CONFIRMATION' && (!ref || ref === payment.reference);
+  if (repeat) return { text: U.paidThanks(orderId), buttons: nextButtons(language) };
+
   try {
     await prisma.payment.update({
       where: { id: payment.id },
-      data: { status: 'AWAITING_CONFIRMATION', reference: ref },
+      data: { status: 'AWAITING_CONFIRMATION', reference: ref ?? payment.reference },
     });
   } catch (err: any) {
     // Another message saved the same number at the same moment
@@ -1968,7 +1973,7 @@ async function handleWebhook(body: any) {
         },
       });
       setLang(updated.language);
-      await sendReply(phone, englishOnly ? homeReply(updated) : languageReply(shop.shopLanguage));
+      await sendReply(phone, englishOnly ? welcomeReply('en') : languageReply(shop.shopLanguage));
       return;
     }
 
@@ -2669,7 +2674,11 @@ async function handleWebhook(body: any) {
         data: { language: chosen.code, state: 'BROWSING' },
       });
       setLang(chosen.code);
-      await sendReply(phone, homeReply({ ...user, language: chosen.code }));
+      // Someone who came through a shop link lands in that shop, even a seller or admin
+      await sendReply(
+        phone,
+        currentShop() ? welcomeReply(chosen.code) : homeReply({ ...user, language: chosen.code })
+      );
       return;
     }
 
