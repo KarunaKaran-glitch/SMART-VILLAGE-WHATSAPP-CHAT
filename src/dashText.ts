@@ -61,6 +61,14 @@ const en = {
   descInvalid: 'Please keep the description under 300 letters.',
   photoMissing: 'Please add a photo of the product.',
   photoInvalid: 'This photo could not be used. Please choose a JPG or PNG photo.',
+  // Admin page: products to check
+  productsWaiting: 'Products waiting for approval',
+  noProductsWaiting: 'No products are waiting.',
+  approve: 'Approve',
+  reject: 'Reject',
+  approvedNote: 'Approved: customers can see it now.',
+  rejectedNote: 'Rejected: customers will not see it.',
+  fromShop: (shop: string, id: string) => `${shop} (ID ${id})`,
 };
 
 const hi: typeof en = {
@@ -122,6 +130,13 @@ const hi: typeof en = {
   descInvalid: 'कृपया विवरण 300 अक्षरों से कम रखें।',
   photoMissing: 'कृपया उत्पाद की फ़ोटो जोड़ें।',
   photoInvalid: 'यह फ़ोटो इस्तेमाल नहीं हो सकी। कृपया JPG या PNG फ़ोटो चुनें।',
+  productsWaiting: 'मंज़ूरी के इंतज़ार में उत्पाद',
+  noProductsWaiting: 'कोई उत्पाद इंतज़ार में नहीं है।',
+  approve: 'मंज़ूर करें',
+  reject: 'अस्वीकार करें',
+  approvedNote: 'मंज़ूर: अब ग्राहक इसे देख सकते हैं।',
+  rejectedNote: 'अस्वीकार: ग्राहक इसे नहीं देखेंगे।',
+  fromShop: (shop: string, id: string) => `${shop} (आईडी ${id})`,
 };
 
 const or: typeof en = {
@@ -183,6 +198,13 @@ const or: typeof en = {
   descInvalid: 'ଦୟାକରି ବିବରଣୀ 300 ଅକ୍ଷରରୁ କମ୍ ରଖନ୍ତୁ।',
   photoMissing: 'ଦୟାକରି ଉତ୍ପାଦର ଫଟୋ ଯୋଡ଼ନ୍ତୁ।',
   photoInvalid: 'ଏହି ଫଟୋ ବ୍ୟବହାର ହୋଇପାରିଲା ନାହିଁ। ଦୟାକରି JPG ବା PNG ଫଟୋ ବାଛନ୍ତୁ।',
+  productsWaiting: 'ଅନୁମୋଦନ ଅପେକ୍ଷାରେ ଥିବା ଉତ୍ପାଦ',
+  noProductsWaiting: 'କୌଣସି ଉତ୍ପାଦ ଅପେକ୍ଷାରେ ନାହିଁ।',
+  approve: 'ଅନୁମୋଦନ',
+  reject: 'ପ୍ରତ୍ୟାଖ୍ୟାନ',
+  approvedNote: 'ଅନୁମୋଦିତ: ଗ୍ରାହକମାନେ ଏବେ ଏହା ଦେଖିପାରିବେ।',
+  rejectedNote: 'ପ୍ରତ୍ୟାଖ୍ୟାତ: ଗ୍ରାହକମାନେ ଏହା ଦେଖିବେ ନାହିଁ।',
+  fromShop: (shop: string, id: string) => `${shop} (ID ${id})`,
 };
 
 const as: typeof en = {
@@ -244,6 +266,13 @@ const as: typeof en = {
   descInvalid: 'অনুগ্ৰহ কৰি বিৱৰণ 300 আখৰৰ কম ৰাখক।',
   photoMissing: 'অনুগ্ৰহ কৰি সামগ্ৰীৰ ফটো যোগ কৰক।',
   photoInvalid: "এই ফটো ব্যৱহাৰ কৰিব পৰা নগ'ল। অনুগ্ৰহ কৰি JPG বা PNG ফটো বাছক।",
+  productsWaiting: 'অনুমোদনৰ অপেক্ষাত থকা সামগ্ৰী',
+  noProductsWaiting: 'কোনো সামগ্ৰী অপেক্ষাত নাই।',
+  approve: 'অনুমোদন',
+  reject: 'নাকচ',
+  approvedNote: 'অনুমোদিত: গ্ৰাহকে এতিয়া ইয়াক দেখিব পাৰে।',
+  rejectedNote: 'নাকচ: গ্ৰাহকে ইয়াক নেদেখিব।',
+  fromShop: (shop: string, id: string) => `${shop} (ID ${id})`,
 };
 
 const DASH_TEXT: Record<string, typeof en> = { en, hi, or, as };

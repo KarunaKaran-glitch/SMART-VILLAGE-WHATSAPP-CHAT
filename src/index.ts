@@ -28,7 +28,7 @@ import {
 } from './whatsapp';
 import { getImage, imageUrl, makeUpiQr, publicUrl, saveImage, upiLink, upiQrDataUrl } from './images';
 import crypto from 'crypto';
-import { PayPageState, renderPayPage, renderShopPage, simplePage } from './shopPage';
+import { PayPageState, renderPayPage, renderShopPage, rupees, simplePage } from './shopPage';
 import { wt } from './webText';
 import { dt } from './dashText';
 import { renderAdminPage } from './adminPage';
@@ -1777,6 +1777,11 @@ app.get('/admin', async (req: Request, res: Response) => {
     include: { category: true, products: { select: { approval: true } } },
     orderBy: { id: 'desc' },
   });
+  const waiting = await prisma.product.findMany({
+    where: { approval: 'PENDING', imageKey: { not: null } },
+    include: { seller: true },
+    orderBy: { id: 'asc' },
+  });
   const bot = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
   const createdCode = typeof req.query.new === 'string' ? req.query.new : null;
   const created = createdCode ? sellers.find((s) => s.shopCode === createdCode) : undefined;
@@ -1785,6 +1790,14 @@ app.get('/admin', async (req: Request, res: Response) => {
     renderAdminPage({
       language: lang,
       token: String(req.query.t),
+      waiting: waiting.map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: rupees(Number(p.price)),
+        description: p.description,
+        imageUrl: p.imageKey ? `/images/${p.imageKey}` : null,
+        shop: dt(lang).fromShop(p.seller.shopName ?? p.seller.phone, p.seller.shopCode ?? '-'),
+      })),
       states,
       categories: categories.map((c) => ({ id: c.id, name: categoryName(c, lang) })),
       created: created ? { shopName: created.shopName ?? '', id: created.shopCode ?? '' } : null,
@@ -1803,6 +1816,32 @@ app.get('/admin', async (req: Request, res: Response) => {
       })),
     })
   );
+});
+
+// Admin approves or rejects a product on the admin page: { t, approve }.
+// Same step as APPROVEPRODUCT / REJECTPRODUCT in the chat (the seller is told on WhatsApp).
+app.post('/admin/products/:id', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const admin = await dashVisitor(req.body?.t, 'ADMIN');
+    if (!admin) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const productId = Number(req.params.id);
+    const product = Number.isInteger(productId) ? await prisma.product.findUnique({ where: { id: productId } }) : null;
+    if (!product || product.approval !== 'PENDING') {
+      // Already decided (for example in the chat) or unknown
+      res.status(409).json({ ok: false, error: dt(admin.language).failed });
+      return;
+    }
+    const result = await inLang(admin.language, () => decideProduct(productId, req.body.approve === true));
+    console.log(`Admin page: product #${productId} ${req.body.approve === true ? 'approved' : 'rejected'} (${result})`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Product decision failed:', err);
+    res.status(500).json({ ok: false });
+  }
 });
 
 // Admin adds a seller: { t, name, phone, shopName, shopLanguage, categoryId }.
