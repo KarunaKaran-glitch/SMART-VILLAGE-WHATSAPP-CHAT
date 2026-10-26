@@ -250,12 +250,11 @@ async function languageReplyFor(user: { shopId: number | null }): Promise<RichRe
 
 // ---- Seller's own shop link ----
 
-// The seller's shop code, made from the shop name the first time it is needed (KARNA, RAVIBAGS ...)
+// The seller's unique ID (4 digits), made the first time it is needed. Older sellers whose code
+// was made from the shop name (DEMOBAGS) get a number too, like every seller the admin adds.
 async function ensureShopCode(seller: { id: number; shopName: string | null; shopCode: string | null }) {
-  if (seller.shopCode) return seller.shopCode;
-  const base = (seller.shopName ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
-  let code = base.length >= 3 && base !== 'SHOP' ? base : `SHOP${seller.id}`;
-  if (await prisma.user.findUnique({ where: { shopCode: code } })) code = `${code.slice(0, 8)}${seller.id}`;
+  if (seller.shopCode && /^\d{4}$/.test(seller.shopCode)) return seller.shopCode;
+  const code = await newSellerId();
   await prisma.user.update({ where: { id: seller.id }, data: { shopCode: code } });
   return code;
 }
@@ -925,6 +924,8 @@ async function decideSeller(applicantId: number, approve: boolean): Promise<stri
       where: { id: applicantId },
       data: { sellerStatus: 'APPROVED', role: 'SELLER' },
     });
+    // Every seller has a unique ID (their dashboard key and shop code)
+    await ensureShopCode(applicant);
   } else {
     await prisma.user.update({
       where: { id: applicantId },

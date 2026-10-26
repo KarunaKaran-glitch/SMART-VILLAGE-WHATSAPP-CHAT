@@ -14,10 +14,6 @@ export const UPI_FLOW_TEXT = {
     notReceived: (id: number) =>
       `The seller has not received your payment for order #${id}. Please check your UPI app. If the money left your account, send PAID ${id} <transaction number> again.`,
     qrHint: 'Prefer a QR code? Send QR <order number>, for example: QR 8.',
-    qrSellerCaption: (id: number, shop: string, total: number) =>
-      `Scan to pay ${shop}. Enter the amount ₹${total} and write "Order ${id}" in the note. After paying, send PAID ${id} <transaction number>.`,
-    qrAutoCaption: (id: number, shop: string, total: number) =>
-      `Scan to pay ₹${total} to ${shop}. The amount and the note "Order ${id}" are already filled in. After paying, send PAID ${id} <transaction number>.`,
   },
   hi: {
     paidUsage:
@@ -33,10 +29,6 @@ export const UPI_FLOW_TEXT = {
     notReceived: (id: number) =>
       `विक्रेता को ऑर्डर #${id} का आपका भुगतान नहीं मिला है। कृपया अपना UPI ऐप देखें। अगर पैसे आपके खाते से कट गए हैं, तो PAID ${id} <ट्रांजैक्शन नंबर> फिर से भेजें।`,
     qrHint: 'QR कोड चाहिए? QR <ऑर्डर नंबर> भेजें, जैसे: QR 8।',
-    qrSellerCaption: (id: number, shop: string, total: number) =>
-      `${shop} को भुगतान के लिए स्कैन करें। राशि ₹${total} डालें और नोट में "Order ${id}" लिखें। भुगतान के बाद PAID ${id} <ट्रांजैक्शन नंबर> भेजें।`,
-    qrAutoCaption: (id: number, shop: string, total: number) =>
-      `${shop} को ₹${total} भुगतान के लिए स्कैन करें। राशि और नोट "Order ${id}" पहले से भरे हैं। भुगतान के बाद PAID ${id} <ट्रांजैक्शन नंबर> भेजें।`,
   },
   or: {
     paidUsage:
@@ -52,10 +44,6 @@ export const UPI_FLOW_TEXT = {
     notReceived: (id: number) =>
       `ଅର୍ଡର #${id} ପାଇଁ ଆପଣଙ୍କ ପଇସା ବିକ୍ରେତାଙ୍କ ପାଖରେ ପହଞ୍ଚିନାହିଁ। ଦୟାକରି ଆପଣଙ୍କ UPI ଆପ ଦେଖନ୍ତୁ। ପଇସା ଆପଣଙ୍କ ଖାତାରୁ କଟିଥିଲେ, ପୁଣି "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
     qrHint: 'QR କୋଡ୍ ଦରକାର? QR <ଅର୍ଡର ନମ୍ବର> ପଠାନ୍ତୁ, ଉଦାହରଣ: QR 8।',
-    qrSellerCaption: (id: number, shop: string, total: number) =>
-      `${shop} କୁ ପଇସା ଦେବା ପାଇଁ ସ୍କାନ କରନ୍ତୁ। ରାଶି ₹${total} ଦିଅନ୍ତୁ ଏବଂ ନୋଟରେ "Order ${id}" ଲେଖନ୍ତୁ। ପଇସା ଦେବା ପରେ PAID ${id} ପଠାନ୍ତୁ।`,
-    qrAutoCaption: (id: number, shop: string, total: number) =>
-      `${shop} କୁ ₹${total} ଦେବା ପାଇଁ ସ୍କାନ କରନ୍ତୁ। ରାଶି ଏବଂ ନୋଟ "Order ${id}" ପୂର୍ବରୁ ଭରା ହୋଇଛି। ପଇସା ଦେବା ପରେ PAID ${id} ପଠାନ୍ତୁ।`,
   },
   as: {
     paidUsage:
@@ -71,10 +59,6 @@ export const UPI_FLOW_TEXT = {
     notReceived: (id: number) =>
       `অৰ্ডাৰ #${id} ৰ বাবে আপোনাৰ ধন বিক্ৰেতাই পোৱা নাই। অনুগ্ৰহ কৰি আপোনাৰ UPI এপ চাওক। ধন আপোনাৰ একাউণ্টৰ পৰা কাটিলে, আকৌ "মই ধন দিলোঁ" টিপক।`,
     qrHint: 'QR ক\'ড লাগে? QR <অৰ্ডাৰ নম্বৰ> পঠিয়াওক, উদাহৰণ: QR 8।',
-    qrSellerCaption: (id: number, shop: string, total: number) =>
-      `${shop} ক ধন দিবলৈ স্কেন কৰক। ₹${total} পৰিমাণ দিয়ক আৰু টোকাত "Order ${id}" লিখক। ধন দিয়াৰ পিছত PAID ${id} পঠিয়াওক।`,
-    qrAutoCaption: (id: number, shop: string, total: number) =>
-      `${shop} ক ₹${total} দিবলৈ স্কেন কৰক। পৰিমাণ আৰু টোকা "Order ${id}" আগতেই ভৰোৱা আছে। ধন দিয়াৰ পিছত PAID ${id} পঠিয়াওক।`,
   },
 };
 

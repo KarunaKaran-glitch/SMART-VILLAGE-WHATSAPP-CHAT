@@ -21,7 +21,6 @@ const en = {
   rowSellerRequests: 'Seller requests',
   rowSales: 'Sales summary',
   rowShop: 'Shop as a customer',
-  rowAllCommands: 'All commands',
   rowCategories: 'Categories',
   categoryLabel: 'Category',
   batchNotice: (shop: string, n: number, category: string) =>
@@ -62,7 +61,6 @@ const en = {
     `Your seller request for "${shop}" was approved. Add your first product now.`,
   rejectedNotice: 'Your seller request was not approved. You can apply again from the menu.',
   noPending: 'No seller requests are waiting.',
-  pendingTitle: 'Seller requests waiting:',
   notSeller: (id: number) => `User #${id} is not an active seller.`,
   notBlocked: (id: number) => `User #${id} is not blocked.`,
   blocked: (id: number, open: number) =>
@@ -121,7 +119,6 @@ const hi: typeof en = {
   rowSellerRequests: 'विक्रेता अनुरोध',
   rowSales: 'बिक्री सारांश',
   rowShop: 'ग्राहक की तरह खरीदें',
-  rowAllCommands: 'सभी कमांड',
   rowCategories: 'श्रेणियाँ',
   categoryLabel: 'श्रेणी',
   batchNotice: (shop: string, n: number, category: string) =>
@@ -161,7 +158,6 @@ const hi: typeof en = {
     `"${shop}" के लिए आपका विक्रेता अनुरोध मंज़ूर हो गया। अब अपना पहला उत्पाद जोड़ें।`,
   rejectedNotice: 'आपका विक्रेता अनुरोध मंज़ूर नहीं हुआ। आप मेनू से फिर आवेदन कर सकते हैं।',
   noPending: 'कोई विक्रेता अनुरोध बाकी नहीं है।',
-  pendingTitle: 'बाकी विक्रेता अनुरोध:',
   notSeller: (id: number) => `उपयोगकर्ता #${id} सक्रिय विक्रेता नहीं है।`,
   notBlocked: (id: number) => `उपयोगकर्ता #${id} बंद नहीं है।`,
   blocked: (id: number, open: number) =>
@@ -219,7 +215,6 @@ const or: typeof en = {
   rowSellerRequests: 'ବିକ୍ରେତା ଅନୁରୋଧ',
   rowSales: 'ବିକ୍ରି ସାରାଂଶ',
   rowShop: 'ଗ୍ରାହକ ଭାବେ କିଣନ୍ତୁ',
-  rowAllCommands: 'ସମସ୍ତ କମାଣ୍ଡ',
   rowCategories: 'ବର୍ଗ',
   categoryLabel: 'ବର୍ଗ',
   batchNotice: (shop: string, n: number, category: string) =>
@@ -259,7 +254,6 @@ const or: typeof en = {
     `"${shop}" ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ଅନୁରୋଧ ଅନୁମୋଦିତ ହେଲା। ଏବେ ଆପଣଙ୍କ ପ୍ରଥମ ଉତ୍ପାଦ ଯୋଡ଼ନ୍ତୁ।`,
   rejectedNotice: 'ଆପଣଙ୍କ ବିକ୍ରେତା ଅନୁରୋଧ ଅନୁମୋଦିତ ହେଲା ନାହିଁ। ଆପଣ ମେନୁରୁ ପୁଣି ଆବେଦନ କରିପାରିବେ।',
   noPending: 'କୌଣସି ବିକ୍ରେତା ଅନୁରୋଧ ବାକି ନାହିଁ।',
-  pendingTitle: 'ବାକି ବିକ୍ରେତା ଅନୁରୋଧ:',
   notSeller: (id: number) => `ବ୍ୟବହାରକାରୀ #${id} ସକ୍ରିୟ ବିକ୍ରେତା ନୁହଁନ୍ତି।`,
   notBlocked: (id: number) => `ବ୍ୟବହାରକାରୀ #${id} ବନ୍ଦ ନାହାଁନ୍ତି।`,
   blocked: (id: number, open: number) =>
@@ -317,7 +311,6 @@ const as: typeof en = {
   rowSellerRequests: 'বিক্ৰেতাৰ অনুৰোধ',
   rowSales: 'বিক্ৰীৰ সাৰাংশ',
   rowShop: 'গ্ৰাহক হিচাপে কিনক',
-  rowAllCommands: 'সকলো কমাণ্ড',
   rowCategories: 'শ্ৰেণী',
   categoryLabel: 'শ্ৰেণী',
   batchNotice: (shop: string, n: number, category: string) =>
@@ -357,7 +350,6 @@ const as: typeof en = {
     `"${shop}" ৰ বাবে আপোনাৰ বিক্ৰেতাৰ অনুৰোধ অনুমোদিত হ'ল। এতিয়া আপোনাৰ প্ৰথম সামগ্ৰী যোগ কৰক।`,
   rejectedNotice: 'আপোনাৰ বিক্ৰেতাৰ অনুৰোধ অনুমোদিত নহ\'ল। আপুনি মেনুৰ পৰা আকৌ আবেদন কৰিব পাৰে।',
   noPending: 'কোনো বিক্ৰেতাৰ অনুৰোধ বাকী নাই।',
-  pendingTitle: 'বাকী বিক্ৰেতাৰ অনুৰোধ:',
   notSeller: (id: number) => `ব্যৱহাৰকাৰী #${id} সক্ৰিয় বিক্ৰেতা নহয়।`,
   notBlocked: (id: number) => `ব্যৱহাৰকাৰী #${id} বন্ধ নহয়।`,
   blocked: (id: number, open: number) =>

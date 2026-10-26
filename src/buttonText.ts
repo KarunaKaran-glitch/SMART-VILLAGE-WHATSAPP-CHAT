@@ -12,23 +12,10 @@ export const BUTTON_TEXT = {
     sell: 'Sell your products',
     sellerMenu: 'Seller menu',
     adminMenu: 'Admin menu',
-    addToCart: 'Add to cart',
-    back: 'Back',
     cancel: 'Cancel',
-    select: "Select",
-    pickHint: "Tap \"Select\" under the one you like.",
-    moreItems: "More",
-    placeOrder: 'Place order',
-    shopMore: 'Shop more',
-    viewCart: 'View cart',
-    removeItem: 'Remove item',
-    clearCart: 'Empty the cart',
-    changeAddress: 'Change address',
     showQr: 'Show QR code',
     paid: 'I have paid',
     cancelOrder: 'Cancel order',
-    choose: 'Choose',
-    more: 'More products',
     noSuchShop: (code: string) =>
       `Sorry, there is no shop with the code ${code}. Please check the number with your seller and try again (for example: Hi 1234).`,
     noShop:
@@ -39,15 +26,7 @@ export const BUTTON_TEXT = {
     shopWelcome: (shop: string) =>
       `😀 Hello!\n\nWelcome to ${shop} 🛍️\nHandmade products, straight from the maker.\n\nPlease choose one of the options below 👇`,
     clickBelow: (shop: string) => `Click on the below link to select ${shop} products 👇`,
-    welcome:
-      'Welcome to Smart Village Marketplace! Handmade bags and more, straight from the makers.\nWhat would you like to do?',
     whatNext: 'What would you like to do?',
-    productsBody: 'Tap "Choose" to see our handmade products.',
-    askQty: (name: string) => `How many "${name}" do you want?`,
-    added: (name: string, qty: number) => `Added ${qty} x ${name} to your cart.`,
-    removeWhich: 'Which item should be removed?',
-    confirmOrder: (total: number, address: string) =>
-      `Total: ₹${total} (free delivery)\nDeliver to:\n${address}\n\nPlace the order?`,
     payTapHint: 'Pay in your UPI app, then tap "I have paid". Prefer scanning? Tap "Show QR code".',
     qrSellerBody: (id: number, shop: string, total: number) =>
       `Scan to pay ${shop}. Enter the amount ₹${total} and write "Order ${id}" in the note. Then tap "I have paid".`,
@@ -55,11 +34,8 @@ export const BUTTON_TEXT = {
       `Scan to pay ₹${total} to ${shop}. The amount and the note "Order ${id}" are already filled in. Then tap "I have paid".`,
     ordersBody: 'Your latest orders. Tap "Choose" to see one.',
     noProducts: 'No products are available right now. Please check again later.',
-    categoriesBody: 'What are you looking for? Tap "Choose" and pick a category.',
     categoriesButton: 'Categories',
-    categoryBody: (name: string) => `${name}: tap "Choose" to see the products.`,
     itemCount: (n: number) => `${n} products`,
-    allCategories: '« All categories',
   },
   hi: {
     products: 'उत्पाद',
@@ -71,23 +47,10 @@ export const BUTTON_TEXT = {
     sell: 'अपना सामान बेचें',
     sellerMenu: 'विक्रेता मेनू',
     adminMenu: 'एडमिन मेनू',
-    addToCart: 'कार्ट में डालें',
-    back: 'वापस',
     cancel: 'रद्द करें',
-    select: "चुनें",
-    pickHint: "जो पसंद हो, उसके नीचे \"चुनें\" पर टैप करें।",
-    moreItems: "और देखें",
-    placeOrder: 'ऑर्डर करें',
-    shopMore: 'और खरीदें',
-    viewCart: 'कार्ट देखें',
-    removeItem: 'आइटम हटाएँ',
-    clearCart: 'कार्ट खाली करें',
-    changeAddress: 'पता बदलें',
     showQr: 'QR दिखाएँ',
     paid: 'मैंने भुगतान किया',
     cancelOrder: 'ऑर्डर रद्द करें',
-    choose: 'चुनें',
-    more: 'और उत्पाद',
     noSuchShop: (code: string) =>
       `माफ़ करें, ${code} कोड की कोई दुकान नहीं है। अपने विक्रेता से नंबर जाँचकर फिर कोशिश करें (जैसे: Hi 1234)।`,
     noShop:
@@ -98,15 +61,7 @@ export const BUTTON_TEXT = {
     shopWelcome: (shop: string) =>
       `😀 नमस्ते!\n\n${shop} में आपका स्वागत है 🛍️\nहाथ से बने उत्पाद, सीधे बनाने वाले से।\n\nकृपया नीचे दिए विकल्पों में से एक चुनें 👇`,
     clickBelow: (shop: string) => `${shop} के उत्पाद चुनने के लिए नीचे दिए लिंक पर क्लिक करें 👇`,
-    welcome:
-      'स्मार्ट विलेज मार्केटप्लेस में आपका स्वागत है! हाथ से बने बैग और बहुत कुछ, सीधे बनाने वालों से।\nआप क्या करना चाहेंगे?',
     whatNext: 'आप क्या करना चाहेंगे?',
-    productsBody: 'हमारे हस्तनिर्मित उत्पाद देखने के लिए "चुनें" पर टैप करें।',
-    askQty: (name: string) => `"${name}" कितने चाहिए?`,
-    added: (name: string, qty: number) => `${qty} x ${name} कार्ट में जोड़ा गया।`,
-    removeWhich: 'कौन सा आइटम हटाना है?',
-    confirmOrder: (total: number, address: string) =>
-      `कुल: ₹${total} (डिलीवरी मुफ़्त)\nडिलीवरी पता:\n${address}\n\nऑर्डर करें?`,
     payTapHint:
       'अपने UPI ऐप में भुगतान करें, फिर "मैंने भुगतान किया" पर टैप करें। स्कैन करना है? "QR दिखाएँ" पर टैप करें।',
     qrSellerBody: (id: number, shop: string, total: number) =>
@@ -115,11 +70,8 @@ export const BUTTON_TEXT = {
       `${shop} को ₹${total} भुगतान के लिए स्कैन करें। राशि और नोट "Order ${id}" पहले से भरे हैं। फिर "मैंने भुगतान किया" पर टैप करें।`,
     ordersBody: 'आपके हाल के ऑर्डर। देखने के लिए "चुनें" पर टैप करें।',
     noProducts: 'अभी कोई उत्पाद उपलब्ध नहीं है। कृपया बाद में फिर देखें।',
-    categoriesBody: 'आप क्या ढूँढ रहे हैं? "चुनें" पर टैप करके एक श्रेणी चुनें।',
     categoriesButton: 'श्रेणियाँ',
-    categoryBody: (name: string) => `${name}: उत्पाद देखने के लिए "चुनें" पर टैप करें।`,
     itemCount: (n: number) => `${n} उत्पाद`,
-    allCategories: '« सभी श्रेणियाँ',
   },
   or: {
     products: 'ଉତ୍ପାଦ',
@@ -131,23 +83,10 @@ export const BUTTON_TEXT = {
     sell: 'ଆପଣଙ୍କ ଜିନିଷ ବିକନ୍ତୁ',
     sellerMenu: 'ବିକ୍ରେତା ମେନୁ',
     adminMenu: 'ଆଡମିନ ମେନୁ',
-    addToCart: 'କାର୍ଟରେ ଯୋଡ଼ନ୍ତୁ',
-    back: 'ପଛକୁ',
     cancel: 'ବାତିଲ କରନ୍ତୁ',
-    select: "ବାଛନ୍ତୁ",
-    pickHint: "ଯାହା ପସନ୍ଦ, ତା ତଳେ \"ବାଛନ୍ତୁ\" ଟ୍ୟାପ୍ କରନ୍ତୁ।",
-    moreItems: "ଆହୁରି ଦେଖନ୍ତୁ",
-    placeOrder: 'ଅର୍ଡର କରନ୍ତୁ',
-    shopMore: 'ଆଉ କିଣନ୍ତୁ',
-    viewCart: 'କାର୍ଟ ଦେଖନ୍ତୁ',
-    removeItem: 'ଜିନିଷ ହଟାନ୍ତୁ',
-    clearCart: 'କାର୍ଟ ଖାଲି କରନ୍ତୁ',
-    changeAddress: 'ଠିକଣା ବଦଳାନ୍ତୁ',
     showQr: 'QR ଦେଖାନ୍ତୁ',
     paid: 'ମୁଁ ପଇସା ଦେଲି',
     cancelOrder: 'ଅର୍ଡର ବାତିଲ',
-    choose: 'ବାଛନ୍ତୁ',
-    more: 'ଆହୁରି ଉତ୍ପାଦ',
     noSuchShop: (code: string) =>
       `ଦୁଃଖିତ, ${code} କୋଡ୍‌ର କୌଣସି ଦୋକାନ ନାହିଁ। ଆପଣଙ୍କ ବିକ୍ରେତାଙ୍କ ସହ ନମ୍ବର ମିଳାଇ ପୁଣି ଚେଷ୍ଟା କରନ୍ତୁ (ଯେପରି: Hi 1234)।`,
     noShop:
@@ -158,15 +97,7 @@ export const BUTTON_TEXT = {
     shopWelcome: (shop: string) =>
       `😀 ନମସ୍କାର!\n\n${shop}କୁ ସ୍ୱାଗତ 🛍️\nହାତତିଆରି ଉତ୍ପାଦ, ସିଧାସଳଖ ତିଆରିକାରୀଙ୍କଠାରୁ।\n\nଦୟାକରି ତଳେ ଥିବା ବିକଳ୍ପ ମଧ୍ୟରୁ ଗୋଟିଏ ବାଛନ୍ତୁ 👇`,
     clickBelow: (shop: string) => `${shop}ର ଉତ୍ପାଦ ବାଛିବା ପାଇଁ ତଳ ଲିଙ୍କରେ କ୍ଲିକ୍ କରନ୍ତୁ 👇`,
-    welcome:
-      'ସ୍ମାର୍ଟ ଭିଲେଜ ମାର୍କେଟପ୍ଲେସକୁ ସ୍ୱାଗତ! ହାତତିଆରି ବ୍ୟାଗ ଓ ଆହୁରି ଅନେକ, ସିଧାସଳଖ ତିଆରିକାରୀଙ୍କଠାରୁ।\nଆପଣ କ\'ଣ କରିବାକୁ ଚାହାଁନ୍ତି?',
     whatNext: 'ଆପଣ କ\'ଣ କରିବାକୁ ଚାହାଁନ୍ତି?',
-    productsBody: 'ଆମର ହାତତିଆରି ଉତ୍ପାଦ ଦେଖିବା ପାଇଁ "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।',
-    askQty: (name: string) => `"${name}" କେତୋଟି ଦରକାର?`,
-    added: (name: string, qty: number) => `${qty} x ${name} କାର୍ଟରେ ଯୋଡ଼ାଗଲା।`,
-    removeWhich: 'କେଉଁ ଜିନିଷ ହଟାଇବେ?',
-    confirmOrder: (total: number, address: string) =>
-      `ମୋଟ: ₹${total} (ଡେଲିଭରି ମାଗଣା)\nଡେଲିଭରି ଠିକଣା:\n${address}\n\nଅର୍ଡର କରିବେ?`,
     payTapHint:
       'ଆପଣଙ୍କ UPI ଆପରେ ପଇସା ଦିଅନ୍ତୁ, ତା\'ପରେ "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରନ୍ତୁ। ସ୍କାନ କରିବେ? "QR ଦେଖାନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।',
     qrSellerBody: (id: number, shop: string, total: number) =>
@@ -175,11 +106,8 @@ export const BUTTON_TEXT = {
       `${shop} କୁ ₹${total} ଦେବା ପାଇଁ ସ୍କାନ କରନ୍ତୁ। ରାଶି ଏବଂ ନୋଟ "Order ${id}" ପୂର୍ବରୁ ଭରା ହୋଇଛି। ତା\'ପରେ "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
     ordersBody: 'ଆପଣଙ୍କ ସାମ୍ପ୍ରତିକ ଅର୍ଡର। ଦେଖିବା ପାଇଁ "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।',
     noProducts: 'ଏବେ କୌଣସି ଉତ୍ପାଦ ଉପଲବ୍ଧ ନାହିଁ। ଦୟାକରି ପରେ ପୁଣି ଦେଖନ୍ତୁ।',
-    categoriesBody: `ଆପଣ କ'ଣ ଖୋଜୁଛନ୍ତି? "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରି ଏକ ବର୍ଗ ବାଛନ୍ତୁ।`,
     categoriesButton: 'ବର୍ଗ',
-    categoryBody: (name: string) => `${name}: ଉତ୍ପାଦ ଦେଖିବା ପାଇଁ "ବାଛନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
     itemCount: (n: number) => `${n}ଟି ଉତ୍ପାଦ`,
-    allCategories: '« ସମସ୍ତ ବର୍ଗ',
   },
   as: {
     products: 'সামগ্ৰী',
@@ -191,23 +119,10 @@ export const BUTTON_TEXT = {
     sell: 'আপোনাৰ সামগ্ৰী বেচক',
     sellerMenu: 'বিক্ৰেতা মেনু',
     adminMenu: 'এডমিন মেনু',
-    addToCart: 'কাৰ্টত যোগ কৰক',
-    back: 'উভতি যাওক',
     cancel: 'বাতিল কৰক',
-    select: "বাছক",
-    pickHint: "যিটো ভাল লাগে, তাৰ তলত \"বাছক\" টিপক।",
-    moreItems: "আৰু চাওক",
-    placeOrder: 'অৰ্ডাৰ দিয়ক',
-    shopMore: 'আৰু কিনক',
-    viewCart: 'কাৰ্ট চাওক',
-    removeItem: 'সামগ্ৰী আঁতৰাওক',
-    clearCart: 'কাৰ্ট খালী কৰক',
-    changeAddress: 'ঠিকনা সলনি কৰক',
     showQr: 'QR দেখুৱাওক',
     paid: 'মই ধন দিলোঁ',
     cancelOrder: 'অৰ্ডাৰ বাতিল',
-    choose: 'বাছক',
-    more: 'আৰু সামগ্ৰী',
     noSuchShop: (code: string) =>
       `দুঃখিত, ${code} ক'ডৰ কোনো দোকান নাই। আপোনাৰ বিক্ৰেতাৰ পৰা নম্বৰটো মিলাই আকৌ চেষ্টা কৰক (যেনে: Hi 1234)।`,
     noShop:
@@ -218,15 +133,7 @@ export const BUTTON_TEXT = {
     shopWelcome: (shop: string) =>
       `😀 নমস্কাৰ!\n\n${shop}লৈ স্বাগতম 🛍️\nহাতে বনোৱা সামগ্ৰী, পোনপটীয়াকৈ নিৰ্মাতাৰ পৰা।\n\nঅনুগ্ৰহ কৰি তলৰ বিকল্পবোৰৰ এটা বাছক 👇`,
     clickBelow: (shop: string) => `${shop}ৰ সামগ্ৰী বাছিবলৈ তলৰ লিংকত ক্লিক কৰক 👇`,
-    welcome:
-      'স্মাৰ্ট ভিলেজ মাৰ্কেটপ্লেচলৈ স্বাগতম! হাতে বনোৱা বেগ আৰু বহুতো, পোনপটীয়াকৈ নিৰ্মাতাৰ পৰা।\nআপুনি কি কৰিব বিচাৰে?',
     whatNext: 'আপুনি কি কৰিব বিচাৰে?',
-    productsBody: 'আমাৰ হাতে বনোৱা সামগ্ৰী চাবলৈ "বাছক" টিপক।',
-    askQty: (name: string) => `"${name}" কিমানটা লাগে?`,
-    added: (name: string, qty: number) => `${qty} x ${name} কাৰ্টত যোগ কৰা হ'ল।`,
-    removeWhich: 'কোনটো সামগ্ৰী আঁতৰাব?',
-    confirmOrder: (total: number, address: string) =>
-      `মুঠ: ₹${total} (ডেলিভাৰী বিনামূলীয়া)\nডেলিভাৰী ঠিকনা:\n${address}\n\nঅৰ্ডাৰ দিবনে?`,
     payTapHint:
       'আপোনাৰ UPI এপত ধন দিয়ক, তাৰ পিছত "মই ধন দিলোঁ" টিপক। স্কেন কৰিব বিচাৰে? "QR দেখুৱাওক" টিপক।',
     qrSellerBody: (id: number, shop: string, total: number) =>
@@ -235,11 +142,8 @@ export const BUTTON_TEXT = {
       `${shop} ক ₹${total} দিবলৈ স্কেন কৰক। পৰিমাণ আৰু টোকা "Order ${id}" আগতেই ভৰোৱা আছে। তাৰ পিছত "মই ধন দিলোঁ" টিপক।`,
     ordersBody: 'আপোনাৰ শেহতীয়া অৰ্ডাৰ। চাবলৈ "বাছক" টিপক।',
     noProducts: 'এতিয়া কোনো সামগ্ৰী উপলব্ধ নাই। অনুগ্ৰহ কৰি পিছত আকৌ চাওক।',
-    categoriesBody: 'আপুনি কি বিচাৰিছে? "বাছক" টিপি এটা শ্ৰেণী বাছক।',
     categoriesButton: 'শ্ৰেণী',
-    categoryBody: (name: string) => `${name}: সামগ্ৰী চাবলৈ "বাছক" টিপক।`,
     itemCount: (n: number) => `${n}টা সামগ্ৰী`,
-    allCategories: '« সকলো শ্ৰেণী',
   },
 };
 

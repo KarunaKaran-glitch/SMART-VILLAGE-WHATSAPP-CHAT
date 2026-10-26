@@ -4,7 +4,6 @@ import { mo } from './myOrdersText';
 // Seller messages in every language. Commands (ADD, PRICE 3 90 ...) stay in English letters.
 // SELLER_TEXT answers in the language of the person the message is for (see lang.ts).
 const en = {
-  home: 'Welcome back! What would you like to do with your shop?',
   btnOrders: 'Orders for my shop',
   btnAdd: 'Add a product',
   btnMenu: 'Seller menu',
@@ -14,8 +13,6 @@ const en = {
   rowQr: 'Upload my QR photo',
   rowPurchases: 'My own purchases',
   rowShop: 'Shop as a customer',
-  rowAllCommands: 'All commands',
-  rowCategory: 'My category',
   askDescription: (name: string) => `Add a short description of "${name}": colour, size, material (for example: Red, cotton, 30x25 cm, zip pocket). Or tap Skip.`,
   btnSkip: "Skip",
   invalidDescription: "Please keep the description under 300 characters, or tap Skip.",
@@ -65,8 +62,6 @@ const en = {
     `Send the new photo for product #${id}. The admin will check the product again. Or send CANCEL.`,
   needPhoto: 'Please send a photo (not text). Or send CANCEL to add it later with PHOTO <product number>.',
   photoFailed: 'Sorry, the photo could not be saved. Please send it again as a normal photo (JPG or PNG, under 5 MB).',
-  photoSaved: (id: number) =>
-    `Photo saved for product #${id}. The admin will check it (handmade products only). You will get a message when it is approved.`,
   photoLater: (id: number) =>
     `Product #${id} is saved without a photo. Customers will not see it until you send PHOTO ${id} and the admin approves it.`,
   productApproved: (id: number, name: string) =>
@@ -83,8 +78,6 @@ const en = {
   askPrice: (name: string) =>
     `Price for "${name}" in rupees? Delivery is free for customers, so include your courier cost in the price. Send a number like 80 or 49.50, or CANCEL.`,
   invalidPrice: 'Please send a price above 0, like 80 or 49.50, or CANCEL.',
-  added: (id: number, name: string, price: number) =>
-    `Product #${id} added: ${name} - ₹${price}.`,
   cancelled: 'Cancelled.',
   noProducts: 'You have no products yet. Tap "Add a product" to add one.',
   myProductsTitle: 'Your products:',
@@ -136,7 +129,6 @@ const en = {
 };
 
 const hi: typeof en = {
-  home: 'फिर से स्वागत है! अपनी दुकान के लिए क्या करना चाहेंगे?',
   btnOrders: 'मेरी दुकान के ऑर्डर',
   btnAdd: 'उत्पाद जोड़ें',
   btnMenu: 'विक्रेता मेनू',
@@ -146,8 +138,6 @@ const hi: typeof en = {
   rowQr: 'मेरा QR फोटो भेजें',
   rowPurchases: 'मेरी अपनी खरीदारी',
   rowShop: 'ग्राहक की तरह खरीदें',
-  rowAllCommands: 'सभी कमांड',
-  rowCategory: 'मेरी श्रेणी',
   askDescription: (name: string) => `"${name}" का छोटा विवरण लिखें: रंग, नाप, सामग्री (जैसे: लाल, सूती, 30x25 cm, ज़िप वाली जेब)। या "छोड़ें" पर टैप करें।`,
   btnSkip: "छोड़ें",
   invalidDescription: "कृपया विवरण 300 अक्षरों से कम रखें, या \"छोड़ें\" पर टैप करें।",
@@ -196,8 +186,6 @@ const hi: typeof en = {
     `उत्पाद #${id} का नया फोटो भेजें। एडमिन उत्पाद को फिर से जाँचेंगे। या CANCEL भेजें।`,
   needPhoto: 'कृपया फोटो भेजें (टेक्स्ट नहीं)। या बाद में PHOTO <उत्पाद नंबर> से जोड़ने के लिए CANCEL भेजें।',
   photoFailed: 'माफ़ कीजिए, फोटो सहेजा नहीं जा सका। कृपया सामान्य फोटो (JPG या PNG, 5 MB से कम) फिर से भेजें।',
-  photoSaved: (id: number) =>
-    `उत्पाद #${id} का फोटो सहेज लिया गया। एडमिन इसे जाँचेंगे (केवल हस्तनिर्मित)। मंज़ूरी मिलने पर आपको संदेश मिलेगा।`,
   photoLater: (id: number) =>
     `उत्पाद #${id} बिना फोटो सहेजा गया। जब तक आप PHOTO ${id} नहीं भेजते और एडमिन मंज़ूरी नहीं देते, ग्राहक इसे नहीं देखेंगे।`,
   productApproved: (id: number, name: string) =>
@@ -214,7 +202,6 @@ const hi: typeof en = {
   askPrice: (name: string) =>
     `"${name}" का दाम रुपये में? ग्राहकों के लिए डिलीवरी मुफ़्त है, इसलिए कूरियर का खर्च दाम में जोड़ें। 80 या 49.50 जैसी संख्या भेजें, या CANCEL।`,
   invalidPrice: 'कृपया 0 से ज़्यादा दाम भेजें, जैसे 80 या 49.50, या CANCEL।',
-  added: (id: number, name: string, price: number) => `उत्पाद #${id} जोड़ा गया: ${name} - ₹${price}।`,
   cancelled: 'रद्द किया गया।',
   noProducts: 'आपके अभी कोई उत्पाद नहीं हैं। जोड़ने के लिए "उत्पाद जोड़ें" पर टैप करें।',
   myProductsTitle: 'आपके उत्पाद:',
@@ -262,7 +249,6 @@ const hi: typeof en = {
 };
 
 const or: typeof en = {
-  home: 'ପୁଣି ସ୍ୱାଗତ! ଆପଣଙ୍କ ଦୋକାନ ପାଇଁ କ\'ଣ କରିବେ?',
   btnOrders: 'ମୋ ଦୋକାନର ଅର୍ଡର',
   btnAdd: 'ଉତ୍ପାଦ ଯୋଡ଼ନ୍ତୁ',
   btnMenu: 'ବିକ୍ରେତା ମେନୁ',
@@ -272,8 +258,6 @@ const or: typeof en = {
   rowQr: 'ମୋ QR ଫଟୋ ପଠାନ୍ତୁ',
   rowPurchases: 'ମୋ ନିଜ କିଣାକିଣି',
   rowShop: 'ଗ୍ରାହକ ଭାବେ କିଣନ୍ତୁ',
-  rowAllCommands: 'ସମସ୍ତ କମାଣ୍ଡ',
-  rowCategory: 'ମୋ ବର୍ଗ',
   askDescription: (name: string) => `"${name}" ର ଛୋଟ ବିବରଣୀ ଲେଖନ୍ତୁ: ରଙ୍ଗ, ଆକାର, ସାମଗ୍ରୀ (ଉଦାହରଣ: ଲାଲ, ସୂତା, 30x25 cm, ଜିପ୍ ପକେଟ)। କିମ୍ବା "ଛାଡ଼ନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
   btnSkip: "ଛାଡ଼ନ୍ତୁ",
   invalidDescription: "ଦୟାକରି ବିବରଣୀ 300 ଅକ୍ଷରରୁ କମ୍ ରଖନ୍ତୁ, କିମ୍ବା \"ଛାଡ଼ନ୍ତୁ\" ଟ୍ୟାପ୍ କରନ୍ତୁ।",
@@ -322,8 +306,6 @@ const or: typeof en = {
     `ଉତ୍ପାଦ #${id} ର ନୂଆ ଫଟୋ ପଠାନ୍ତୁ। ଆଡମିନ ଉତ୍ପାଦକୁ ପୁଣି ଯାଞ୍ଚ କରିବେ। କିମ୍ବା CANCEL ପଠାନ୍ତୁ।`,
   needPhoto: 'ଦୟାକରି ଫଟୋ ପଠାନ୍ତୁ (ଲେଖା ନୁହେଁ)। କିମ୍ବା ପରେ PHOTO <ଉତ୍ପାଦ ନମ୍ବର> ରେ ଯୋଡ଼ିବା ପାଇଁ CANCEL ପଠାନ୍ତୁ।',
   photoFailed: 'କ୍ଷମା କରନ୍ତୁ, ଫଟୋ ସେଭ୍ ହୋଇପାରିଲା ନାହିଁ। ଦୟାକରି ସାଧାରଣ ଫଟୋ (JPG ବା PNG, 5 MB ରୁ କମ୍) ପୁଣି ପଠାନ୍ତୁ।',
-  photoSaved: (id: number) =>
-    `ଉତ୍ପାଦ #${id} ର ଫଟୋ ସେଭ୍ ହେଲା। ଆଡମିନ ଏହାକୁ ଯାଞ୍ଚ କରିବେ (କେବଳ ହାତତିଆରି)। ଅନୁମୋଦନ ହେଲେ ଆପଣ ବାର୍ତ୍ତା ପାଇବେ।`,
   photoLater: (id: number) =>
     `ଉତ୍ପାଦ #${id} ଫଟୋ ବିନା ସେଭ୍ ହେଲା। ଆପଣ PHOTO ${id} ପଠାଇ ଆଡମିନ ଅନୁମୋଦନ ନ କରିବା ପର୍ଯ୍ୟନ୍ତ ଗ୍ରାହକ ଏହାକୁ ଦେଖିବେ ନାହିଁ।`,
   productApproved: (id: number, name: string) =>
@@ -340,7 +322,6 @@ const or: typeof en = {
   askPrice: (name: string) =>
     `"${name}" ର ଦାମ ଟଙ୍କାରେ? ଗ୍ରାହକଙ୍କ ପାଇଁ ଡେଲିଭରି ମାଗଣା, ତେଣୁ କୁରିଅର ଖର୍ଚ୍ଚ ଦାମରେ ଯୋଡ଼ନ୍ତୁ। 80 ବା 49.50 ପରି ସଂଖ୍ୟା ପଠାନ୍ତୁ, କିମ୍ବା CANCEL।`,
   invalidPrice: 'ଦୟାକରି 0 ରୁ ଅଧିକ ଦାମ ପଠାନ୍ତୁ, ଯେପରି 80 ବା 49.50, କିମ୍ବା CANCEL।',
-  added: (id: number, name: string, price: number) => `ଉତ୍ପାଦ #${id} ଯୋଡ଼ାଗଲା: ${name} - ₹${price}।`,
   cancelled: 'ବାତିଲ ହେଲା।',
   noProducts: 'ଆପଣଙ୍କର ଏପର୍ଯ୍ୟନ୍ତ କୌଣସି ଉତ୍ପାଦ ନାହିଁ। ଯୋଡ଼ିବା ପାଇଁ "ଉତ୍ପାଦ ଯୋଡ଼ନ୍ତୁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।',
   myProductsTitle: 'ଆପଣଙ୍କ ଉତ୍ପାଦ:',
@@ -388,7 +369,6 @@ const or: typeof en = {
 };
 
 const as: typeof en = {
-  home: 'পুনৰ স্বাগতম! আপোনাৰ দোকানৰ বাবে কি কৰিব বিচাৰে?',
   btnOrders: 'মোৰ দোকানৰ অৰ্ডাৰ',
   btnAdd: 'সামগ্ৰী যোগ কৰক',
   btnMenu: 'বিক্ৰেতা মেনু',
@@ -398,8 +378,6 @@ const as: typeof en = {
   rowQr: 'মোৰ QR ফটো পঠিয়াওক',
   rowPurchases: 'মোৰ নিজৰ কিনা বস্তু',
   rowShop: 'গ্ৰাহক হিচাপে কিনক',
-  rowAllCommands: 'সকলো কমাণ্ড',
-  rowCategory: 'মোৰ শ্ৰেণী',
   askDescription: (name: string) => `"${name}" ৰ চমু বিৱৰণ লিখক: ৰং, আকাৰ, সামগ্ৰী (উদাহৰণ: ৰঙা, কপাহী, 30x25 cm, জিপ পকেট)। নহয় "এৰি দিয়ক" টিপক।`,
   btnSkip: "এৰি দিয়ক",
   invalidDescription: "অনুগ্ৰহ কৰি বিৱৰণ 300 আখৰতকৈ কম ৰাখক, নহয় \"এৰি দিয়ক\" টিপক।",
@@ -448,8 +426,6 @@ const as: typeof en = {
     `সামগ্ৰী #${id} ৰ নতুন ফটো পঠিয়াওক। এডমিনে সামগ্ৰীটো আকৌ পৰীক্ষা কৰিব। নহয় CANCEL পঠিয়াওক।`,
   needPhoto: 'অনুগ্ৰহ কৰি ফটো পঠিয়াওক (লিখা নহয়)। নহয় পিছত PHOTO <সামগ্ৰী নম্বৰ> ৰে যোগ কৰিবলৈ CANCEL পঠিয়াওক।',
   photoFailed: 'ক্ষমা কৰিব, ফটোখন সংৰক্ষণ কৰিব পৰা নগ\'ল। অনুগ্ৰহ কৰি সাধাৰণ ফটো (JPG বা PNG, 5 MB তকৈ কম) আকৌ পঠিয়াওক।',
-  photoSaved: (id: number) =>
-    `সামগ্ৰী #${id} ৰ ফটো সংৰক্ষণ কৰা হ'ল। এডমিনে ইয়াক পৰীক্ষা কৰিব (কেৱল হাতে বনোৱা)। অনুমোদন হ'লে আপুনি বাৰ্তা পাব।`,
   photoLater: (id: number) =>
     `সামগ্ৰী #${id} ফটো অবিহনে সংৰক্ষণ কৰা হ'ল। আপুনি PHOTO ${id} পঠিয়াই এডমিনে অনুমোদন নিদিয়ালৈকে গ্ৰাহকে ইয়াক নেদেখিব।`,
   productApproved: (id: number, name: string) =>
@@ -466,7 +442,6 @@ const as: typeof en = {
   askPrice: (name: string) =>
     `"${name}" ৰ দাম টকাত কিমান? গ্ৰাহকৰ বাবে ডেলিভাৰী বিনামূলীয়া, সেয়েহে কুৰিয়াৰৰ খৰচ দামত যোগ কৰক। 80 বা 49.50 ৰ দৰে সংখ্যা পঠিয়াওক, নহয় CANCEL।`,
   invalidPrice: 'অনুগ্ৰহ কৰি 0 তকৈ বেছি দাম পঠিয়াওক, যেনে 80 বা 49.50, নহয় CANCEL।',
-  added: (id: number, name: string, price: number) => `সামগ্ৰী #${id} যোগ কৰা হ'ল: ${name} - ₹${price}।`,
   cancelled: 'বাতিল কৰা হ\'ল।',
   noProducts: 'আপোনাৰ এতিয়ালৈকে কোনো সামগ্ৰী নাই। যোগ কৰিবলৈ "সামগ্ৰী যোগ কৰক" টিপক।',
   myProductsTitle: 'আপোনাৰ সামগ্ৰী:',

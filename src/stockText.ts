@@ -1,35 +1,27 @@
 export const STOCK_TEXT = {
   en: {
-    onlyLeft: (name: string, n: number) =>
-      `Only ${n} of "${name}" available. Please send a smaller number, or CANCEL.`,
     unavailable: (name: string) =>
-      `"${name}" is no longer available. Send CART, then REMOVE it from your cart.`,
+      `"${name}" is no longer available. Please remove it and tap Continue again.`,
     notEnough: (name: string, n: number) =>
-      `Only ${n} of "${name}" left. Send CART and change your cart.`,
+      `Only ${n} of "${name}" left. Please choose ${n} or fewer and tap Continue again.`,
   },
   hi: {
-    onlyLeft: (name: string, n: number) =>
-      `"${name}" केवल ${n} उपलब्ध हैं। कृपया छोटी संख्या भेजें, या CANCEL।`,
     unavailable: (name: string) =>
-      `"${name}" अब उपलब्ध नहीं है। CART भेजकर इसे कार्ट से REMOVE करें।`,
+      `"${name}" अब उपलब्ध नहीं है। कृपया इसे हटाकर फिर से "आगे बढ़ें" दबाएँ।`,
     notEnough: (name: string, n: number) =>
-      `"${name}" केवल ${n} बचे हैं। CART भेजकर अपना कार्ट बदलें।`,
+      `"${name}" केवल ${n} बचे हैं। कृपया ${n} या कम चुनकर फिर से "आगे बढ़ें" दबाएँ।`,
   },
   or: {
-    onlyLeft: (name: string, n: number) =>
-      `"${name}" କେବଳ ${n}ଟି ଉପଲବ୍ଧ। ଦୟାକରି ଛୋଟ ସଂଖ୍ୟା ପଠାନ୍ତୁ, କିମ୍ବା CANCEL।`,
     unavailable: (name: string) =>
-      `"${name}" ଆଉ ଉପଲବ୍ଧ ନାହିଁ। CART ପଠାଇ ଏହାକୁ କାର୍ଟରୁ REMOVE କରନ୍ତୁ।`,
+      `"${name}" ଆଉ ଉପଲବ୍ଧ ନାହିଁ। ଦୟାକରି ଏହାକୁ ହଟାଇ ପୁଣି "ଆଗକୁ ବଢ଼ନ୍ତୁ" ଦବାନ୍ତୁ।`,
     notEnough: (name: string, n: number) =>
-      `"${name}" କେବଳ ${n}ଟି ବାକି ଅଛି। CART ପଠାଇ ଆପଣଙ୍କ କାର୍ଟ ବଦଳାନ୍ତୁ।`,
+      `"${name}" କେବଳ ${n}ଟି ବାକି ଅଛି। ଦୟାକରି ${n}ଟି ବା କମ୍ ବାଛି ପୁଣି "ଆଗକୁ ବଢ଼ନ୍ତୁ" ଦବାନ୍ତୁ।`,
   },
   as: {
-    onlyLeft: (name: string, n: number) =>
-      `"${name}" মাত্ৰ ${n}টা উপলব্ধ। অনুগ্ৰহ কৰি সৰু সংখ্যা পঠিয়াওক, নহয় CANCEL।`,
     unavailable: (name: string) =>
-      `"${name}" আৰু উপলব্ধ নহয়। CART পঠিয়াই ইয়াক কাৰ্টৰ পৰা REMOVE কৰক।`,
+      `"${name}" আৰু উপলব্ধ নহয়। অনুগ্ৰহ কৰি ইয়াক আঁতৰাই আকৌ "আগবাঢ়ক" টিপক।`,
     notEnough: (name: string, n: number) =>
-      `"${name}" মাত্ৰ ${n}টা বাকী আছে। CART পঠিয়াই আপোনাৰ কাৰ্ট সলনি কৰক।`,
+      `"${name}" মাত্ৰ ${n}টা বাকী আছে। অনুগ্ৰহ কৰি ${n}টা বা কম বাছি আকৌ "আগবাঢ়ক" টিপক।`,
   },
 };
 

@@ -1,27 +1,51 @@
 # Smart Village WhatsApp Marketplace
 
-A WhatsApp chatbot backend for local sellers of **handmade products** (bags, handbags and similar). Each seller shares their own shop link. A customer who opens it says "Hi", picks English or the seller's state language, taps **Shop now** and gets a **[Click here]** link to that seller's shop web page: products with photos, quantity, total and delivery address, then payment straight to the seller by UPI (QR code, UPI ID or the customer's UPI app). There is no shared marketplace: a customer only ever sees the seller whose link they opened. Sellers add products with a photo, and admins approve sellers and every product, inside the same WhatsApp chat. The flow is modelled on Chennai Metro Rail's WhatsApp ticket bot.
+A WhatsApp bot and three small web pages for local sellers of **handmade products** (bags, handbags and similar). There is no shared marketplace: every seller has their own shop, and a customer only ever sees the seller whose link or ID they used. The customer flow is modelled on Chennai Metro Rail's WhatsApp ticket bot: say "Hi", pick a language, tap **Shop now**, and a **[Click here]** link opens a web page to choose and pay.
 
 The bot works in four languages: English, Hindi, Odia and Assamese.
 
 **Stack:** Node.js, TypeScript, Express 5, Prisma 6, PostgreSQL
 
-> **Status: works locally, not live on WhatsApp yet**
-> - The full flow is built and tested with fake messages and sample payment details: seller link, language, Shop now, shop web page, order, payment page, "I have paid", seller confirmation, delivery steps, seller registration and admin tools.
-> - Sending through the WhatsApp Cloud API works when `.env` has a token; Meta's test account only delivers to numbers on its allowed recipient list.
-> - Before going live: host the server at a real HTTPS address (instead of ngrok), set `WHATSAPP_BOT_NUMBER`, sellers add their real UPI ID and QR photo, and use approved message templates for messages sent more than 24 hours after the customer's last message.
+> **Status: works with the Meta test number, not live for the public yet**
+> - The whole flow is built and tested on two real phones with sample payment details: the admin adds a seller, the seller adds products and payment details on their dashboard, the admin approves the products, the customer orders and pays on the shop page, the seller confirms and delivers on the dashboard.
+> - Meta's test account only delivers to numbers on its allowed recipient list.
+> - Before going live: Meta business verification, a real HTTPS server address (instead of ngrok), `WHATSAPP_BOT_NUMBER`, sellers' real UPI IDs and QR photos, and approved message templates for messages sent more than 24 hours after a person's last message.
 
 ## How it works
 
-Meta sends each incoming WhatsApp message to `POST /webhook`. The server:
+### The people
 
-1. Skips messages it has already handled. Meta can deliver the same message twice, so message IDs are saved in `ProcessedMessage`.
-2. Looks up the sender by phone number. A new sender is saved and asked to pick a language.
-3. Sends the text to the right handler based on the user's **role** (customer, seller or admin) and **state** (for example `CHOOSING_QUANTITY` or `ENTERING_ADDRESS`). The state is saved in the database, so multi-step conversations survive a server restart.
+| Who | Uses | Does |
+|---|---|---|
+| **Admin** | WhatsApp → **admin dashboard** page | Adds sellers (each gets a unique 4-digit ID), approves or rejects their products |
+| **Seller** | WhatsApp → **seller dashboard** page | Adds products with photos, sets UPI ID / QR / state, shares the shop link, handles orders (money received → confirm → ship → deliver) |
+| **Customer** | WhatsApp → **shop page** → **payment page** | Opens a seller's shop with its link or `Hi <ID>`, chooses products, pays the seller by UPI, taps "I have paid" |
 
-`GET /webhook` answers Meta's one-time verification check using `VERIFY_TOKEN`.
+### Step by step
 
-`GET /shop/<code>?t=<secret>` is the shop web page opened from the [Click here] button: the seller's approved products with photos, – / + quantity, the total and the delivery address ([src/shopPage.ts](src/shopPage.ts), texts in [src/webText.ts](src/webText.ts)). Its [Continue] button calls `POST /shop/<code>/order`, which places one order for that seller (same stock checks and seller notice as the chat order) and opens the payment page `GET /shop/<code>/order/<id>?t=<secret>`: the seller's QR photo (or a QR made with the amount filled in), the UPI ID with Copy, a [Pay with UPI app] link and "I have paid" with the transaction number (`POST .../paid`, the same step as `PAID` in the chat). After that the page shows "Payment reported" and, once the seller answers RECEIVED, "Payment received". The payment details are also sent to the customer's WhatsApp.
+1. **Admin adds a seller.** The admin sends `DASHBOARD` (or taps *Admin dashboard* in the admin menu) and gets a link to the admin page. The form takes the seller's name, WhatsApp number, shop name, state and what they make. The seller gets a **unique ID** (for example `5915`) and a WhatsApp welcome. That ID is both the seller's key to their dashboard and the shop code customers use.
+2. **Seller sets up the shop.** The seller sends `hi` (or their ID) from **their own phone** and gets a link to their dashboard. There they add products (photo from the phone, name, price, description), set their UPI ID and QR photo, and share their shop link (`wa.me/<bot number>?text=Hi 5915`) with a *Share on WhatsApp* button.
+3. **Admin approves products** on the admin page (big photo, Approve / Reject). Only approved products with a photo are shown to customers.
+4. **Customer shops.** The customer taps the seller's link (or sends `Hi 5915`, or just `5915`), chooses English or the seller's state language, and taps **Shop now** → **Click here**. The shop page shows the seller's products with – / + quantity, the total and the delivery address. **Continue** places the order and opens the payment page: the seller's QR photo (or a QR made with the amount filled in), the UPI ID with Copy, a *Pay with UPI app* button and "I have paid" with the UPI transaction number.
+5. **Seller handles the order** on the dashboard. WhatsApp only brings short notices ("New order #45", "The customer says they paid…") with a button that opens the dashboard. On the page the seller taps *Money received* (or *Not received*), then *Confirm order*, *Mark shipped*, *Mark delivered*. The customer gets a WhatsApp message at each step.
+
+### Web pages and links
+
+Every link carries a **secret** (`?t=…`) that belongs to one person and works for **24 hours**. A shop link stops working when the customer asks for a new one; dashboard links in seller notices reuse the current secret while it has 4+ hours left, so an open page keeps working.
+
+| Page | Route | Code |
+|---|---|---|
+| Shop page | `GET /shop/<ID>?t=<secret>`, order: `POST /shop/<ID>/order` | [src/shopPage.ts](src/shopPage.ts) |
+| Payment page | `GET /shop/<ID>/order/<order id>?t=…`, "I have paid": `POST …/paid` | [src/shopPage.ts](src/shopPage.ts) |
+| Seller dashboard | `GET /seller?t=…`; `POST /seller/products`, `/seller/products/<id>`, `/seller/settings`, `/seller/orders/<id>` | [src/sellerPage.ts](src/sellerPage.ts) |
+| Admin dashboard | `GET /admin?t=…`; `POST /admin/sellers`, `/admin/products/<id>` | [src/adminPage.ts](src/adminPage.ts) |
+| Photos | `GET /images/<key>` | [src/images.ts](src/images.ts) |
+
+Texts for the pages are in [src/webText.ts](src/webText.ts) (shop and payment) and [src/dashText.ts](src/dashText.ts) (dashboards), in all four languages.
+
+### The chat
+
+Meta sends each incoming WhatsApp message to `POST /webhook` (`GET /webhook` answers Meta's one-time verification with `VERIFY_TOKEN`). The server skips messages it has already handled (`ProcessedMessage`), looks up the sender by phone number, and answers based on their **role** (customer, seller, admin) and **state** (for example `CHOOSING_LANGUAGE`, `ENTERING_ADDRESS`). Replies are tap buttons, lists or one link button; every button sends a command as its id, so typing the command does the same.
 
 ## Getting started
 
@@ -51,12 +75,6 @@ npx prisma migrate dev
 npx prisma generate
 ```
 
-Optionally add a test seller and two sample products:
-
-```bash
-npx ts-node src/seed.ts
-```
-
 ### Run
 
 ```bash
@@ -65,44 +83,9 @@ npm run build    # compile TypeScript to dist/
 npm start        # run the compiled build
 ```
 
-### Try it without WhatsApp
-
-Send a fake webhook payload with curl. The bot's reply appears in the server console.
-
-```bash
-curl -X POST http://localhost:3000/webhook \
-  -H "Content-Type: application/json" \
-  -d '{"entry":[{"changes":[{"value":{
-        "contacts":[{"profile":{"name":"Test"}}],
-        "messages":[{"id":"msg-1","from":"919111111111","text":{"body":"MENU"}}]
-      }}]}]}'
-```
-
-Use a new `id` for every message. A repeated ID is ignored as a duplicate.
-
-On Windows PowerShell, define this helper once per terminal (paste it as one line), then send messages with `Send-Msg '917777777777' 'Meena' 'MENU'`:
-
-```powershell
-function Send-Msg($phone,$name,$text,$id=('wamid.'+[guid]::NewGuid().ToString())){ $obj=@{entry=@(@{changes=@(@{value=@{contacts=@(@{profile=@{name=$name};wa_id=$phone});messages=@(@{from=$phone;id=$id;type='text';text=@{body=$text}})}})})}; $json=$obj | ConvertTo-Json -Depth 10; Invoke-RestMethod -Uri http://localhost:3000/webhook -Method Post -ContentType "application/json" -Body $json }
-```
-
-When `WHATSAPP_APP_SECRET` is set in `.env`, the server answers unsigned messages with `Unauthorized`. Use this version instead (run it from the project folder; it reads the secret from `.env` and signs each message):
-
-```powershell
-function Send-Msg($phone,$name,$text){ $secret=((Get-Content .env | Where-Object { $_ -match '^\s*WHATSAPP_APP_SECRET\s*=' }) -replace '^\s*WHATSAPP_APP_SECRET\s*=\s*','').Trim().Trim('"').Trim("'"); $obj=@{entry=@(@{changes=@(@{value=@{contacts=@(@{profile=@{name=$name};wa_id=$phone});messages=@(@{from=$phone;id=('wamid.'+[guid]::NewGuid());type='text';text=@{body=$text}})}})})}; $bytes=[Text.Encoding]::UTF8.GetBytes(($obj | ConvertTo-Json -Depth 10 -Compress)); $hmac=New-Object System.Security.Cryptography.HMACSHA256 (,[Text.Encoding]::UTF8.GetBytes($secret)); $sig='sha256='+(-join ($hmac.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') })); Invoke-RestMethod -Uri http://localhost:3000/webhook -Method Post -ContentType 'application/json; charset=utf-8' -Headers @{'X-Hub-Signature-256'=$sig} -Body $bytes }
-```
-
-To send a test photo (product photo or UPI QR code), define `Send-Img` the same way and call `Send-Img '918888888888' 'Ravi' 'D:\photos\bag.png'` (`.jpg`, `.png` or `.webp`):
-
-```powershell
-function Send-Img($phone,$name,$file){ $ext=[IO.Path]::GetExtension($file).ToLower(); $mime=@{'.png'='image/png';'.jpg'='image/jpeg';'.jpeg'='image/jpeg';'.webp'='image/webp'}[$ext]; if(-not $mime){ Write-Host 'Use a .jpg, .png or .webp photo'; return }; $obj=@{entry=@(@{changes=@(@{value=@{contacts=@(@{profile=@{name=$name};wa_id=$phone});messages=@(@{from=$phone;id=('wamid.'+[guid]::NewGuid());type='image';image=@{id='test';mime_type=$mime;test_data=[Convert]::ToBase64String([IO.File]::ReadAllBytes($file))}})}})})}; $b=[Text.Encoding]::UTF8.GetBytes(($obj|ConvertTo-Json -Depth 10 -Compress)); Invoke-RestMethod -Uri http://localhost:3000/webhook -Method Post -ContentType 'application/json; charset=utf-8' -Body $b }
-```
-
-The photo goes in a `test_data` field that the server only accepts while WhatsApp sending is off; live, photos are downloaded from Meta by media ID. Sent photos are printed as `http://localhost:3000/images/<key>` links you can open in a browser.
-
 If PowerShell blocks `npm` or `npx` ("not digitally signed"), use `npm.cmd` and `npx.cmd` instead.
 
-### Going live
+### WhatsApp and the public address
 
 Add these to `.env` (never commit them):
 
@@ -110,116 +93,120 @@ Add these to `.env` (never commit them):
 |---|---|
 | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | Turn on real sending (otherwise replies are only printed) |
 | `WHATSAPP_APP_SECRET` | Turn on the `X-Hub-Signature-256` check |
-| `PUBLIC_BASE_URL` | Public HTTPS address of this server (for example the ngrok URL), so WhatsApp can fetch product photos and QR codes from `/images/<key>` |
-| `WHATSAPP_BOT_NUMBER` | The bot's own WhatsApp number with country code (digits only), used to make each seller's shop link `wa.me/<number>?text=Hi <CODE>` |
+| `PUBLIC_BASE_URL` | Public HTTPS address of this server (for example the ngrok URL); used in every link the bot sends |
+| `WHATSAPP_BOT_NUMBER` | The bot's own WhatsApp number with country code (digits only), for the sellers' shop links `wa.me/<number>?text=Hi <ID>` |
 | `GRAPH_API_VERSION` | Optional, default `v25.0` |
 
-### Make someone an admin
+While testing with ngrok, every link printed in the console also has an **"On this PC: http://localhost:3000/…"** line. Use that one in a browser on the same computer.
 
-The **first** admin must be set in the database directly, for example with `npx prisma studio`, or:
+### The first admin
+
+The first admin must be set in the database directly, for example:
 
 ```sql
 UPDATE "User" SET role = 'ADMIN', state = 'BROWSING' WHERE phone = '91XXXXXXXXXX';
 ```
 
-After that, an admin can make more admins from WhatsApp with `MAKEADMIN <phone>`.
+After that, an admin can make more admins with `MAKEADMIN <phone>`.
+
+## Testing
+
+### Validation test
+
+[scripts/validate.sh](scripts/validate.sh) runs about 50 checks: wrong input on every page (phone numbers, prices, quantities, addresses, photos, transaction numbers, HTML in names), other people's orders and products, steps in the wrong order, wrong shop codes, languages, seller notices and old links. It starts its own test server on port 3001 with WhatsApp sending off, uses only fake numbers, deletes its test data and stops the server, so your own server on port 3000 can keep running. Run it after every change:
+
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" scripts/validate.sh
+```
+
+It needs the fake admin `919000000000` to be an ADMIN in the database, and `psql` at `C:\Program Files\PostgreSQL\18\bin` (or set `PSQL`). It ends with `RESULT: n passed, 0 failed`.
+
+### Sending test messages by hand
+
+Without WhatsApp, send fake webhook messages. The bot's reply appears in the server console. On Windows PowerShell, paste this helper once per terminal (run it from the project folder; it signs each message with `WHATSAPP_APP_SECRET` from `.env`, which the server requires when that key is set), then send for example `Send-Msg '919000000000' 'Test Admin' 'DASHBOARD'`:
+
+```powershell
+function Send-Msg($phone,$name,$text){ $secret=((Get-Content .env | Where-Object { $_ -match '^\s*WHATSAPP_APP_SECRET\s*=' }) -replace '^\s*WHATSAPP_APP_SECRET\s*=\s*','').Trim().Trim('"').Trim("'"); $obj=@{entry=@(@{changes=@(@{value=@{contacts=@(@{profile=@{name=$name};wa_id=$phone});messages=@(@{from=$phone;id=('wamid.'+[guid]::NewGuid());type='text';text=@{body=$text}})}})})}; $bytes=[Text.Encoding]::UTF8.GetBytes(($obj | ConvertTo-Json -Depth 10 -Compress)); $hmac=New-Object System.Security.Cryptography.HMACSHA256 (,[Text.Encoding]::UTF8.GetBytes($secret)); $sig='sha256='+(-join ($hmac.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') })); Invoke-RestMethod -Uri http://localhost:3000/webhook -Method Post -ContentType 'application/json; charset=utf-8' -Headers @{'X-Hub-Signature-256'=$sig} -Body $bytes }
+```
+
+Use only fake phone numbers, UPI IDs and transaction numbers in tests.
 
 ## Chat commands
 
-People mostly **tap**: the bot sends WhatsApp reply buttons (up to 3) and lists (up to 10 rows) for languages, products, quantities, the cart, ordering, the QR code, "I have paid", and the seller's Received / Confirm / Ship / Deliver steps. Only the delivery address (first order) and the seller's product name, price and UPI ID are typed. Every button and list row sends one of the commands below as its id (for example `QR 12`), so typing a command does exactly the same as tapping. Extra tap-only commands: `MAINMENU`, `PRODUCT <id>`, `BUY <id>`, `REMOVEMENU`, `PLACEORDER`, `ORDERINFO <id>`, `MENU <page>`. `PAID <order>` works without a transaction number.
+Most people only tap. These commands still exist (not case-sensitive; `#` before a number is optional).
 
-Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and `SHIP #12` both work).
-
-### Everyone
+### Customers
 
 | Command | What it does |
 |---|---|
-| `LANG` | Choose the language again |
-| `Hi <shop code>` | Open one seller's shop (this is what the seller's link sends). The customer is offered English + the seller's language, then sees that shop's welcome: Shop now, My orders, More options |
-| `SHOPNOW` | Get a [Click here] link to the shop's web page. The link holds a secret for this customer, works for 24 hours, and an older link stops working when a new one is made |
-| `MENU`, `CART`, `ORDER`, `CATEGORY n`, `PRODUCT n`, a product number | The older chat shopping commands. They now answer like `SHOPNOW` (the customer's shop link), or, without a shop link, explain how to open one. (the old chat shopping was removed on 26 Oct 2026) |
+| `Hi <ID>` or just `<ID>` | Open that seller's shop (this is what the seller's link sends). English + the seller's state language are offered, then the shop's welcome: Shop now, My orders, More options. A number that is no shop's ID gets "There is no shop with the code …" and clears the previous shop |
+| `SHOPNOW` | The [Click here] link to the shop page. `MENU`, `CART`, `ORDER` and a typed number answer the same way (they were the old chat shopping) |
+| `LANG` | Choose the language again (only the languages the shop offers) |
+| `MYORDERS` / `ORDERINFO <id>` | Your last orders and one order's details |
+| `QR <id>` / `PAID <id> <transaction no.>` | Pay an order from WhatsApp (if the payment page was closed) |
+| `CANCELORDER <id>` | Cancel an order while it is still pending and no payment has been reported |
 | `ADDRESS` | Set or change the delivery address (the shop page fills it in) |
-| `QR <order id>` | Get a QR code to pay that order: the seller's own QR photo, or a QR made from the seller's UPI ID with the amount and note filled in |
-| `PAID <order id> <transaction no.>` | Report a UPI payment; the seller is asked to check it (`PAID` alone shows how) |
-| `MYORDERS` | Show your last 5 orders with order and payment status |
-| `CANCELORDER <id>` | Cancel an order while every item is still pending and no payment has been reported |
-| `SELL` | Ask to become a seller (asks for a shop name, then waits for an admin) |
-| `CANCEL` | Stop the current step (quantity, address, shop name, new product) |
+
+A customer without a shop gets only: "open the shop link your seller sent you, or send Hi and the shop code".
 
 ### Sellers
 
-| Command | What it does |
-|---|---|
-| `ADD` | Add a handmade product (asks for a name, a price, then a photo). It is hidden until an admin approves it |
-| `PHOTO <id>` | Send a new photo for a product (the admin checks it again) |
-| `MYPRODUCTS` | List your products with price, stock, approval and visibility |
-| `PRICE <id> <amount>` | Change a product's price |
-| `STOCK <id> <qty>` / `STOCK <id> OFF` | Set the stock count, or stop tracking stock |
-| `HIDE <id>` / `SHOW <id>` | Hide a product from the menu, or show it again |
-| `UPI` / `UPI <name@bank>` | Show or set the UPI ID that customers pay |
-| `QR` / `QR REMOVE` | Upload a photo of your UPI QR code, or delete it |
-| `MYORDERS` | Show the last 10 order items for your products |
-| `RECEIVED <id>` / `NOTRECEIVED <id>` | Answer a customer's `PAID`: the money reached your bank, or it did not |
-| `CONFIRM <id>` → `SHIP <id>` → `DELIVER <id>` | Move your items in an order forward. The customer is told at each step. A UPI order can only be confirmed after `RECEIVED` |
-| `MYPURCHASES` | Show orders you placed as a customer |
-| `MYLINK` | Show your shop link to share with customers (asks your shop's state the first time). Customers who open it, or send `Hi <shop code>`, are offered English + your state's language |
-| `SHOPSTATE` | Change your shop's state (Odisha, Assam, a Hindi-speaking state, or another state = English only) |
-| `HELP` | Show seller help |
+Sellers work on their dashboard. `hi`, `DASHBOARD` or their own ID (from their own phone) send the dashboard link; every seller message has a *My dashboard* button. The older seller chat commands still work: `ADD`, `PHOTO <id>`, `MYPRODUCTS`, `PRICE <id> <amount>`, `STOCK <id> <qty|OFF>`, `HIDE <id>`, `SHOW <id>`, `UPI`, `QR`, `QR REMOVE`, `MYORDERS`, `RECEIVED <id>`, `NOTRECEIVED <id>`, `CONFIRM <id>`, `SHIP <id>`, `DELIVER <id>`, `MYLINK`, `SHOPSTATE`, `SELLER` (menu), `HELP`.
 
 ### Admins
 
 | Command | What it does |
 |---|---|
-| `PENDINGPRODUCTS` | Get the photo of every product waiting for approval |
-| `APPROVEPRODUCT <id>` / `REJECTPRODUCT <id>` | Show a product to customers, or refuse it (not handmade). Rejecting also hides an approved product |
-| `PENDINGSELLERS` | List seller requests waiting for a decision |
-| `APPROVE <user id>` / `REJECT <user id>` | Decide a seller request |
-| `BLOCK <user id>` | Remove a seller's role and hide all their products |
-| `UNBLOCK <user id>` | Let a blocked seller sell again (their products stay hidden) |
-| `OPENORDERS <user id>` | List a seller's orders that are not delivered or cancelled |
-| `ADMINCANCEL <order id>` | Cancel any order that is not delivered yet. Stock is returned; if the customer already paid, the admin is told to arrange a refund |
-| `MAKEADMIN <phone>` | Make an existing customer an admin (a 10-digit number gets `91` in front) |
-| `SALES` | Marketplace totals and delivered sales per seller |
-| `HELP` | Show admin help |
+| `DASHBOARD` | Link to the admin dashboard (add sellers, approve products) |
+| `APPROVEPRODUCT <id>` / `REJECTPRODUCT <id>` | Also sent by the Approve / Reject buttons on the new-product message |
+| `PENDINGPRODUCTS`, `PENDINGSELLERS`, `APPROVE <user id>`, `REJECT <user id>` | Check products and seller requests in the chat (`SELL` requests from customers still exist) |
+| `BLOCK <user id>` / `UNBLOCK <user id>` | Remove a seller's role and hide all their products / let them sell again |
+| `OPENORDERS <user id>`, `ADMINCANCEL <order id>` | A seller's open orders; cancel any undelivered order (stock is returned; if already paid, arrange a refund) |
+| `MAKEADMIN <phone>`, `SALES`, `CATEGORIES`, `ADDCATEGORY <name>`, `ADMIN` (menu), `HELP` | |
 
 ## Business rules
 
-- **Categories:** each seller makes one kind of product (for example Keychains, Handbags, Wallets) and chooses it when applying; every product they add goes into that category. Customers first pick a category, then a product. Admins list categories with `CATEGORIES` and add one with `ADDCATEGORY <name>`.
-- **Batch approval:** new products are drafts. When the seller taps "Send all to admin" (`SUBMIT`), each admin gets one message with "Review now" (`REVIEW <seller id>`) and "Approve all" (`APPROVEALL <seller id>`).
-- **Handmade only:** a product appears in `MENU` only when it has a photo and an admin has approved it. A new photo sends it back for approval.
-- **Photos:** stored in the `Image` table (JPG, PNG or WebP, up to 5 MB) under a random key and served at `GET /images/<key>`.
-- **Stock:** `stock = null` means unlimited. Products that are out of stock or hidden do not appear in `MENU`. Cancelling an order puts the quantities back into stock.
-- **Order status:** each order item moves `PENDING`/`PAID` → `CONFIRMED` → `SHIPPED` → `DELIVERED`. The order itself takes a status once all of its items have it.
-- **Payments:** [src/paymentConfig.ts](src/paymentConfig.ts) chooses the method for new orders. `UPI_DIRECT` (the current setting) means the customer pays each seller's UPI ID directly. `COD` means cash on delivery, and a COD payment is marked `SUCCESS` when the order is delivered.
-- **UPI flow:** payment `INITIATED` → customer sends `PAID` → `AWAITING_CONFIRMATION` → seller sends `RECEIVED` (payment `SUCCESS`, order `PAID`) or `NOTRECEIVED` (back to `INITIATED`). A transaction number can be used for only one payment. Only the UPI ID is stored, never bank account or card numbers.
-- **Notifications:** customers, sellers and admins get a message when something changes for them (status updates, cancellations, seller requests). If a notification fails, the change is still saved.
+- **One seller per customer:** a customer belongs to the shop whose link or ID they last opened. The shop page only shows and sells that seller's products.
+- **Seller IDs:** 4 random digits, unique, made by the admin page (or when a `SELL` request is approved). The ID is the dashboard key (only from the seller's own phone) and the shop code.
+- **Languages:** English plus the language of the seller's state (Odisha → Odia, Assam → Assamese, Hindi-speaking states → Hindi, other states → English only).
+- **Handmade only:** a product is shown only when it has a photo and an admin has approved it. A new photo sends it back for approval.
+- **Photos:** stored in the `Image` table (JPG, PNG or WebP, up to 5 MB), served at `GET /images/<key>`. The dashboard shrinks phone photos before uploading.
+- **Stock:** `stock = null` means not counted. An order takes the stock; cancelling puts it back.
+- **Payments:** [src/paymentConfig.ts](src/paymentConfig.ts) sets `UPI_DIRECT`: the customer pays the seller's UPI ID directly; the platform never holds money. Only the UPI ID is stored, never bank or card numbers. A shop without a UPI ID shows "cannot take orders yet".
+- **UPI steps:** payment `INITIATED` → customer taps "I have paid" (`AWAITING_CONFIRMATION`) → seller: *Money received* (`SUCCESS`, order `PAID`) or *Not received* (back to `INITIATED`). A transaction number can be used for only one payment. An order can only be confirmed after the money is received.
+- **Order steps:** `PENDING`/`PAID` → `CONFIRMED` → `SHIPPED` → `DELIVERED`, each step only from the one before.
+- **Notifications:** customers get WhatsApp messages for news they cannot see on the page (payment received, confirmed, shipped, delivered); sellers get short notices with a dashboard button. If a notification fails, the change is still saved.
 
 ## Project structure
 
 ```
 prisma/
-  schema.prisma        Database models: User, Product, ProductTranslation, Cart,
-                       CartItem, Order, OrderItem, Payment, ProcessedMessage
+  schema.prisma        Database models: User, Category, Product, ProductTranslation, Cart,
+                       CartItem, Order, OrderItem, Payment, Image, ProcessedMessage
   migrations/          SQL migration history
-prisma.config.ts       Prisma CLI configuration
+scripts/
+  validate.sh          The validation test (see Testing)
+  validate-cleanup.sh  Removes the validation test's data
 src/
-  index.ts             Express server, webhook, all command handling and the shop page routes
-  shopPage.ts          The shop web page and the payment page (HTML for phone screens)
-  db.ts                Shared Prisma client
+  index.ts             Express server, webhook and chat handling, all web page routes
+  shopPage.ts          Shop page and payment page (HTML for phone screens)
+  sellerPage.ts        Seller dashboard
+  adminPage.ts         Admin dashboard
   whatsapp.ts          WhatsApp Cloud API: send text, photos, buttons and links; signature check
   images.ts            Save and load photos, UPI payment links and QR codes
   lang.ts              Current language (and shop) of the person a message is written for
+  db.ts                Shared Prisma client
   paymentConfig.ts     Active payment method
-  seed.ts              Sample seller and products
-  messages.ts          Language menu and main customer texts
-  *Text.ts             Translated texts for one feature each (address, buttons, cart,
-                       cancel, orders, payment, UPI flow, registration, seller, shop link,
-                       stock, web pages)
+  seed.ts              Sample seller and handmade products (npx ts-node src/seed.ts)
+  messages.ts          Language list and a few customer texts
+  *Text.ts             Translated texts for one feature each (buttons, dashboards, web pages,
+                       shop link, address, orders, payment, UPI steps, cancel, registration,
+                       seller, stock)
 ```
 
 ### Adding a language
 
-1. Add an entry to `LANGUAGES`, `WELCOME` and `TEXT` in [src/messages.ts](src/messages.ts).
+1. Add an entry to `LANGUAGES` and `CHOOSE_LANGUAGE` in [src/messages.ts](src/messages.ts).
 2. Add the same language code to each `*Text.ts` file.
 3. Product names fall back to the default name when a product has no translation for that language.
 
@@ -231,4 +218,4 @@ Edit [prisma/schema.prisma](prisma/schema.prisma), then:
 npx prisma migrate dev --name describe_the_change
 ```
 
-This creates the migration and regenerates the client. `migrate dev` needs an interactive terminal; in scripts or CI, write the migration SQL into a new `prisma/migrations/<timestamp>_<name>/` folder and run `npx prisma migrate deploy` and `npx prisma generate`.
+This creates the migration and regenerates the client. `migrate dev` needs an interactive terminal; in scripts, write the migration SQL into a new `prisma/migrations/<timestamp>_<name>/` folder and run `npx prisma migrate deploy` and `npx prisma generate`.

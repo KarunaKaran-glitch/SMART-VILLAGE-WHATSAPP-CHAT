@@ -73,10 +73,10 @@ const PAYMENT: Record<string, Record<string, string>> = {
 };
 
 export const MYORDERS_TEXT = {
-  en: { title: 'Your latest orders:', none: 'You have no orders yet. Reply MENU to shop.' },
-  hi: { title: 'आपके हाल के ऑर्डर:', none: 'आपका अभी कोई ऑर्डर नहीं है। खरीदारी के लिए MENU भेजें।' },
-  or: { title: 'ଆପଣଙ୍କ ସାମ୍ପ୍ରତିକ ଅର୍ଡର:', none: 'ଆପଣଙ୍କର ଏପର୍ଯ୍ୟନ୍ତ କୌଣସି ଅର୍ଡର ନାହିଁ। କିଣିବା ପାଇଁ MENU ପଠାନ୍ତୁ।' },
-  as: { title: 'আপোনাৰ শেহতীয়া অৰ্ডাৰ:', none: 'আপোনাৰ এতিয়ালৈকে কোনো অৰ্ডাৰ নাই। কিনিবলৈ MENU পঠিয়াওক।' },
+  en: { title: 'Your latest orders:', none: 'You have no orders yet. Tap "Shop now" to start shopping.' },
+  hi: { title: 'आपके हाल के ऑर्डर:', none: 'आपका अभी कोई ऑर्डर नहीं है। खरीदारी के लिए "अभी खरीदें" दबाएँ।' },
+  or: { title: 'ଆପଣଙ୍କ ସାମ୍ପ୍ରତିକ ଅର୍ଡର:', none: 'ଆପଣଙ୍କର ଏପର୍ଯ୍ୟନ୍ତ କୌଣସି ଅର୍ଡର ନାହିଁ। କିଣିବା ପାଇଁ "ବର୍ତ୍ତମାନ କିଣନ୍ତୁ" ଦବାନ୍ତୁ।' },
+  as: { title: 'আপোনাৰ শেহতীয়া অৰ্ডাৰ:', none: 'আপোনাৰ এতিয়ালৈকে কোনো অৰ্ডাৰ নাই। কিনিবলৈ "এতিয়াই কিনক" টিপক।' },
 };
 
 export function mo(language: string) {
