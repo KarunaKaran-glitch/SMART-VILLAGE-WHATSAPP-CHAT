@@ -29,6 +29,8 @@ export const BUTTON_TEXT = {
     cancelOrder: 'Cancel order',
     choose: 'Choose',
     more: 'More products',
+    noSuchShop: (code: string) =>
+      `Sorry, there is no shop with the code ${code}. Please check the number with your seller and try again (for example: Hi 1234).`,
     noShop:
       'Welcome! 😀\nTo shop, open the shop link your seller sent you, or send "Hi" and the shop code (for example: Hi KARNA).',
     shopNow: 'Shop now 🛍️',
@@ -86,6 +88,8 @@ export const BUTTON_TEXT = {
     cancelOrder: 'ऑर्डर रद्द करें',
     choose: 'चुनें',
     more: 'और उत्पाद',
+    noSuchShop: (code: string) =>
+      `माफ़ करें, ${code} कोड की कोई दुकान नहीं है। अपने विक्रेता से नंबर जाँचकर फिर कोशिश करें (जैसे: Hi 1234)।`,
     noShop:
       'स्वागत है! 😀\nखरीदारी के लिए अपने विक्रेता का भेजा हुआ दुकान लिंक खोलें, या "Hi" और दुकान कोड भेजें (जैसे: Hi KARNA)।',
     shopNow: 'अभी खरीदें 🛍️',
@@ -144,6 +148,8 @@ export const BUTTON_TEXT = {
     cancelOrder: 'ଅର୍ଡର ବାତିଲ',
     choose: 'ବାଛନ୍ତୁ',
     more: 'ଆହୁରି ଉତ୍ପାଦ',
+    noSuchShop: (code: string) =>
+      `ଦୁଃଖିତ, ${code} କୋଡ୍‌ର କୌଣସି ଦୋକାନ ନାହିଁ। ଆପଣଙ୍କ ବିକ୍ରେତାଙ୍କ ସହ ନମ୍ବର ମିଳାଇ ପୁଣି ଚେଷ୍ଟା କରନ୍ତୁ (ଯେପରି: Hi 1234)।`,
     noShop:
       'ସ୍ୱାଗତ! 😀\nକିଣିବା ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ପଠାଇଥିବା ଦୋକାନ ଲିଙ୍କ ଖୋଲନ୍ତୁ, କିମ୍ବା "Hi" ଓ ଦୋକାନ କୋଡ୍ ପଠାନ୍ତୁ (ଯେପରି: Hi KARNA)।',
     shopNow: 'ବର୍ତ୍ତମାନ କିଣନ୍ତୁ 🛍️',
@@ -202,6 +208,8 @@ export const BUTTON_TEXT = {
     cancelOrder: 'অৰ্ডাৰ বাতিল',
     choose: 'বাছক',
     more: 'আৰু সামগ্ৰী',
+    noSuchShop: (code: string) =>
+      `দুঃখিত, ${code} ক'ডৰ কোনো দোকান নাই। আপোনাৰ বিক্ৰেতাৰ পৰা নম্বৰটো মিলাই আকৌ চেষ্টা কৰক (যেনে: Hi 1234)।`,
     noShop:
       'স্বাগতম! 😀\nকিনিবলৈ আপোনাৰ বিক্ৰেতাই পঠোৱা দোকানৰ লিংক খোলক, নহয় "Hi" আৰু দোকানৰ ক\'ড পঠিয়াওক (যেনে: Hi KARNA)।',
     shopNow: 'এতিয়াই কিনক 🛍️',

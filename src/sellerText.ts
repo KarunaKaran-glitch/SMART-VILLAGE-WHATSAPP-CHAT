@@ -117,7 +117,7 @@ const en = {
     (ref
       ? `UPI transaction number: ${ref}\n`
       : `Look for a payment of ₹${amount} with the note "Order ${orderId}".\n`) +
-    'Check your bank or UPI app, then tap Received or Not received.',
+    'Check your bank or UPI app, then answer on your dashboard (Money received or Not received).',
   needPayment: (orderId: number) =>
     `Order #${orderId} is not paid yet. Wait for the customer to pay by UPI and tap "I have paid", check your bank app, then tap Received.`,
   receivedDone: (orderId: number) =>
@@ -245,7 +245,7 @@ const hi: typeof en = {
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `ग्राहक कहता है कि उसने ऑर्डर #${orderId} के लिए ₹${amount} भेजे हैं।\n` +
     (ref ? `UPI ट्रांजैक्शन नंबर: ${ref}\n` : `₹${amount} का भुगतान "Order ${orderId}" नोट के साथ देखें।\n`) +
-    'अपना बैंक या UPI ऐप देखें, फिर "मिल गया" या "नहीं मिला" पर टैप करें।',
+    'अपना बैंक या UPI ऐप देखें, फिर अपने डैशबोर्ड पर जवाब दें (पैसा मिल गया या नहीं मिला)।',
   needPayment: (orderId: number) =>
     `ऑर्डर #${orderId} का भुगतान अभी नहीं हुआ। ग्राहक के UPI भुगतान और "मैंने भुगतान किया" का इंतज़ार करें, बैंक ऐप देखें, फिर "मिल गया" पर टैप करें।`,
   receivedDone: (orderId: number) =>
@@ -371,7 +371,7 @@ const or: typeof en = {
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `ଗ୍ରାହକ କହୁଛନ୍ତି ସେ ଅର୍ଡର #${orderId} ପାଇଁ ₹${amount} ଦେଇଛନ୍ତି।\n` +
     (ref ? `UPI ଟ୍ରାନଜାକସନ ନମ୍ବର: ${ref}\n` : `"Order ${orderId}" ନୋଟ ସହ ₹${amount} ର ପେମେଣ୍ଟ ଖୋଜନ୍ତୁ।\n`) +
-    'ଆପଣଙ୍କ ବ୍ୟାଙ୍କ ବା UPI ଆପ ଦେଖନ୍ତୁ, ତା\'ପରେ "ମିଳିଲା" ବା "ମିଳିନାହିଁ" ଟ୍ୟାପ୍ କରନ୍ତୁ।',
+    "ଆପଣଙ୍କ ବ୍ୟାଙ୍କ ବା UPI ଆପ ଦେଖନ୍ତୁ, ତା'ପରେ ଆପଣଙ୍କ ଡ୍ୟାସବୋର୍ଡରେ ଉତ୍ତର ଦିଅନ୍ତୁ (ପଇସା ମିଳିଲା ବା ମିଳିନି)।",
   needPayment: (orderId: number) =>
     `ଅର୍ଡର #${orderId} ର ପଇସା ଏପର୍ଯ୍ୟନ୍ତ ଆସିନାହିଁ। ଗ୍ରାହକ UPI ରେ ପଇସା ଦେଇ "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରିବା ପର୍ଯ୍ୟନ୍ତ ଅପେକ୍ଷା କରନ୍ତୁ, ବ୍ୟାଙ୍କ ଆପ ଦେଖନ୍ତୁ, ତା'ପରେ "ମିଳିଲା" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
   receivedDone: (orderId: number) =>
@@ -497,7 +497,7 @@ const as: typeof en = {
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `গ্ৰাহকে কৈছে যে অৰ্ডাৰ #${orderId} ৰ বাবে ₹${amount} দিছে।\n` +
     (ref ? `UPI লেনদেন নম্বৰ: ${ref}\n` : `"Order ${orderId}" টোকাৰে ₹${amount} ৰ পৰিশোধ বিচাৰক।\n`) +
-    'আপোনাৰ বেংক বা UPI এপ চাওক, তাৰ পিছত "পালোঁ" বা "পোৱা নাই" টিপক।',
+    'আপোনাৰ বেংক বা UPI এপ চাওক, তাৰ পিছত আপোনাৰ ডেশ্বব’ৰ্ডত উত্তৰ দিয়ক (ধন পালোঁ বা পোৱা নাই)।',
   needPayment: (orderId: number) =>
     `অৰ্ডাৰ #${orderId} ৰ ধন এতিয়াও অহা নাই। গ্ৰাহকে UPI ৰে ধন দি "মই ধন দিলোঁ" টিপালৈকে অপেক্ষা কৰক, বেংক এপ চাওক, তাৰ পিছত "পালোঁ" টিপক।`,
   receivedDone: (orderId: number) =>

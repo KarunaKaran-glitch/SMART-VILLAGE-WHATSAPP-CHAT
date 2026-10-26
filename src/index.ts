@@ -214,6 +214,9 @@ async function categoryRows(language: string, idPrefix: string): Promise<Row[]> 
 // The language question. A customer who came through a seller's link sees only English
 // and the language of that seller's state (as buttons); everyone else sees the full list.
 function languageReply(shopLanguage?: string | null): RichReply {
+  if (shopLanguage === 'en') {
+    return { text: 'Please choose your language 👇', buttons: [{ id: '1', title: LANGUAGES['1'].label }] };
+  }
   const local = Object.entries(LANGUAGES).find(([, l]) => l.code === shopLanguage && l.code !== 'en');
   if (local) {
     return {
@@ -309,14 +312,8 @@ function welcomeReply(language: string, text?: string): RichReply {
       ],
     };
   }
-  // No shop link: there is no shared marketplace to browse, so explain how to open a shop
-  return {
-    text: text ?? B.noShop,
-    buttons: [
-      { id: 'MYORDERS', title: B.myOrders },
-      { id: 'MAINMENU', title: B.menu },
-    ],
-  };
+  // No shop link: there is no shared marketplace to browse, so only explain how to open a shop
+  return { text: text ?? B.noShop };
 }
 
 // The first screen after "hi" depends on the role: sellers and admins see their own work first
@@ -328,11 +325,7 @@ function homeReply(user: { language: string; role: string }): RichReply {
       // Sellers work on their dashboard page; the chat is the way in
       return {
         text: dt(user.language).sellerHome,
-        buttons: [
-          { id: 'DASHBOARD', title: dt(user.language).btnMyDashboard },
-          { id: 'MYORDERS', title: SELLER_TEXT.btnOrders },
-          { id: 'SELLER', title: SELLER_TEXT.btnMenu },
-        ],
+        buttons: [{ id: 'DASHBOARD', title: dt(user.language).btnMyDashboard }],
       };
     }
     if (user.role === 'ADMIN') {
@@ -365,11 +358,8 @@ function withNav(role: string, reply: Reply): Reply {
   if (role === 'SELLER') {
     return {
       ...rich,
-      buttons: [
-        { id: 'DASHBOARD', title: dt(currentLang()).btnMyDashboard },
-        { id: 'MYPRODUCTS', title: SELLER_TEXT.rowProducts },
-        { id: 'SELLER', title: SELLER_TEXT.btnMenu },
-      ],
+      // Sellers do everything on their dashboard page
+      buttons: [{ id: 'DASHBOARD', title: dt(currentLang()).btnMyDashboard }],
     };
   }
   if (role === 'ADMIN') {
@@ -502,9 +492,9 @@ async function customerOrders(userId: number, language: string): Promise<string>
 }
 
 // The different sellers of some order items, with the language each one reads
-function sellersOf(items: { seller: { phone: string; language: string } }[]) {
-  const byPhone = new Map(items.map((i) => [i.seller.phone, i.seller.language]));
-  return [...byPhone].map(([phone, language]) => ({ phone, language }));
+function sellersOf(items: { seller: { id: number; phone: string; language: string } }[]) {
+  const byId = new Map(items.map((i) => [i.seller.id, i.seller]));
+  return [...byId.values()].map((s) => ({ id: s.id, phone: s.phone, language: s.language }));
 }
 
 // Customer cancels an order, only while every item is still PENDING
@@ -613,17 +603,10 @@ async function reportPaid(
 
   // Tell the seller. A failure here must not undo the report.
   try {
+    // A short notice with one button to the dashboard, where the seller answers
     for (const s of sellersOf(order.items)) {
-      await sendReply(
-        s.phone,
-        inLang(s.language, () => ({
-          text: SELLER_TEXT.paymentReported(orderId, Number(payment.amount), ref),
-          buttons: [
-            { id: `RECEIVED ${orderId}`, title: STAFF_BUTTONS.received },
-            { id: `NOTRECEIVED ${orderId}`, title: STAFF_BUTTONS.notReceived },
-          ],
-        }))
-      );
+      const text = inLang(s.language, () => SELLER_TEXT.paymentReported(orderId, Number(payment.amount), ref));
+      await sendReply(s.phone, await sellerDashboardReply(s.id, s.language, text));
     }
   } catch (err) {
     console.error('Seller payment notice failed:', err);
@@ -718,6 +701,7 @@ class StockError extends Error {
 // and tells each seller
 type Placed = {
   orderId: number;
+  sellerId: number;
   sellerPhone: string;
   sellerLanguage: string;
   shop: string;
@@ -801,6 +785,7 @@ async function createOrders(
         });
         results.push({
           orderId: created.id,
+          sellerId: seller.id,
           sellerPhone: seller.phone,
           sellerLanguage: seller.language,
           shop: seller.shopName ?? seller.phone,
@@ -833,16 +818,14 @@ async function createOrders(
   try {
     const customer = await prisma.user.findUnique({ where: { id: userId } });
     for (const p of placed) {
-      await sendReply(
-        p.sellerPhone,
-        inLang(p.sellerLanguage, () => {
-          const note = ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT' ? SELLER_TEXT.upiNote : SELLER_TEXT.codNote;
-          const customerLabel =
-            `${customer?.name ?? SELLER_TEXT.customer} (${customer?.phone})\n` +
-            `${SELLER_TEXT.deliverTo}: ${address}`;
-          return SELLER_TEXT.newOrder(p.orderId, [...p.lines, note], customerLabel);
-        })
-      );
+      const text = inLang(p.sellerLanguage, () => {
+        const note = ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT' ? SELLER_TEXT.upiNote : SELLER_TEXT.codNote;
+        const customerLabel =
+          `${customer?.name ?? SELLER_TEXT.customer} (${customer?.phone})\n` +
+          `${SELLER_TEXT.deliverTo}: ${address}`;
+        return SELLER_TEXT.newOrder(p.orderId, [...p.lines, note], customerLabel);
+      });
+      await sendReply(p.sellerPhone, await sellerDashboardReply(p.sellerId, p.sellerLanguage, text));
     }
   } catch (err) {
     console.error('Seller notification failed:', err);
@@ -1468,6 +1451,7 @@ app.get('/shop/:code', async (req: Request, res: Response) => {
       shopName: shop.shopName ?? shop.shopCode ?? '',
       token: String(req.query.t),
       address: customer.address ?? '',
+      canOrder: ACTIVE_PAYMENT_METHOD !== 'UPI_DIRECT' || Boolean(shop.upiId),
       products: products.map((p) => ({
         id: p.id,
         name: localName(p, customer.language),
@@ -1488,6 +1472,21 @@ async function newDashToken(userId: number): Promise<string> {
   const token = crypto.randomBytes(18).toString('base64url');
   await prisma.user.update({ where: { id: userId }, data: { dashToken: token, dashTokenAt: new Date() } });
   return token;
+}
+
+// The dashboard secret to put in a link: the current one while it still has 4+ hours left
+// (so a dashboard page the person has open keeps working), otherwise a new one
+async function currentDashToken(userId: number): Promise<string> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { dashToken: true, dashTokenAt: true } });
+  const ageHours = user?.dashTokenAt ? (Date.now() - user.dashTokenAt.getTime()) / 3600000 : Infinity;
+  if (user?.dashToken && ageHours < WEB_TOKEN_HOURS - 4) return user.dashToken;
+  return newDashToken(userId);
+}
+
+// A seller message with one button that opens their dashboard (sellers work on the page)
+async function sellerDashboardReply(sellerId: number, language: string, text: string): Promise<RichReply> {
+  const token = await currentDashToken(sellerId);
+  return { text, link: { title: dt(language).btnMyDashboard, url: publicUrl(`/seller?t=${token}`) } };
 }
 
 // The admin or seller who owns this dashboard link, if the secret is right and fresh
@@ -1620,11 +1619,14 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
       return;
     }
     const W = dt(admin.language);
-    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
-    const shopName = typeof req.body.shopName === 'string' ? req.body.shopName.trim() : '';
+    // Extra spaces and line breaks inside names become one space
+    const name = typeof req.body.name === 'string' ? req.body.name.replace(/\s+/g, ' ').trim() : '';
+    const shopName = typeof req.body.shopName === 'string' ? req.body.shopName.replace(/\s+/g, ' ').trim() : '';
     const digits = typeof req.body.phone === 'string' ? req.body.phone.replace(/\D/g, '') : '';
-    // A 10-digit Indian number is stored with the 91 country code, like WhatsApp sends it
-    const phone = digits.length === 10 ? `91${digits}` : digits;
+    // A 10-digit Indian number is stored with the 91 country code, like WhatsApp sends it;
+    // a 0 in front (09876543210) is how many people write a mobile number
+    const local = digits.length === 11 && digits.startsWith('0') ? digits.slice(1) : digits;
+    const phone = local.length === 10 ? `91${local}` : local;
     const shopLanguage = ['en', 'hi', 'or', 'as'].includes(req.body.shopLanguage) ? req.body.shopLanguage : 'en';
     const category = await prisma.category.findUnique({ where: { id: Number(req.body.categoryId) || 0 } });
 
@@ -1852,7 +1854,7 @@ app.post('/seller/products', async (req: Request, res: Response) => {
       return;
     }
     const W = dt(seller.language);
-    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const name = typeof req.body.name === 'string' ? req.body.name.replace(/\s+/g, ' ').trim() : '';
     const price = Math.round(Number(req.body.price) * 100) / 100;
     const description = typeof req.body.description === 'string' ? req.body.description.trim() : '';
     const photo = decodePhoto(req.body.photo);
@@ -2207,12 +2209,38 @@ async function handleWebhook(body: any) {
     const user = await prisma.user.findUnique({ where: { phone } });
 
     // "Hi KARNA": the customer came through a seller's shop link
-    const shopMatch = command.match(/^(?:HI|HELLO|HAI)\s+([A-Z0-9]{2,12})$/);
-    const shop = shopMatch
-      ? await prisma.user.findFirst({ where: { shopCode: shopMatch[1], role: 'SELLER' } })
-      : null;
+    // A bare 4-digit number is also a shop ID (people often send just the number), but only
+    // while the person is not typing something else (a price, an address) and not when a seller
+    // sends their own ID (that opens their dashboard, below)
+    const hiCode = command.match(/^(?:HI|HELLO|HAI)\s+([A-Z0-9]{2,12})$/)?.[1];
+    const bareCode =
+      /^\d{4}$/.test(command) &&
+      (!user || user.state === 'BROWSING' || user.state === 'CHOOSING_LANGUAGE') &&
+      !(user?.role === 'SELLER' && user.shopCode === command)
+        ? command
+        : undefined;
+    const askedCode = hiCode ?? bareCode;
+    const shopMatch = askedCode ? [askedCode, askedCode] : null;
+    const shop = askedCode ? await prisma.user.findFirst({ where: { shopCode: askedCode, role: 'SELLER' } }) : null;
     // A seller in an English-only state: no language question
     const englishOnly = shop?.shopLanguage === 'en';
+
+    // "Hi 5918" with a number that is no shop's ID: say so, and forget the shop the person had
+    // before, so nothing quietly opens a shop they did not ask for.
+    // Words ("Hi there") are not shop IDs and get the normal welcome below.
+    if (shopMatch && !shop && /^\d{3,6}$/.test(shopMatch[1])) {
+      const lang = user?.language ?? 'en';
+      if (user) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { shopId: null, webToken: null, state: user.state === 'CHOOSING_LANGUAGE' ? 'BROWSING' : user.state },
+        });
+      } else {
+        await prisma.user.create({ data: { phone, name, language: 'en', state: 'BROWSING' } });
+      }
+      await sendReply(phone, bt(lang).noSuchShop(shopMatch[1]));
+      return;
+    }
     if (shop) setShop(shop.shopName ?? shop.shopCode ?? undefined);
 
     // New customer: save them and ask for a language
@@ -2252,7 +2280,7 @@ async function handleWebhook(body: any) {
     const myShop = user.shopId
       ? await prisma.user.findUnique({
           where: { id: user.shopId },
-          select: { shopName: true, shopCode: true, role: true },
+          select: { shopName: true, shopCode: true, role: true, shopLanguage: true },
         })
       : null;
     if (myShop?.role === 'SELLER') setShop(myShop.shopName ?? myShop.shopCode ?? undefined);
@@ -2273,11 +2301,7 @@ async function handleWebhook(body: any) {
     // A seller sends their own unique ID (or taps [My dashboard]): the link to their dashboard.
     // Only from the seller's own phone; from anyone else the number means nothing special.
     if (user.role === 'SELLER' && (command === 'DASHBOARD' || (user.shopCode && command === user.shopCode))) {
-      const token = await newDashToken(user.id);
-      await sendReply(phone, {
-        text: dt(user.language).openSeller,
-        link: { title: dt(user.language).clickHere, url: publicUrl(`/seller?t=${token}`) },
-      });
+      await sendReply(phone, await sellerDashboardReply(user.id, user.language, dt(user.language).openSeller));
       return;
     }
 
@@ -2954,8 +2978,11 @@ async function handleWebhook(body: any) {
 
     // ---- State: choosing a language ----
     if (user.state === 'CHOOSING_LANGUAGE') {
+      // Through a shop link only the offered languages count (English + the shop's state language)
+      const offered =
+        myShop?.role === 'SELLER' && myShop.shopLanguage ? ['en', myShop.shopLanguage] : null;
       const chosen = LANGUAGES[text];
-      if (!chosen) {
+      if (!chosen || (offered && !offered.includes(chosen.code))) {
         await sendReply(phone, await languageReplyFor(user));
         return;
       }
@@ -3165,7 +3192,12 @@ async function handleWebhook(body: any) {
       return;
     }
 
-    // Anything else (for example "hi"): the home screen for this person's role
+    // Anything else (for example "hi"): the home screen for this person's role.
+    // A seller gets their dashboard link straight away.
+    if (user.role === 'SELLER') {
+      await sendReply(phone, await sellerDashboardReply(user.id, user.language, dt(user.language).sellerHome));
+      return;
+    }
     await sendReply(phone, homeReply(user));
   } catch (err) {
     // Forget this message ID so Meta's retry can be processed

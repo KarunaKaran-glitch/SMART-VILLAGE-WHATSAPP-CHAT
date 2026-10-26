@@ -50,6 +50,7 @@ h2{font-size:1.05rem;margin:18px 4px 8px}
 .stepper button{border:0;background:var(--brand);color:var(--brand-ink);width:34px;height:32px;font-size:1.2rem}
 .stepper span{min-width:34px;text-align:center;font-weight:700}
 .box{background:var(--card);border-radius:12px;padding:12px}
+.warnbox{border:2px solid #e0a800;background:#fff8e1;margin-bottom:8px}
 textarea{width:100%;min-height:76px;border:1.5px solid var(--line);border-radius:8px;padding:8px;font:inherit;resize:vertical}
 .bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
 .bar .inner{max-width:520px;margin:auto}
@@ -78,16 +79,19 @@ export function renderShopPage(data: {
   token: string;
   address: string;
   products: ShopPageProduct[];
+  canOrder: boolean; // false while the seller has no UPI ID: products are shown, ordering is not
 }): string {
   const W = wt(data.language);
+  const ordering = data.canOrder && data.products.length > 0;
 
   const cards = data.products
     .map((p) => {
       const photo = p.imageUrl
         ? `<img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">`
         : '<div class="noimg"></div>';
-      const action =
-        p.maxQty > 0
+      const action = !data.canOrder
+        ? ''
+        : p.maxQty > 0
           ? `<div class="qty" data-id="${p.id}"></div>`
           : `<span class="soldout">${escapeHtml(W.soldOut)}</span>`;
       return (
@@ -179,11 +183,13 @@ go.addEventListener('click', async () => {
 update();
 `;
 
-  const body = data.products.length
-    ? `<h2>${escapeHtml(W.chooseProducts)}</h2>${cards}` +
-      `<h2>${escapeHtml(W.address)}</h2><div class="box">` +
-      `<textarea id="address" maxlength="200" placeholder="${escapeHtml(W.addressHint)}">${escapeHtml(data.address)}</textarea></div>`
-    : `<div class="box">${escapeHtml(W.noProducts)}</div>`;
+  const body = !data.products.length
+    ? `<div class="box">${escapeHtml(W.noProducts)}</div>`
+    : !data.canOrder
+      ? `<div class="box warnbox">⚠️ ${escapeHtml(W.notReady)}</div><h2>${escapeHtml(W.chooseProducts)}</h2>${cards}`
+      : `<h2>${escapeHtml(W.chooseProducts)}</h2>${cards}` +
+        `<h2>${escapeHtml(W.address)}</h2><div class="box">` +
+        `<textarea id="address" maxlength="200" placeholder="${escapeHtml(W.addressHint)}">${escapeHtml(data.address)}</textarea></div>`;
 
   return (
     `<!doctype html><html lang="${escapeHtml(data.language)}"><head><meta charset="utf-8">` +
@@ -192,7 +198,7 @@ update();
     `<div class="banner"><h1>${escapeHtml(data.shopName)}</h1><span class="chip">🚚 ${escapeHtml(W.freeDelivery)}</span></div>` +
     body +
     '</main>' +
-    (data.products.length
+    (ordering
       ? '<div class="bar"><div class="inner"><p class="msg" id="msg"></p>' +
         `<div class="sum"><span id="count"></span><span>${escapeHtml(W.total)}: <b id="total">₹0</b></span></div>` +
         `<button type="button" class="go" id="go">${escapeHtml(W.continue)}</button></div></div>` +
