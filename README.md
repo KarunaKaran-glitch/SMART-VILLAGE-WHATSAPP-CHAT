@@ -21,7 +21,7 @@ Meta sends each incoming WhatsApp message to `POST /webhook`. The server:
 
 `GET /webhook` answers Meta's one-time verification check using `VERIFY_TOKEN`.
 
-`GET /shop/<code>?t=<secret>` is the shop web page opened from the [Click here] button.
+`GET /shop/<code>?t=<secret>` is the shop web page opened from the [Click here] button: the seller's approved products with photos, – / + quantity, the total and the delivery address ([src/shopPage.ts](src/shopPage.ts), texts in [src/webText.ts](src/webText.ts)). Its [Continue] button calls `POST /shop/<code>/order`, which places one order for that seller (same stock checks and seller notice as the chat order), and the payment details are sent to the customer's WhatsApp.
 
 ## Getting started
 

@@ -28,6 +28,8 @@ import {
 } from './whatsapp';
 import { getImage, imageUrl, makeUpiQr, publicUrl, saveImage } from './images';
 import crypto from 'crypto';
+import { renderShopPage, simplePage } from './shopPage';
+import { wt } from './webText';
 
 const app = express();
 // Keep the raw request body: the Meta signature is calculated over the exact bytes.
@@ -916,14 +918,30 @@ class StockError extends Error {
 
 // Turns the cart into one order per seller (each with a payment), empties the cart,
 // and tells each seller
-async function placeOrder(userId: number, language: string, address: string): Promise<Reply> {
+type Placed = {
+  orderId: number;
+  sellerPhone: string;
+  sellerLanguage: string;
+  shop: string;
+  upiId: string | null;
+  total: number;
+  lines: string[];
+};
+
+// Turns the cart into orders (one per seller), takes the stock and tells each seller.
+// Used by the chat (PLACEORDER) and by the shop web page.
+async function createOrders(
+  userId: number,
+  language: string,
+  address: string
+): Promise<{ error: string } | { placed: Placed[] }> {
   const T = t(language);
   const P = pay(language);
   const cart = await prisma.cart.findUnique({
     where: { customerId: userId },
     include: { items: { include: { product: { include: { seller: true } } } } },
   });
-  if (!cart || cart.items.length === 0) return T.emptyCart;
+  if (!cart || cart.items.length === 0) return { error: T.emptyCart };
 
   // Group the cart by seller: one order per seller
   const groups = new Map<number, typeof cart.items>();
@@ -937,19 +955,9 @@ async function placeOrder(userId: number, language: string, address: string): Pr
   if (ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT') {
     for (const items of groups.values()) {
       const seller = items[0].product.seller;
-      if (!seller.upiId) return P.noUpi(seller.shopName ?? 'seller');
+      if (!seller.upiId) return { error: P.noUpi(seller.shopName ?? 'seller') };
     }
   }
-
-  type Placed = {
-    orderId: number;
-    sellerPhone: string;
-    sellerLanguage: string;
-    shop: string;
-    upiId: string | null;
-    total: number;
-    lines: string[];
-  };
 
   let placed: Placed[] = [];
   try {
@@ -1015,10 +1023,10 @@ async function placeOrder(userId: number, language: string, address: string): Pr
         where: { id: err.productId },
         include: { translations: true },
       });
-      if (!p) return T.invalidProduct;
+      if (!p) return { error: T.invalidProduct };
       const label = localName(p, language);
       const left = p.isActive && p.approval === 'APPROVED' ? (p.stock ?? 0) : 0;
-      return left > 0 ? st(language).notEnough(label, left) : st(language).unavailable(label);
+      return { error: left > 0 ? st(language).notEnough(label, left) : st(language).unavailable(label) };
     }
     throw err;
   }
@@ -1041,8 +1049,18 @@ async function placeOrder(userId: number, language: string, address: string): Pr
   } catch (err) {
     console.error('Seller notification failed:', err);
   }
+  return { placed };
+}
 
-  // Tell the customer how to pay: one message per seller, with Show QR / I have paid buttons
+async function placeOrder(userId: number, language: string, address: string): Promise<Reply> {
+  const result = await createOrders(userId, language, address);
+  if ('error' in result) return result.error;
+  return paymentReply(language, result.placed);
+}
+
+// Tells the customer how to pay: one message per seller, with Show QR / I have paid buttons
+function paymentReply(language: string, placed: Placed[]): Reply {
+  const P = pay(language);
   if (ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT') {
     const B = bt(language);
     return placed.map((p, i) => ({
@@ -1648,21 +1666,6 @@ app.get('/images/:key', async (req: Request, res: Response) => {
 
 const WEB_TOKEN_HOURS = 24;
 
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-}
-
-function simplePage(title: string, message: string): string {
-  return (
-    '<!doctype html><html><head><meta charset="utf-8">' +
-    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-    `<title>${escapeHtml(title)}</title>` +
-    '<style>body{font-family:system-ui,sans-serif;margin:0;padding:24px 16px;background:#e8f5ee;color:#1d2b24}' +
-    'main{max-width:480px;margin:auto;background:#fff;border-radius:12px;padding:20px}</style></head>' +
-    `<body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p></main></body></html>`
-  );
-}
-
 // The customer who owns this link, if the secret is right and not older than 24 hours
 async function shopVisitor(code: string, token: unknown) {
   if (typeof token !== 'string' || token.length < 20) return null;
@@ -1683,11 +1686,108 @@ app.get('/shop/:code', async (req: Request, res: Response) => {
       .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and tap "Shop now" again.'));
     return;
   }
-  // Step 3 shows the products here
-  const shopName = visit.shop.shopName ?? visit.shop.shopCode ?? '';
+  const { customer, shop } = visit;
+  const products = await shopProducts(shop.id);
+  const botNumber = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
   res.send(
-    simplePage(shopName, `Hello ${visit.customer.name ?? ''}! The products of ${shopName} will be shown here soon.`)
+    renderShopPage({
+      language: customer.language,
+      shopName: shop.shopName ?? shop.shopCode ?? '',
+      code: shop.shopCode ?? '',
+      token: String(req.query.t),
+      address: customer.address ?? '',
+      whatsAppLink: botNumber ? `https://wa.me/${botNumber}` : null,
+      products: products.map((p) => ({
+        id: p.id,
+        name: localName(p, customer.language),
+        description: p.description,
+        price: Number(p.price),
+        imageUrl: p.imageKey ? `/images/${p.imageKey}` : null,
+        maxQty: p.stock === null ? 99 : Math.min(p.stock, 99),
+        left: p.stock !== null && p.stock <= 5 ? p.stock : null,
+      })),
+    })
   );
+});
+
+// The products a shop shows on its page: approved, not hidden, with a photo
+function shopProducts(sellerId: number) {
+  return prisma.product.findMany({
+    where: { sellerId, isActive: true, approval: 'APPROVED', imageKey: { not: null } },
+    include: { translations: true },
+    orderBy: { id: 'asc' },
+  });
+}
+
+// [Continue] on the shop page: { t, items: [{ id, qty }], address } -> one order for this shop.
+// The page's choice replaces the customer's cart, then the normal order steps run
+// (stock check, seller notice). The payment details are sent to the customer's WhatsApp.
+app.post('/shop/:code/order', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const visit = await shopVisitor(String(req.params.code).toUpperCase(), req.body?.t);
+    if (!visit) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const { customer, shop } = visit;
+    const W = wt(customer.language);
+
+    const address = typeof req.body.address === 'string' ? req.body.address.trim() : '';
+    if (address.length < 10 || address.length > 200) {
+      res.status(400).json({ ok: false, error: W.addressInvalid });
+      return;
+    }
+    const rawItems: unknown[] = Array.isArray(req.body.items) ? req.body.items.slice(0, 50) : [];
+    const wanted = new Map<number, number>();
+    for (const it of rawItems as { id?: unknown; qty?: unknown }[]) {
+      const id = Number(it?.id);
+      const qty = Number(it?.qty);
+      if (Number.isInteger(id) && Number.isInteger(qty) && qty >= 1 && qty <= 99) wanted.set(id, qty);
+    }
+    // Only this shop's visible products count
+    const allowed = new Set((await shopProducts(shop.id)).map((p) => p.id));
+    const items = [...wanted].filter(([id]) => allowed.has(id));
+    if (items.length === 0) {
+      res.status(400).json({ ok: false, error: W.pickOne });
+      return;
+    }
+
+    const cart = await prisma.cart.upsert({
+      where: { customerId: customer.id },
+      create: { customerId: customer.id },
+      update: {},
+    });
+    await prisma.$transaction([
+      prisma.cartItem.deleteMany({ where: { cartId: cart.id } }),
+      prisma.cartItem.createMany({
+        data: items.map(([productId, quantity]) => ({ cartId: cart.id, productId, quantity })),
+      }),
+      prisma.user.update({
+        where: { id: customer.id },
+        data: { address, state: 'BROWSING', pendingProductId: null },
+      }),
+    ]);
+
+    const result = await inLang(customer.language, () => createOrders(customer.id, customer.language, address));
+    if ('error' in result) {
+      res.status(409).json({ ok: false, error: result.error });
+      return;
+    }
+    const order = result.placed[0];
+    console.log(`Web order #${order.orderId} from ${maskDigits(customer.phone)} for ${shop.shopCode}`);
+
+    // The payment details also go to the customer's WhatsApp (Step 4 shows them on the page)
+    try {
+      await sendReply(customer.phone, inLang(customer.language, () => paymentReply(customer.language, result.placed)));
+    } catch (err) {
+      console.error('Customer payment message failed:', err);
+    }
+    res.json({ ok: true, orderId: order.orderId, total: order.total });
+  } catch (err) {
+    console.error('Web order failed:', err);
+    res.status(500).json({ ok: false });
+  }
 });
 
 // Meta calls this once to verify your webhook
