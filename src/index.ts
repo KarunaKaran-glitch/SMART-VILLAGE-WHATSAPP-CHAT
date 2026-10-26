@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import { prisma } from './db';
-import { LANGUAGES, t } from './messages';
+import { CHOOSE_LANGUAGE, LANGUAGES, t } from './messages';
+import { SHOP_TEXT } from './shopText';
 import { ot } from './orderText';
 import { SELLER_TEXT } from './sellerText';
 import { ct } from './cartEditText';
@@ -236,7 +237,19 @@ async function cartText(userId: number, language: string, withHint = true): Prom
 
 // ---- Tap screens (buttons and lists) ----
 
-function languageReply(): RichReply {
+// The language question. A customer who came through a seller's link sees only English
+// and the language of that seller's state (as buttons); everyone else sees the full list.
+function languageReply(shopLanguage?: string | null): RichReply {
+  const local = Object.entries(LANGUAGES).find(([, l]) => l.code === shopLanguage && l.code !== 'en');
+  if (local) {
+    return {
+      text: `Please choose your language 👇\n${CHOOSE_LANGUAGE[local[1].code]}`,
+      buttons: [
+        { id: '1', title: LANGUAGES['1'].label },
+        { id: local[0], title: local[1].label },
+      ],
+    };
+  }
   return {
     text:
       'Welcome! Please choose your language.\n' +
@@ -247,6 +260,63 @@ function languageReply(): RichReply {
       button: 'Language / भाषा',
       rows: Object.entries(LANGUAGES).map(([num, l]) => ({ id: num, title: l.label })),
     },
+  };
+}
+
+// The language list for this person: limited to their seller's languages if they came by a link
+async function languageReplyFor(user: { shopId: number | null }): Promise<RichReply> {
+  const shop = user.shopId
+    ? await prisma.user.findUnique({ where: { id: user.shopId }, select: { shopLanguage: true } })
+    : null;
+  return languageReply(shop?.shopLanguage);
+}
+
+// ---- Seller's own shop link ----
+
+// The seller's shop code, made from the shop name the first time it is needed (KARNA, RAVIBAGS ...)
+async function ensureShopCode(seller: { id: number; shopName: string | null; shopCode: string | null }) {
+  if (seller.shopCode) return seller.shopCode;
+  const base = (seller.shopName ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+  let code = base.length >= 3 && base !== 'SHOP' ? base : `SHOP${seller.id}`;
+  if (await prisma.user.findUnique({ where: { shopCode: code } })) code = `${code.slice(0, 8)}${seller.id}`;
+  await prisma.user.update({ where: { id: seller.id }, data: { shopCode: code } });
+  return code;
+}
+
+// "Which state is your shop in?" (the state decides the customers' second language)
+function shopStateReply(): RichReply {
+  return {
+    text: SHOP_TEXT.askState,
+    list: {
+      button: SHOP_TEXT.btnChooseState,
+      rows: [
+        { id: 'SHOPLANG OR', title: SHOP_TEXT.stateOdisha, description: SHOP_TEXT.withEnglish(LANGUAGES['3'].label) },
+        { id: 'SHOPLANG AS', title: SHOP_TEXT.stateAssam, description: SHOP_TEXT.withEnglish(LANGUAGES['4'].label) },
+        { id: 'SHOPLANG HI', title: SHOP_TEXT.stateHindi, description: SHOP_TEXT.stateHindiDesc },
+        { id: 'SHOPLANG EN', title: SHOP_TEXT.stateOther, description: SHOP_TEXT.stateOtherDesc },
+      ],
+    },
+  };
+}
+
+// The seller's link to share: wa.me/<bot number>?text=Hi <code>. WHATSAPP_BOT_NUMBER is the
+// bot's own number with country code (digits only); without it the seller gets only the code.
+async function shopLinkReply(
+  seller: { id: number; shopName: string | null; shopCode: string | null },
+  prefix?: string
+): Promise<RichReply> {
+  const code = await ensureShopCode(seller);
+  const shop = seller.shopName ?? '-';
+  const botNumber = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
+  const text = botNumber
+    ? SHOP_TEXT.link(shop, code, `https://wa.me/${botNumber}?text=${encodeURIComponent(`Hi ${code}`)}`)
+    : SHOP_TEXT.linkNoUrl(shop, code);
+  return {
+    text: prefix ? `${prefix}\n\n${text}` : text,
+    buttons: [
+      { id: 'SHOPSTATE', title: SHOP_TEXT.btnChangeState },
+      { id: 'SELLER', title: SELLER_TEXT.btnMenu },
+    ],
   };
 }
 
@@ -1060,13 +1130,17 @@ async function decideSeller(applicantId: number, approve: boolean): Promise<stri
       applicant.phone,
       inLang(applicant.language, () =>
         approve
-          ? {
-              text: REG_TEXT.approvedNotice(applicant.shopName ?? '-'),
-              buttons: [
-                { id: 'ADD', title: SELLER_TEXT.btnAdd },
-                { id: 'SELLER', title: SELLER_TEXT.btnMenu },
-              ],
-            }
+          ? [
+              {
+                text: REG_TEXT.approvedNotice(applicant.shopName ?? '-'),
+                buttons: [
+                  { id: 'ADD', title: SELLER_TEXT.btnAdd },
+                  { id: 'SELLER', title: SELLER_TEXT.btnMenu },
+                ],
+              },
+              // Next: the shop's state, so the seller gets their shop link
+              shopStateReply(),
+            ]
           : REG_TEXT.rejectedNotice
       )
     );
@@ -1587,10 +1661,42 @@ async function handleWebhook(body: any) {
 
     const user = await prisma.user.findUnique({ where: { phone } });
 
+    // "Hi KARNA": the customer came through a seller's shop link
+    const shopMatch = command.match(/^(?:HI|HELLO|HAI)\s+([A-Z0-9]{2,12})$/);
+    const shop = shopMatch
+      ? await prisma.user.findFirst({ where: { shopCode: shopMatch[1], role: 'SELLER' } })
+      : null;
+    // A seller in an English-only state: no language question
+    const englishOnly = shop?.shopLanguage === 'en';
+
     // New customer: save them and ask for a language
     if (!user) {
-      await prisma.user.create({ data: { phone, name } });
-      await sendReply(phone, languageReply());
+      const created = await prisma.user.create({
+        data: {
+          phone,
+          name,
+          shopId: shop?.id,
+          ...(englishOnly ? { language: 'en', state: 'BROWSING' as const } : {}),
+        },
+      });
+      await sendReply(phone, englishOnly ? homeReply(created) : languageReply(shop?.shopLanguage));
+      return;
+    }
+
+    // An existing user opening a seller's link: remember that seller and ask the language again
+    if (shop) {
+      const updated = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          shopId: shop.id,
+          state: englishOnly ? 'BROWSING' : 'CHOOSING_LANGUAGE',
+          ...(englishOnly ? { language: 'en' } : {}),
+          pendingProductId: null,
+          pendingProductName: null,
+        },
+      });
+      setLang(updated.language);
+      await sendReply(phone, englishOnly ? homeReply(updated) : languageReply(shop.shopLanguage));
       return;
     }
 
@@ -1607,7 +1713,7 @@ async function handleWebhook(body: any) {
         where: { id: user.id },
         data: { state: 'CHOOSING_LANGUAGE', pendingProductId: null },
       });
-      await sendReply(phone, languageReply());
+      await sendReply(phone, await languageReplyFor(user));
       return;
     }
 
@@ -1909,6 +2015,26 @@ async function handleWebhook(body: any) {
           await staffSend(await categoryChoiceReply(user.language));
           return;
         }
+
+        // MYLINK: the link the seller shares with customers (asks the shop's state the first time)
+        if (command === 'MYLINK') {
+          await staffSend(user.shopLanguage ? await shopLinkReply(user) : shopStateReply());
+          return;
+        }
+        if (command === 'SHOPSTATE') {
+          await staffSend(shopStateReply());
+          return;
+        }
+        // SHOPLANG OR/AS/HI/EN: the shop's state, picked from the state list
+        const shopLangMatch = command.match(/^SHOPLANG\s+(EN|HI|OR|AS)$/);
+        if (shopLangMatch) {
+          const code = shopLangMatch[1].toLowerCase();
+          await prisma.user.update({ where: { id: user.id }, data: { shopLanguage: code } });
+          const local = Object.values(LANGUAGES).find((l) => l.code === code && code !== 'en');
+          const choice = local ? `English + ${local.label}` : 'English';
+          await staffSend(await shopLinkReply(user, SHOP_TEXT.stateSaved(choice)));
+          return;
+        }
         if (command === 'MYPRODUCTS') {
           const mine = await prisma.product.findMany({
             where: { sellerId: user.id },
@@ -2104,6 +2230,7 @@ async function handleWebhook(body: any) {
             list: {
               button: SELLER_TEXT.btnMenu,
               rows: [
+                { id: 'MYLINK', title: SHOP_TEXT.rowLink },
                 { id: 'ADD', title: SELLER_TEXT.btnAdd },
                 { id: 'MYPRODUCTS', title: SELLER_TEXT.rowProducts },
                 { id: 'MYORDERS', title: SELLER_TEXT.btnOrders },
@@ -2254,7 +2381,7 @@ async function handleWebhook(body: any) {
     if (user.state === 'CHOOSING_LANGUAGE') {
       const chosen = LANGUAGES[text];
       if (!chosen) {
-        await sendReply(phone, languageReply());
+        await sendReply(phone, await languageReplyFor(user));
         return;
       }
       await prisma.user.update({

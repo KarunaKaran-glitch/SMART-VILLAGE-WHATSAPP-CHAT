@@ -102,6 +102,14 @@ model User {
   sellerStatus       SellerStatus @default(NONE)
   categoryId         Int? // the kind of product this seller makes
   category           Category?    @relation(fields: [categoryId], references: [id])
+  // Seller's own link: customers send "Hi <shopCode>" and see only this seller's shop
+  shopCode           String?      @unique
+  // Local language of the seller's state (hi, or, as; en = English only), offered next to English
+  shopLanguage       String?
+  // Customer: the seller whose link they came from
+  shopId             Int?
+  shop               User?        @relation("ShopCustomers", fields: [shopId], references: [id])
+  shopCustomers      User[]       @relation("ShopCustomers")
   createdAt          DateTime     @default(now())
   products           Product[]
   orders             Order[]      @relation("CustomerOrders")

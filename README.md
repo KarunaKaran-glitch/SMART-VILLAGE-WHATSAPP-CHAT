@@ -84,6 +84,12 @@ On Windows PowerShell, define this helper once per terminal (paste it as one lin
 function Send-Msg($phone,$name,$text,$id=('wamid.'+[guid]::NewGuid().ToString())){ $obj=@{entry=@(@{changes=@(@{value=@{contacts=@(@{profile=@{name=$name};wa_id=$phone});messages=@(@{from=$phone;id=$id;type='text';text=@{body=$text}})}})})}; $json=$obj | ConvertTo-Json -Depth 10; Invoke-RestMethod -Uri http://localhost:3000/webhook -Method Post -ContentType "application/json" -Body $json }
 ```
 
+When `WHATSAPP_APP_SECRET` is set in `.env`, the server answers unsigned messages with `Unauthorized`. Use this version instead (run it from the project folder; it reads the secret from `.env` and signs each message):
+
+```powershell
+function Send-Msg($phone,$name,$text){ $secret=((Get-Content .env | Where-Object { $_ -match '^\s*WHATSAPP_APP_SECRET\s*=' }) -replace '^\s*WHATSAPP_APP_SECRET\s*=\s*','').Trim().Trim('"').Trim("'"); $obj=@{entry=@(@{changes=@(@{value=@{contacts=@(@{profile=@{name=$name};wa_id=$phone});messages=@(@{from=$phone;id=('wamid.'+[guid]::NewGuid());type='text';text=@{body=$text}})}})})}; $bytes=[Text.Encoding]::UTF8.GetBytes(($obj | ConvertTo-Json -Depth 10 -Compress)); $hmac=New-Object System.Security.Cryptography.HMACSHA256 (,[Text.Encoding]::UTF8.GetBytes($secret)); $sig='sha256='+(-join ($hmac.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') })); Invoke-RestMethod -Uri http://localhost:3000/webhook -Method Post -ContentType 'application/json; charset=utf-8' -Headers @{'X-Hub-Signature-256'=$sig} -Body $bytes }
+```
+
 To send a test photo (product photo or UPI QR code), define `Send-Img` the same way and call `Send-Img '918888888888' 'Ravi' 'D:\photos\bag.png'` (`.jpg`, `.png` or `.webp`):
 
 ```powershell
@@ -103,6 +109,7 @@ Add these to `.env` (never commit them):
 | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | Turn on real sending (otherwise replies are only printed) |
 | `WHATSAPP_APP_SECRET` | Turn on the `X-Hub-Signature-256` check |
 | `PUBLIC_BASE_URL` | Public HTTPS address of this server (for example the ngrok URL), so WhatsApp can fetch product photos and QR codes from `/images/<key>` |
+| `WHATSAPP_BOT_NUMBER` | The bot's own WhatsApp number with country code (digits only), used to make each seller's shop link `wa.me/<number>?text=Hi <CODE>` |
 | `GRAPH_API_VERSION` | Optional, default `v25.0` |
 
 ### Make someone an admin
@@ -156,6 +163,8 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 | `RECEIVED <id>` / `NOTRECEIVED <id>` | Answer a customer's `PAID`: the money reached your bank, or it did not |
 | `CONFIRM <id>` → `SHIP <id>` → `DELIVER <id>` | Move your items in an order forward. The customer is told at each step. A UPI order can only be confirmed after `RECEIVED` |
 | `MYPURCHASES` | Show orders you placed as a customer |
+| `MYLINK` | Show your shop link to share with customers (asks your shop's state the first time). Customers who open it, or send `Hi <shop code>`, are offered English + your state's language |
+| `SHOPSTATE` | Change your shop's state (Odisha, Assam, a Hindi-speaking state, or another state = English only) |
 | `HELP` | Show seller help |
 
 ### Admins

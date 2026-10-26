@@ -6,6 +6,13 @@ export const LANGUAGES: Record<string, { code: string; label: string }> = {
   '4': { code: 'as', label: 'অসমীয়া' },
 };
 
+// "Please choose your language" in each local language (shown under the English line)
+export const CHOOSE_LANGUAGE: Record<string, string> = {
+  hi: 'कृपया अपनी भाषा चुनें 👇',
+  or: 'ଦୟାକରି ଆପଣଙ୍କ ଭାଷା ବାଛନ୍ତୁ 👇',
+  as: 'অনুগ্ৰহ কৰি আপোনাৰ ভাষা বাছক 👇',
+};
+
 export const TEXT = {
   en: {
     productsTitle: 'Our products:',
