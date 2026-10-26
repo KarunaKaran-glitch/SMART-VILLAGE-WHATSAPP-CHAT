@@ -13,11 +13,27 @@ export type SellerProductRow = {
   status: 'onSale' | 'waiting' | 'rejected' | 'hidden' | 'draft';
 };
 
+// One order as the seller sees it, with the one next step as buttons
+export type SellerOrderRow = {
+  id: number;
+  date: string;
+  customerName: string;
+  customerPhone: string; // digits with country code, for the call link
+  address: string;
+  lines: string[]; // "Red Jute Bag × 2 = ₹900"
+  total: number;
+  status: 'PENDING' | 'PAID' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+  payment: 'notYet' | 'check' | 'paid' | 'cancelled';
+  reference: string | null;
+  actions: ('RECEIVED' | 'NOTRECEIVED' | 'CONFIRM' | 'SHIP' | 'DELIVER')[];
+};
+
 export function renderSellerPage(data: {
   language: string;
   token: string;
   shopName: string;
   sellerId: string; // the unique ID
+  orders: SellerOrderRow[];
   products: SellerProductRow[];
   notice: string | null; // shown at the top after a change ("Product added", "Saved")
   shopLink: string | null; // wa.me link customers open (null when the bot number is not set)
@@ -49,6 +65,57 @@ export function renderSellerPage(data: {
         `<a class="go pay" href="${escapeHtml(shareUrl!)}">${escapeHtml(W.share)}</a>`
       : `<p class="desc">${escapeHtml(W.noBotNumber)}</p>`) +
     '</div>';
+
+  // Orders: customer, items, payment, and the next step as buttons
+  const statusLabel = {
+    PENDING: W.stPending,
+    PAID: W.stPaid,
+    CONFIRMED: W.stConfirmed,
+    SHIPPED: W.stShipped,
+    DELIVERED: W.stDelivered,
+    CANCELLED: W.stCancelled,
+  };
+  const actionLabel = {
+    RECEIVED: W.btnReceived,
+    NOTRECEIVED: W.btnNotReceived,
+    CONFIRM: W.btnConfirm,
+    SHIP: W.btnShip,
+    DELIVER: W.btnDeliver,
+  };
+  const paymentText = (o: SellerOrderRow) =>
+    o.payment === 'check'
+      ? W.payCheck(o.reference)
+      : o.payment === 'paid'
+        ? W.payPaid
+        : o.payment === 'cancelled'
+          ? W.payCancelled
+          : W.payNotYet;
+  const orders = data.orders.length
+    ? data.orders
+        .map(
+          (o) =>
+            `<div class="box order st-${o.status}" data-id="${o.id}">` +
+            `<div class="row"><b>#${o.id} · ₹${rupees(o.total)}</b><span class="ostatus">${escapeHtml(statusLabel[o.status])}</span></div>` +
+            `<p class="desc">${escapeHtml(o.date)}</p>` +
+            `<p class="lines">${o.lines.map(escapeHtml).join('<br>')}</p>` +
+            `<p class="desc">👤 ${escapeHtml(o.customerName)} · <a href="tel:+${escapeHtml(o.customerPhone)}">+${escapeHtml(o.customerPhone)}</a><br>` +
+            `📍 ${escapeHtml(W.deliverTo)}: ${escapeHtml(o.address)}</p>` +
+            `<p class="pay ${o.payment}">${escapeHtml(paymentText(o))}</p>` +
+            (o.actions.length
+              ? '<div class="two">' +
+                o.actions
+                  .map(
+                    (a) =>
+                      `<button type="button" class="${a === 'NOTRECEIVED' ? 'no' : 'go'}" data-action="${a}">` +
+                      `${escapeHtml(actionLabel[a])}</button>`
+                  )
+                  .join('') +
+                '</div>'
+              : '') +
+            '<p class="msg"></p></div>'
+        )
+        .join('')
+    : `<div class="box">${escapeHtml(W.noOrders)}</div>`;
 
   // Products, each with [Change] (price, stock) and [Hide] / [Show]
   const products = data.products.length
@@ -192,6 +259,18 @@ addBtn.addEventListener('click', async () => {
   }
 });
 
+// Orders: Money received / Not received, Confirm, Ship, Deliver
+document.querySelectorAll('.order').forEach((card) => {
+  card.addEventListener('click', async (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    card.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+    if (!(await post('/seller/orders/' + card.dataset.id, { action: b.dataset.action }, card.querySelector('.msg'), 'saved'))) {
+      card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
+    }
+  });
+});
+
 // Change price / stock, hide / show
 document.querySelectorAll('.prod').forEach((card) => {
   const m = card.querySelector('.msg');
@@ -257,6 +336,8 @@ document.getElementById('savestate').addEventListener('click', async (e) => {
     notice +
     upiWarn +
     linkBox +
+    `<h2>${escapeHtml(W.ordersTitle)} (${data.orders.length})</h2>` +
+    orders +
     `<h2>${escapeHtml(W.myProducts)} (${data.products.length})</h2>` +
     products +
     form +
@@ -286,4 +367,16 @@ input,select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding
 .small{padding:5px 12px;font-size:.88rem}
 .go.small{width:auto;padding:8px 18px;font-size:.95rem}
 .editbox[hidden]{display:none}
+.order{margin-bottom:10px;border-left:5px solid var(--line)}
+.order.st-PENDING,.order.st-PAID{border-left-color:#e0a800}
+.order.st-CONFIRMED,.order.st-SHIPPED{border-left-color:#2a7fd4}
+.order.st-DELIVERED{border-left-color:var(--brand)}
+.ostatus{font-weight:700;font-size:.85rem;background:var(--line);border-radius:999px;padding:2px 10px}
+.lines{margin:6px 0}
+.pay{font-weight:600;margin:6px 0}
+.pay.check{color:#6b4e00;background:#fff1c7;border-radius:8px;padding:6px 8px}
+.pay.paid{color:var(--brand)}
+.two{display:flex;gap:10px}
+.two button{flex:1}
+.order .no{border:1.5px solid var(--warn);color:var(--warn);background:#fff;border-radius:10px;font-weight:700;font-size:1.05rem;padding:12px;margin-top:8px}
 `;

@@ -96,6 +96,27 @@ const en = {
   stockInvalid: 'Stock must be a number from 0 to 9999, or empty.',
   hide: 'Hide',
   show: 'Show',
+  // Seller dashboard: orders
+  ordersTitle: 'Orders',
+  noOrders: 'No orders yet. Share your shop link to get your first order.',
+  deliverTo: 'Deliver to',
+  payNotYet: 'Payment: not paid yet',
+  payCheck: (ref: string | null) =>
+    `Payment: the customer says they paid${ref ? ` (transaction no. ${ref})` : ''}. Check your bank or UPI app, then answer.`,
+  payPaid: 'Payment: received ✅',
+  payCancelled: 'Payment: cancelled',
+  stPending: 'New',
+  stPaid: 'Paid',
+  stConfirmed: 'Confirmed',
+  stShipped: 'Shipped',
+  stDelivered: 'Delivered',
+  stCancelled: 'Cancelled',
+  btnReceived: 'Money received',
+  btnNotReceived: 'Not received',
+  btnConfirm: 'Confirm order',
+  btnShip: 'Mark shipped',
+  btnDeliver: 'Mark delivered',
+  orderChanged: 'This order was already changed. The page is now up to date.',
 };
 
 const hi: typeof en = {
@@ -190,6 +211,26 @@ const hi: typeof en = {
   stockInvalid: 'स्टॉक 0 से 9999 तक की संख्या हो, या खाली छोड़ें।',
   hide: 'छिपाएँ',
   show: 'दिखाएँ',
+  ordersTitle: 'ऑर्डर',
+  noOrders: 'अभी कोई ऑर्डर नहीं है। पहला ऑर्डर पाने के लिए अपनी दुकान का लिंक भेजें।',
+  deliverTo: 'डिलीवरी पता',
+  payNotYet: 'भुगतान: अभी नहीं हुआ',
+  payCheck: (ref: string | null) =>
+    `भुगतान: ग्राहक कहते हैं कि उन्होंने भुगतान किया${ref ? ` (ट्रांज़ैक्शन नंबर ${ref})` : ''}। अपना बैंक या UPI ऐप देखें, फिर जवाब दें।`,
+  payPaid: 'भुगतान: मिल गया ✅',
+  payCancelled: 'भुगतान: रद्द',
+  stPending: 'नया',
+  stPaid: 'भुगतान हुआ',
+  stConfirmed: 'पक्का',
+  stShipped: 'भेजा गया',
+  stDelivered: 'पहुँचा दिया',
+  stCancelled: 'रद्द',
+  btnReceived: 'पैसा मिल गया',
+  btnNotReceived: 'नहीं मिला',
+  btnConfirm: 'ऑर्डर पक्का करें',
+  btnShip: 'भेज दिया',
+  btnDeliver: 'पहुँचा दिया',
+  orderChanged: 'यह ऑर्डर पहले ही बदल चुका है। पेज अब ताज़ा है।',
 };
 
 const or: typeof en = {
@@ -284,6 +325,26 @@ const or: typeof en = {
   stockInvalid: 'ଷ୍ଟକ୍ 0 ରୁ 9999 ମଧ୍ୟରେ ଏକ ସଂଖ୍ୟା ହେବା ଦରକାର, କିମ୍ବା ଖାଲି।',
   hide: 'ଲୁଚାନ୍ତୁ',
   show: 'ଦେଖାନ୍ତୁ',
+  ordersTitle: 'ଅର୍ଡର',
+  noOrders: 'ଏପର୍ଯ୍ୟନ୍ତ କୌଣସି ଅର୍ଡର ନାହିଁ। ପ୍ରଥମ ଅର୍ଡର ପାଇଁ ଆପଣଙ୍କ ଦୋକାନ ଲିଙ୍କ ପଠାନ୍ତୁ।',
+  deliverTo: 'ଡେଲିଭରି ଠିକଣା',
+  payNotYet: 'ପେମେଣ୍ଟ: ଏପର୍ଯ୍ୟନ୍ତ ହୋଇନି',
+  payCheck: (ref: string | null) =>
+    `ପେମେଣ୍ଟ: ଗ୍ରାହକ କହୁଛନ୍ତି ସେ ପଇସା ଦେଇଛନ୍ତି${ref ? ` (ଟ୍ରାଞ୍ଜାକ୍ସନ୍ ନମ୍ବର ${ref})` : ''}। ଆପଣଙ୍କ ବ୍ୟାଙ୍କ ବା UPI ଆପ୍ ଦେଖି ଉତ୍ତର ଦିଅନ୍ତୁ।`,
+  payPaid: 'ପେମେଣ୍ଟ: ମିଳିଗଲା ✅',
+  payCancelled: 'ପେମେଣ୍ଟ: ବାତିଲ',
+  stPending: 'ନୂଆ',
+  stPaid: 'ପଇସା ମିଳିଲା',
+  stConfirmed: 'ନିଶ୍ଚିତ',
+  stShipped: 'ପଠାଗଲା',
+  stDelivered: 'ପହଞ୍ଚିଗଲା',
+  stCancelled: 'ବାତିଲ',
+  btnReceived: 'ପଇସା ମିଳିଲା',
+  btnNotReceived: 'ମିଳିନି',
+  btnConfirm: 'ଅର୍ଡର ନିଶ୍ଚିତ କରନ୍ତୁ',
+  btnShip: 'ପଠାଇଦେଲି',
+  btnDeliver: 'ପହଞ୍ଚାଇଦେଲି',
+  orderChanged: 'ଏହି ଅର୍ଡର ଆଗରୁ ବଦଳିସାରିଛି। ପେଜ୍ ଏବେ ଅପଡେଟ୍ ହୋଇଛି।',
 };
 
 const as: typeof en = {
@@ -378,6 +439,26 @@ const as: typeof en = {
   stockInvalid: 'ষ্টক 0ৰ পৰা 9999লৈ এটা সংখ্যা হ’ব লাগে, নহয় খালী।',
   hide: 'লুকুৱাওক',
   show: 'দেখুৱাওক',
+  ordersTitle: 'অৰ্ডাৰ',
+  noOrders: 'এতিয়ালৈকে কোনো অৰ্ডাৰ নাই। প্ৰথম অৰ্ডাৰৰ বাবে আপোনাৰ দোকানৰ লিংক পঠিয়াওক।',
+  deliverTo: 'ডেলিভাৰী ঠিকনা',
+  payNotYet: 'পেমেণ্ট: এতিয়াও হোৱা নাই',
+  payCheck: (ref: string | null) =>
+    `পেমেণ্ট: গ্ৰাহকে কৈছে তেওঁ ধন দিছে${ref ? ` (লেনদেন নম্বৰ ${ref})` : ''}। আপোনাৰ বেংক বা UPI এপ চাই উত্তৰ দিয়ক।`,
+  payPaid: 'পেমেণ্ট: পোৱা গ’ল ✅',
+  payCancelled: 'পেমেণ্ট: বাতিল',
+  stPending: 'নতুন',
+  stPaid: 'ধন পোৱা গ’ল',
+  stConfirmed: 'নিশ্চিত',
+  stShipped: 'পঠোৱা হ’ল',
+  stDelivered: 'পহুঁচিল',
+  stCancelled: 'বাতিল',
+  btnReceived: 'ধন পালোঁ',
+  btnNotReceived: 'পোৱা নাই',
+  btnConfirm: 'অৰ্ডাৰ নিশ্চিত কৰক',
+  btnShip: 'পঠিয়ালোঁ',
+  btnDeliver: 'পহুঁচালোঁ',
+  orderChanged: 'এই অৰ্ডাৰ আগতেই সলনি হৈছে। পেজখন এতিয়া আপডেট হৈছে।',
 };
 
 const DASH_TEXT: Record<string, typeof en> = { en, hi, or, as };

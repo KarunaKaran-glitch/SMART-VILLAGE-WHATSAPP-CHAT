@@ -31,7 +31,7 @@ import { PayPageState, renderPayPage, renderShopPage, rupees, simplePage } from 
 import { wt } from './webText';
 import { dt } from './dashText';
 import { renderAdminPage } from './adminPage';
-import { renderSellerPage } from './sellerPage';
+import { SellerOrderRow, renderSellerPage } from './sellerPage';
 
 const app = express();
 // Keep the raw request body: the Meta signature is calculated over the exact bytes.
@@ -1679,6 +1679,100 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
   }
 });
 
+// The seller's orders for the dashboard (open ones first), each with its one next step:
+// Money received / Not received when the customer reported a payment, then Confirm, Ship, Deliver.
+// The same rules as RECEIVED / CONFIRM / SHIP / DELIVER in the chat.
+async function sellerOrderRows(sellerId: number, language: string, onlyOrderId?: number): Promise<SellerOrderRow[]> {
+  const items = await prisma.orderItem.findMany({
+    where: { sellerId, ...(onlyOrderId ? { orderId: onlyOrderId } : {}) },
+    include: {
+      order: { include: { customer: true, payments: { orderBy: { id: 'desc' }, take: 1 } } },
+      product: { include: { translations: true } },
+    },
+    orderBy: { orderId: 'desc' },
+    take: 300,
+  });
+  const byOrder = new Map<number, typeof items>();
+  for (const i of items) byOrder.set(i.orderId, [...(byOrder.get(i.orderId) ?? []), i]);
+
+  const rows: SellerOrderRow[] = [];
+  for (const list of byOrder.values()) {
+    const order = list[0].order;
+    const payment = order.payments[0];
+    const status = order.status === 'CANCELLED' ? 'CANCELLED' : list[0].status;
+    const upi = payment?.method === 'UPI_DIRECT';
+    const actions: SellerOrderRow['actions'] = [];
+    if (status !== 'CANCELLED') {
+      if (upi && payment.status === 'AWAITING_CONFIRMATION') actions.push('RECEIVED', 'NOTRECEIVED');
+      else if ((status === 'PENDING' || status === 'PAID') && (!upi || payment.status === 'SUCCESS')) actions.push('CONFIRM');
+      else if (status === 'CONFIRMED') actions.push('SHIP');
+      else if (status === 'SHIPPED') actions.push('DELIVER');
+    }
+    rows.push({
+      id: order.id,
+      date: order.createdAt.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      customerName: order.customer.name ?? '-',
+      customerPhone: order.customer.phone,
+      address: order.deliveryAddress ?? '-',
+      lines: list.map(
+        (i) => `${localName(i.product, language)} × ${i.quantity} = ₹${rupees(Number(i.unitPrice) * i.quantity)}`
+      ),
+      total: list.reduce((sum, i) => sum + Number(i.unitPrice) * i.quantity, 0),
+      status,
+      payment:
+        payment?.status === 'SUCCESS'
+          ? 'paid'
+          : payment?.status === 'AWAITING_CONFIRMATION'
+            ? 'check'
+            : payment?.status === 'CANCELLED' || status === 'CANCELLED'
+              ? 'cancelled'
+              : 'notYet',
+      reference: payment?.reference ?? null,
+      actions,
+    });
+  }
+  // Orders that still need something first, then the finished ones; at most 30
+  const open = rows.filter((r) => r.status !== 'DELIVERED' && r.status !== 'CANCELLED');
+  const done = rows.filter((r) => r.status === 'DELIVERED' || r.status === 'CANCELLED');
+  return [...open, ...done].slice(0, 30);
+}
+
+// Seller taps an order button on the dashboard: { t, action }
+app.post('/seller/orders/:id', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const seller = await dashVisitor(req.body?.t, 'SELLER');
+    if (!seller) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const orderId = Number(req.params.id);
+    const action = String(req.body.action);
+    const [row] = Number.isInteger(orderId) ? await sellerOrderRows(seller.id, seller.language, orderId) : [];
+    // Only the step the order is waiting for (it may have been answered in the chat meanwhile)
+    if (!row || !row.actions.includes(action as SellerOrderRow['actions'][number])) {
+      res.status(409).json({ ok: false, error: dt(seller.language).orderChanged });
+      return;
+    }
+    await inLang(seller.language, () =>
+      action === 'RECEIVED' || action === 'NOTRECEIVED'
+        ? decidePayment(seller.id, orderId, action === 'RECEIVED')
+        : updateOrderStatus(seller.id, orderId, action)
+    );
+    console.log(`Seller ${seller.shopCode} dashboard: ${action} order #${orderId}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Order step failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
 // Seller dashboard: their products and a form to add one
 app.get('/seller', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
@@ -1702,6 +1796,7 @@ app.get('/seller', async (req: Request, res: Response) => {
       token: String(req.query.t),
       shopName: seller.shopName ?? '',
       sellerId: seller.shopCode ?? '',
+      orders: await sellerOrderRows(seller.id, seller.language),
       notice:
         req.query.done === 'added'
           ? dt(seller.language).productAdded
