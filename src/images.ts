@@ -41,6 +41,15 @@ export async function makeUpiQr(
   amount: number,
   note: string
 ): Promise<string> {
+  const link = upiLink(upiId, payeeName, amount, note);
+  const png = await QRCode.toBuffer(link, { type: 'png', width: 512, margin: 2 });
+  const key = await saveImage(png, 'image/png');
+  if (!key) throw new Error('Generated QR code could not be saved');
+  return key;
+}
+
+// The UPI payment link: opens the customer's UPI app with the seller, amount and note filled in
+export function upiLink(upiId: string, payeeName: string, amount: number, note: string): string {
   const params = new URLSearchParams({
     pa: upiId,
     pn: payeeName,
@@ -49,9 +58,10 @@ export async function makeUpiQr(
     tn: note,
   });
   // UPI apps expect %20 for spaces, not +
-  const link = `upi://pay?${params.toString().replace(/\+/g, '%20')}`;
-  const png = await QRCode.toBuffer(link, { type: 'png', width: 512, margin: 2 });
-  const key = await saveImage(png, 'image/png');
-  if (!key) throw new Error('Generated QR code could not be saved');
-  return key;
+  return `upi://pay?${params.toString().replace(/\+/g, '%20')}`;
+}
+
+// The same QR code as a picture inside the web page (nothing is saved)
+export function upiQrDataUrl(link: string): Promise<string> {
+  return QRCode.toDataURL(link, { width: 320, margin: 2 });
 }

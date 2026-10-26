@@ -26,9 +26,9 @@ import {
   signatureCheckEnabled,
   validSignature,
 } from './whatsapp';
-import { getImage, imageUrl, makeUpiQr, publicUrl, saveImage } from './images';
+import { getImage, imageUrl, makeUpiQr, publicUrl, saveImage, upiLink, upiQrDataUrl } from './images';
 import crypto from 'crypto';
-import { renderShopPage, simplePage } from './shopPage';
+import { PayPageState, renderPayPage, renderShopPage, simplePage } from './shopPage';
 import { wt } from './webText';
 
 const app = express();
@@ -1688,15 +1688,12 @@ app.get('/shop/:code', async (req: Request, res: Response) => {
   }
   const { customer, shop } = visit;
   const products = await shopProducts(shop.id);
-  const botNumber = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
   res.send(
     renderShopPage({
       language: customer.language,
       shopName: shop.shopName ?? shop.shopCode ?? '',
-      code: shop.shopCode ?? '',
       token: String(req.query.t),
       address: customer.address ?? '',
-      whatsAppLink: botNumber ? `https://wa.me/${botNumber}` : null,
       products: products.map((p) => ({
         id: p.id,
         name: localName(p, customer.language),
@@ -1708,6 +1705,100 @@ app.get('/shop/:code', async (req: Request, res: Response) => {
       })),
     })
   );
+});
+
+// One of this customer's orders from this shop, with what the payment page needs
+async function shopOrder(customerId: number, shopId: number, orderId: number) {
+  if (!Number.isInteger(orderId)) return null;
+  return prisma.order.findFirst({
+    where: { id: orderId, customerId, items: { every: { sellerId: shopId } } },
+    include: {
+      items: { include: { product: { include: { translations: true } } } },
+      payments: { orderBy: { id: 'desc' }, take: 1 },
+    },
+  });
+}
+
+// Payment page of one order: pay (QR, UPI ID, Pay button, "I have paid"), or its progress
+app.get('/shop/:code/order/:id', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Content-Type-Options', 'nosniff');
+  const visit = await shopVisitor(String(req.params.code).toUpperCase(), req.query.t);
+  const order = visit ? await shopOrder(visit.customer.id, visit.shop.id, Number(req.params.id)) : null;
+  if (!visit || !order) {
+    res
+      .status(403)
+      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and tap "Shop now" again.'));
+    return;
+  }
+  const { customer, shop } = visit;
+  const shopName = shop.shopName ?? shop.shopCode ?? '';
+  const payment = order.payments[0];
+  const total = Number(order.total);
+
+  let state: PayPageState = 'pay';
+  if (order.status === 'CANCELLED') state = 'cancelled';
+  else if (payment?.status === 'SUCCESS') state = 'received';
+  else if (payment?.status === 'AWAITING_CONFIRMATION') state = 'waiting';
+
+  // The seller's own QR photo if they uploaded one, otherwise a QR made with the amount filled in
+  const link = shop.upiId ? upiLink(shop.upiId, shopName, total, `Order ${order.id}`) : null;
+  const sellerQr = shop.upiQrKey && (await getImage(shop.upiQrKey)) ? shop.upiQrKey : null;
+  const qrSrc = sellerQr ? `/images/${sellerQr}` : link ? await upiQrDataUrl(link) : null;
+
+  const botNumber = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
+  res.send(
+    renderPayPage({
+      language: customer.language,
+      shopName,
+      token: String(req.query.t),
+      orderId: order.id,
+      total,
+      lines: order.items.map((i) => ({
+        name: localName(i.product, customer.language),
+        qty: i.quantity,
+        amount: Number(i.unitPrice) * i.quantity,
+      })),
+      state,
+      qrSrc,
+      qrFromSeller: Boolean(sellerQr),
+      upiId: shop.upiId,
+      upiLink: link,
+      whatsAppLink: botNumber ? `https://wa.me/${botNumber}` : null,
+    })
+  );
+});
+
+// "I have paid" on the payment page: { t, ref } -> the same step as PAID in the chat
+// (the seller is asked Received / Not received)
+app.post('/shop/:code/order/:id/paid', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const visit = await shopVisitor(String(req.params.code).toUpperCase(), req.body?.t);
+    const order = visit ? await shopOrder(visit.customer.id, visit.shop.id, Number(req.params.id)) : null;
+    if (!visit || !order) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const { customer } = visit;
+    const ref = typeof req.body.ref === 'string' && req.body.ref.trim() ? req.body.ref.replace(/\s+/g, '') : undefined;
+    const reply = await inLang(customer.language, () => reportPaid(customer.id, customer.language, order.id, ref));
+    // reportPaid answers with a plain text when something is wrong, and with buttons when it worked
+    if (typeof reply === 'string') {
+      res.status(409).json({ ok: false, error: reply });
+      return;
+    }
+    console.log(`Web payment reported for order #${order.id}`);
+    try {
+      await sendReply(customer.phone, reply);
+    } catch (err) {
+      console.error('Customer paid message failed:', err);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Web payment report failed:', err);
+    res.status(500).json({ ok: false });
+  }
 });
 
 // The products a shop shows on its page: approved, not hidden, with a photo

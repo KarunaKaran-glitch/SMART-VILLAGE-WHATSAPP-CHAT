@@ -75,11 +75,9 @@ export function simplePage(title: string, message: string): string {
 export function renderShopPage(data: {
   language: string;
   shopName: string;
-  code: string;
   token: string;
   address: string;
   products: ShopPageProduct[];
-  whatsAppLink: string | null;
 }): string {
   const W = wt(data.language);
 
@@ -114,11 +112,8 @@ const T = ${scriptJson({
     failed: W.failed,
     expired: W.expired,
     continue: W.continue,
-    backToWhatsApp: W.backToWhatsApp,
   })};
 const ITEMS_TEXT = ${scriptJson(W.items(999))};
-const PLACED = ${scriptJson({ title: W.placed(999), body: W.placedBody(data.shopName, '#TOTAL#') })};
-const WA_LINK = ${scriptJson(data.whatsAppLink)};
 const qty = {};
 const fmt = (n) => n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
@@ -170,16 +165,8 @@ go.addEventListener('click', async () => {
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.ok) {
-      document.querySelector('main').innerHTML =
-        '<div class="box done"><div class="tick">✅</div><h1></h1><p></p></div>';
-      document.querySelector('.done h1').textContent = PLACED.title.replace('999', out.orderId);
-      document.querySelector('.done p').textContent = PLACED.body.replace('#TOTAL#', fmt(out.total));
-      if (WA_LINK) {
-        const a = document.createElement('a');
-        a.className = 'wa'; a.href = WA_LINK; a.textContent = T.backToWhatsApp;
-        document.querySelector('.done').appendChild(a);
-      }
-      document.querySelector('.bar').remove();
+      // On to the payment page of the new order (same secret)
+      location.href = location.pathname + '/order/' + out.orderId + location.search;
       return;
     }
     msg.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
@@ -214,3 +201,138 @@ update();
     '</body></html>'
   );
 }
+
+// The payment page of one order: the seller's QR code, UPI ID (Copy), [Pay with UPI app] and
+// "I have paid" with the transaction number. After that it shows the payment's progress.
+export type PayPageState = 'pay' | 'waiting' | 'received' | 'cancelled';
+
+export function renderPayPage(data: {
+  language: string;
+  shopName: string;
+  token: string;
+  orderId: number;
+  total: number;
+  lines: { name: string; qty: number; amount: number }[];
+  state: PayPageState;
+  qrSrc: string | null; // the seller's QR photo, or one made with the amount filled in
+  qrFromSeller: boolean;
+  upiId: string | null;
+  upiLink: string | null;
+  whatsAppLink: string | null;
+}): string {
+  const W = wt(data.language);
+  const total = rupees(data.total);
+
+  const lines = data.lines
+    .map(
+      (l) =>
+        `<div class="row"><span>${escapeHtml(l.name)} × ${l.qty}</span><span>₹${rupees(l.amount)}</span></div>`
+    )
+    .join('');
+  const summary =
+    `<div class="box"><h2>${escapeHtml(W.yourOrder)}</h2>${lines}` +
+    `<div class="row total"><span>${escapeHtml(W.amount)}</span><b>₹${total}</b></div>` +
+    `<p class="desc">🚚 ${escapeHtml(W.freeDelivery)}</p></div>`;
+  const backLink = data.whatsAppLink
+    ? `<a class="wa" href="${escapeHtml(data.whatsAppLink)}">${escapeHtml(W.backToWhatsApp)}</a>`
+    : '';
+
+  let body: string;
+  let script = '';
+  if (data.state === 'pay') {
+    body =
+      `<div class="box center"><p>${escapeHtml(W.payDirect(data.shopName))}</p>` +
+      (data.qrSrc
+        ? `<p class="desc">${escapeHtml(W.scanQr)}</p><img class="qr" src="${escapeHtml(data.qrSrc)}" alt="UPI QR">` +
+          `<p class="desc">${escapeHtml(data.qrFromSeller ? W.qrSellerNote(total, data.orderId) : W.qrAutoNote(data.orderId))}</p>`
+        : '') +
+      (data.upiId
+        ? `<div class="upi"><span>${escapeHtml(W.upiId)}: <b id="upi">${escapeHtml(data.upiId)}</b></span>` +
+          `<button type="button" class="add" id="copy">${escapeHtml(W.copy)}</button></div>`
+        : '') +
+      (data.upiLink
+        ? `<a class="go pay" href="${escapeHtml(data.upiLink)}">${escapeHtml(W.payApp)}</a>` +
+          `<p class="desc">${escapeHtml(W.payAppNote)}</p>`
+        : '') +
+      '</div>' +
+      `<h2>${escapeHtml(W.afterPay)}</h2><div class="box">` +
+      `<label for="ref">${escapeHtml(W.refLabel)}</label>` +
+      '<input id="ref" inputmode="text" autocomplete="off" maxlength="24" placeholder="123456789012">' +
+      `<p class="desc">${escapeHtml(W.refHint)}</p>` +
+      '<p class="msg" id="msg"></p>' +
+      `<button type="button" class="go" id="paid">${escapeHtml(W.paid)}</button></div>` +
+      summary;
+    script = `
+const T = ${scriptJson({ copied: W.copied, copy: W.copy, refInvalid: W.refInvalid, failed: W.failed, expired: W.expired, paid: W.paid })};
+const copy = document.getElementById('copy');
+if (copy) copy.addEventListener('click', async () => {
+  const text = document.getElementById('upi').textContent;
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById('upi'));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy');
+  }
+  copy.textContent = T.copied;
+  setTimeout(() => { copy.textContent = T.copy; }, 2000);
+});
+const btn = document.getElementById('paid');
+const msg = document.getElementById('msg');
+btn.addEventListener('click', async () => {
+  const ref = document.getElementById('ref').value.replace(/\s+/g, '').toUpperCase();
+  if (ref && !/^[A-Z0-9]{8,24}$/.test(ref)) { msg.textContent = T.refInvalid; return; }
+  btn.disabled = true;
+  try {
+    const res = await fetch(location.pathname + '/paid', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: ${scriptJson(data.token)}, ref }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.ok) { location.reload(); return; }
+    msg.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
+  } catch (e) {
+    msg.textContent = T.failed;
+  }
+  btn.disabled = false;
+});
+`;
+  } else {
+    const [icon, title, text] =
+      data.state === 'waiting'
+        ? ['⏳', W.waitingTitle, W.waiting(data.shopName)]
+        : data.state === 'received'
+          ? ['✅', W.receivedTitle, W.received(data.shopName)]
+          : ['✖️', W.cancelledTitle, W.cancelled];
+    body =
+      `<div class="box done"><div class="tick">${icon}</div><h1>${escapeHtml(title)}</h1>` +
+      `<p>${escapeHtml(text)}</p>${backLink}</div>` +
+      summary;
+  }
+
+  return (
+    `<!doctype html><html lang="${escapeHtml(data.language)}"><head><meta charset="utf-8">` +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    `<title>${escapeHtml(W.payTitle(data.orderId))}</title><style>${STYLE}${PAY_STYLE}</style></head><body><main>` +
+    `<div class="banner"><h1>${escapeHtml(data.shopName)}</h1>` +
+    `<span class="chip">${escapeHtml(W.payTitle(data.orderId))} · ₹${total}</span></div>` +
+    body +
+    '</main>' +
+    (script ? `<script>${script}</script>` : '') +
+    '</body></html>'
+  );
+}
+
+const PAY_STYLE = `
+main{padding-bottom:32px}
+.center{text-align:center}
+.box+.box{margin-top:12px}
+.qr{width:240px;max-width:100%;height:auto;border-radius:8px;border:1px solid var(--line);margin:4px auto 8px;display:block;background:#fff}
+.upi{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border:1px dashed var(--line);border-radius:10px;padding:10px;margin:12px 0;text-align:left;overflow-wrap:anywhere}
+.go.pay{display:block;text-decoration:none;text-align:center;margin-top:4px}
+.box h2{margin:0 0 8px}
+.box .row{padding:4px 0}
+.row.total{border-top:1px solid var(--line);margin-top:6px;padding-top:8px}
+label{font-weight:600;display:block;margin-bottom:6px}
+input{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:10px;font:inherit;letter-spacing:.05em}
+h2{margin-top:18px}
+`;

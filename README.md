@@ -21,7 +21,7 @@ Meta sends each incoming WhatsApp message to `POST /webhook`. The server:
 
 `GET /webhook` answers Meta's one-time verification check using `VERIFY_TOKEN`.
 
-`GET /shop/<code>?t=<secret>` is the shop web page opened from the [Click here] button: the seller's approved products with photos, – / + quantity, the total and the delivery address ([src/shopPage.ts](src/shopPage.ts), texts in [src/webText.ts](src/webText.ts)). Its [Continue] button calls `POST /shop/<code>/order`, which places one order for that seller (same stock checks and seller notice as the chat order), and the payment details are sent to the customer's WhatsApp.
+`GET /shop/<code>?t=<secret>` is the shop web page opened from the [Click here] button: the seller's approved products with photos, – / + quantity, the total and the delivery address ([src/shopPage.ts](src/shopPage.ts), texts in [src/webText.ts](src/webText.ts)). Its [Continue] button calls `POST /shop/<code>/order`, which places one order for that seller (same stock checks and seller notice as the chat order) and opens the payment page `GET /shop/<code>/order/<id>?t=<secret>`: the seller's QR photo (or a QR made with the amount filled in), the UPI ID with Copy, a [Pay with UPI app] link and "I have paid" with the transaction number (`POST .../paid`, the same step as `PAID` in the chat). After that the page shows "Payment reported" and, once the seller answers RECEIVED, "Payment received". The payment details are also sent to the customer's WhatsApp.
 
 ## Getting started
 
