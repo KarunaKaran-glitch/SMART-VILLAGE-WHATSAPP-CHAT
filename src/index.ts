@@ -82,7 +82,13 @@ async function sendReply(to: string, reply: Reply): Promise<void> {
   const body = clip(reply.text, 1024);
   if (reply.link) {
     const title = clip(reply.link.title, 20);
-    console.log(`>> Link button to ${to}:\n${maskDigits(body)}\n   [${title}] -> ${reply.link.url}\n`);
+    // For testing on this computer, also print the same link on localhost
+    const base = (process.env.PUBLIC_BASE_URL ?? '').replace(/\/+$/, '');
+    const local =
+      base && reply.link.url.startsWith(base)
+        ? `\n   On this PC: http://localhost:${PORT}${reply.link.url.slice(base.length)}`
+        : '';
+    console.log(`>> Link button to ${to}:\n${maskDigits(body)}\n   [${title}] -> ${reply.link.url}${local}\n`);
     await sendWhatsAppInteractive(to, {
       type: 'cta_url',
       body: { text: body },
@@ -350,11 +356,11 @@ function welcomeReply(language: string, text?: string): RichReply {
       ],
     };
   }
+  // No shop link: there is no shared marketplace to browse, so explain how to open a shop
   return {
-    text: text ?? B.welcome,
+    text: text ?? B.noShop,
     buttons: [
-      { id: 'MENU', title: B.products },
-      { id: 'CART', title: B.cart },
+      { id: 'MYORDERS', title: B.myOrders },
       { id: 'MAINMENU', title: B.menu },
     ],
   };
@@ -428,13 +434,8 @@ function withNav(role: string, reply: Reply): Reply {
 // Everything a customer can do, in one list (sellers and admins also get their own menu)
 function mainMenuReply(user: { language: string; role: string }): RichReply {
   const B = bt(user.language);
-  // A shop customer shops on the shop's web page; others use the product lists and cart
-  const rows: Row[] = currentShop()
-    ? [{ id: 'SHOPNOW', title: B.shopNow }]
-    : [
-        { id: 'MENU', title: B.products },
-        { id: 'CART', title: B.cart },
-      ];
+  // A shop customer shops on the shop's web page (without a shop link there is nothing to browse)
+  const rows: Row[] = currentShop() ? [{ id: 'SHOPNOW', title: B.shopNow }] : [];
   rows.push(
     { id: 'MYORDERS', title: B.myOrders },
     { id: 'ADDRESS', title: B.address },
@@ -591,7 +592,7 @@ async function ordersListReply(userId: number, language: string): Promise<Reply>
     orderBy: { id: 'desc' },
     take: 10,
   });
-  if (orders.length === 0) return { text: M.none, buttons: [{ id: 'MENU', title: B.products }] };
+  if (orders.length === 0) return { text: M.none, buttons: [{ id: 'SHOPNOW', title: B.shopNow }] };
   return {
     text: B.ordersBody,
     list: {
@@ -641,7 +642,7 @@ async function orderInfoReply(userId: number, language: string, orderId: number)
     text,
     buttons: [
       { id: 'MYORDERS', title: B.myOrders },
-      { id: 'MENU', title: B.products },
+      { id: 'SHOPNOW', title: B.shopNow },
     ],
   };
 }
@@ -678,7 +679,7 @@ function nextButtons(language: string): Button[] {
   const B = bt(language);
   return [
     { id: 'MYORDERS', title: B.myOrders },
-    { id: 'MENU', title: B.products },
+    { id: 'SHOPNOW', title: B.shopNow },
   ];
 }
 
@@ -2835,6 +2836,34 @@ async function handleWebhook(body: any) {
     }
 
     // ---- State: browsing ----
+    // Each customer shops only at the seller whose link they opened, on that shop's web page.
+    // SHOPNOW and the older chat shopping commands (MENU, CART, CATEGORY n, PRODUCT n, BUY n,
+    // ORDER, a typed product number ...) all answer with that shop's link. Each tap makes a new
+    // secret for this customer (valid 24 hours), so the page knows who is ordering and an old
+    // link stops working. Without a shop link the customer is told how to open one.
+    const oldShopping =
+      /^MENU(?:\s+\d+)?$/.test(command) ||
+      /^CATEGORY\s+#?\d+(?:\s+\d+)?$/.test(command) ||
+      /^(PRODUCT|BUY|REMOVE)\s+#?\d+$/.test(command) ||
+      ['CART', 'REMOVEMENU', 'CLEAR', 'ORDER', 'PLACEORDER'].includes(command) ||
+      /^\d+$/.test(text);
+    if (command === 'SHOPNOW' || oldShopping) {
+      if (myShop?.role !== 'SELLER' || !myShop.shopCode) {
+        await sendReply(phone, welcomeReply(user.language, B.noShop));
+        return;
+      }
+      const token = crypto.randomBytes(18).toString('base64url');
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { webToken: token, webTokenAt: new Date() },
+      });
+      await sendReply(phone, {
+        text: B.clickBelow(myShop.shopName ?? myShop.shopCode),
+        link: { title: B.clickHere, url: publicUrl(`/shop/${myShop.shopCode}?t=${token}`) },
+      });
+      return;
+    }
+
     // MENU: the categories (older "MENU 2" links also land here)
     if (/^MENU(?:\s+\d+)?$/.test(command)) {
       await sendReply(phone, await productListReply(user.language));
@@ -2853,25 +2882,6 @@ async function handleWebhook(body: any) {
 
     if (command === 'MAINMENU') {
       await sendReply(phone, mainMenuReply(user));
-      return;
-    }
-
-    // SHOPNOW: the link to the shop's web page. Each tap makes a new secret for this customer
-    // (valid 24 hours), so the page knows who is ordering and an old link stops working.
-    if (command === 'SHOPNOW') {
-      if (myShop?.role !== 'SELLER' || !myShop.shopCode) {
-        await sendReply(phone, await productListReply(user.language));
-        return;
-      }
-      const token = crypto.randomBytes(18).toString('base64url');
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { webToken: token, webTokenAt: new Date() },
-      });
-      await sendReply(phone, {
-        text: B.clickBelow(myShop.shopName ?? myShop.shopCode),
-        link: { title: B.clickHere, url: publicUrl(`/shop/${myShop.shopCode}?t=${token}`) },
-      });
       return;
     }
 

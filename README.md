@@ -1,15 +1,15 @@
 # Smart Village WhatsApp Marketplace
 
-A WhatsApp chatbot backend for a multi-vendor marketplace of **handmade products** (bags, handbags and similar). Customers browse products with photos, fill a cart, place orders and pay the seller by UPI ID or QR code, by sending short text commands. Local sellers list their products with a photo, and admins approve sellers and every product, all inside the same WhatsApp chat.
+A WhatsApp chatbot backend for local sellers of **handmade products** (bags, handbags and similar). Each seller shares their own shop link. A customer who opens it says "Hi", picks English or the seller's state language, taps **Shop now** and gets a **[Click here]** link to that seller's shop web page: products with photos, quantity, total and delivery address, then payment straight to the seller by UPI (QR code, UPI ID or the customer's UPI app). There is no shared marketplace: a customer only ever sees the seller whose link they opened. Sellers add products with a photo, and admins approve sellers and every product, inside the same WhatsApp chat. The flow is modelled on Chennai Metro Rail's WhatsApp ticket bot.
 
 The bot works in four languages: English, Hindi, Odia and Assamese.
 
 **Stack:** Node.js, TypeScript, Express 5, Prisma 6, PostgreSQL
 
 > **Status: works locally, not live on WhatsApp yet**
-> - The full flow is built and tested with fake messages: shopping, one order per seller, UPI payment reporting and confirmation, delivery steps, seller registration and admin tools.
-> - Replies are only **printed to the console** for now (`sendReply` in [src/index.ts](src/index.ts)). Sending through the WhatsApp Cloud API is not wired up yet; it waits for Meta business verification.
-> - Before going live: verify the `X-Hub-Signature-256` header on incoming webhooks, and use approved message templates for messages sent more than 24 hours after the customer's last message.
+> - The full flow is built and tested with fake messages and sample payment details: seller link, language, Shop now, shop web page, order, payment page, "I have paid", seller confirmation, delivery steps, seller registration and admin tools.
+> - Sending through the WhatsApp Cloud API works when `.env` has a token; Meta's test account only delivers to numbers on its allowed recipient list.
+> - Before going live: host the server at a real HTTPS address (instead of ngrok), set `WHATSAPP_BOT_NUMBER`, sellers add their real UPI ID and QR photo, and use approved message templates for messages sent more than 24 hours after the customer's last message.
 
 ## How it works
 
@@ -137,13 +137,8 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 | `LANG` | Choose the language again |
 | `Hi <shop code>` | Open one seller's shop (this is what the seller's link sends). The customer is offered English + the seller's language, then sees that shop's welcome: Shop now, My orders, More options |
 | `SHOPNOW` | Get a [Click here] link to the shop's web page. The link holds a secret for this customer, works for 24 hours, and an older link stops working when a new one is made |
-| `MENU` | List the approved products (name and price) |
-| `<number>` | Pick a product from the menu: the bot sends its photo and price, then send a quantity (1–99) |
-| `CART` | Show the cart and its total |
-| `REMOVE <line>` | Remove one line from the cart |
-| `CLEAR` | Empty the cart |
-| `ADDRESS` | Set or change the delivery address |
-| `ORDER` | Place an order from the cart (asks for an address the first time). Creates one order per seller and shows each seller's UPI ID |
+| `MENU`, `CART`, `ORDER`, `CATEGORY n`, `PRODUCT n`, a product number | The older chat shopping commands. They now answer like `SHOPNOW` (the customer's shop link), or, without a shop link, explain how to open one. The chat cart code is still there but no longer reachable |
+| `ADDRESS` | Set or change the delivery address (the shop page fills it in) |
 | `QR <order id>` | Get a QR code to pay that order: the seller's own QR photo, or a QR made from the seller's UPI ID with the amount and note filled in |
 | `PAID <order id> <transaction no.>` | Report a UPI payment; the seller is asked to check it (`PAID` alone shows how) |
 | `MYORDERS` | Show your last 5 orders with order and payment status |
@@ -208,15 +203,18 @@ prisma/
   migrations/          SQL migration history
 prisma.config.ts       Prisma CLI configuration
 src/
-  index.ts             Express server, webhook and all command handling
+  index.ts             Express server, webhook, all command handling and the shop page routes
+  shopPage.ts          The shop web page and the payment page (HTML for phone screens)
   db.ts                Shared Prisma client
-  whatsapp.ts          WhatsApp Cloud API: send text and photos, download photos, signature check
-  images.ts            Save and load photos, make UPI QR codes
+  whatsapp.ts          WhatsApp Cloud API: send text, photos, buttons and links; signature check
+  images.ts            Save and load photos, UPI payment links and QR codes
+  lang.ts              Current language (and shop) of the person a message is written for
   paymentConfig.ts     Active payment method
   seed.ts              Sample seller and products
   messages.ts          Language menu and main customer texts
-  *Text.ts             Translated texts for one feature each (address, cart,
-                       cancel, orders, payment, UPI flow, registration, seller, stock)
+  *Text.ts             Translated texts for one feature each (address, buttons, cart,
+                       cancel, orders, payment, UPI flow, registration, seller, shop link,
+                       stock, web pages)
 ```
 
 ### Adding a language

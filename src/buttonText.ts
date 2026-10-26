@@ -29,6 +29,8 @@ export const BUTTON_TEXT = {
     cancelOrder: 'Cancel order',
     choose: 'Choose',
     more: 'More products',
+    noShop:
+      'Welcome! 😀\nTo shop, open the shop link your seller sent you, or send "Hi" and the shop code (for example: Hi KARNA).',
     shopNow: 'Shop now 🛍️',
     moreOptions: 'More options',
     clickHere: 'Click here',
@@ -84,6 +86,8 @@ export const BUTTON_TEXT = {
     cancelOrder: 'ऑर्डर रद्द करें',
     choose: 'चुनें',
     more: 'और उत्पाद',
+    noShop:
+      'स्वागत है! 😀\nखरीदारी के लिए अपने विक्रेता का भेजा हुआ दुकान लिंक खोलें, या "Hi" और दुकान कोड भेजें (जैसे: Hi KARNA)।',
     shopNow: 'अभी खरीदें 🛍️',
     moreOptions: 'और विकल्प',
     clickHere: 'यहाँ क्लिक करें',
@@ -140,6 +144,8 @@ export const BUTTON_TEXT = {
     cancelOrder: 'ଅର୍ଡର ବାତିଲ',
     choose: 'ବାଛନ୍ତୁ',
     more: 'ଆହୁରି ଉତ୍ପାଦ',
+    noShop:
+      'ସ୍ୱାଗତ! 😀\nକିଣିବା ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ପଠାଇଥିବା ଦୋକାନ ଲିଙ୍କ ଖୋଲନ୍ତୁ, କିମ୍ବା "Hi" ଓ ଦୋକାନ କୋଡ୍ ପଠାନ୍ତୁ (ଯେପରି: Hi KARNA)।',
     shopNow: 'ବର୍ତ୍ତମାନ କିଣନ୍ତୁ 🛍️',
     moreOptions: 'ଆହୁରି ବିକଳ୍ପ',
     clickHere: 'ଏଠାରେ କ୍ଲିକ୍ କରନ୍ତୁ',
@@ -196,6 +202,8 @@ export const BUTTON_TEXT = {
     cancelOrder: 'অৰ্ডাৰ বাতিল',
     choose: 'বাছক',
     more: 'আৰু সামগ্ৰী',
+    noShop:
+      'স্বাগতম! 😀\nকিনিবলৈ আপোনাৰ বিক্ৰেতাই পঠোৱা দোকানৰ লিংক খোলক, নহয় "Hi" আৰু দোকানৰ ক\'ড পঠিয়াওক (যেনে: Hi KARNA)।',
     shopNow: 'এতিয়াই কিনক 🛍️',
     moreOptions: 'আৰু বিকল্প',
     clickHere: 'ইয়াত ক্লিক কৰক',
