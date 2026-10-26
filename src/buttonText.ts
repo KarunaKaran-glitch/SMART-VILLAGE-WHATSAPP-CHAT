@@ -29,6 +29,12 @@ export const BUTTON_TEXT = {
     cancelOrder: 'Cancel order',
     choose: 'Choose',
     more: 'More products',
+    shopNow: 'Shop now 🛍️',
+    moreOptions: 'More options',
+    clickHere: 'Click here',
+    shopWelcome: (shop: string) =>
+      `😀 Hello!\n\nWelcome to ${shop} 🛍️\nHandmade products, straight from the maker.\n\nPlease choose one of the options below 👇`,
+    clickBelow: (shop: string) => `Click on the below link to select ${shop} products 👇`,
     welcome:
       'Welcome to Smart Village Marketplace! Handmade bags and more, straight from the makers.\nWhat would you like to do?',
     whatNext: 'What would you like to do?',
@@ -78,6 +84,12 @@ export const BUTTON_TEXT = {
     cancelOrder: 'ऑर्डर रद्द करें',
     choose: 'चुनें',
     more: 'और उत्पाद',
+    shopNow: 'अभी खरीदें 🛍️',
+    moreOptions: 'और विकल्प',
+    clickHere: 'यहाँ क्लिक करें',
+    shopWelcome: (shop: string) =>
+      `😀 नमस्ते!\n\n${shop} में आपका स्वागत है 🛍️\nहाथ से बने उत्पाद, सीधे बनाने वाले से।\n\nकृपया नीचे दिए विकल्पों में से एक चुनें 👇`,
+    clickBelow: (shop: string) => `${shop} के उत्पाद चुनने के लिए नीचे दिए लिंक पर क्लिक करें 👇`,
     welcome:
       'स्मार्ट विलेज मार्केटप्लेस में आपका स्वागत है! हाथ से बने बैग और बहुत कुछ, सीधे बनाने वालों से।\nआप क्या करना चाहेंगे?',
     whatNext: 'आप क्या करना चाहेंगे?',
@@ -128,6 +140,12 @@ export const BUTTON_TEXT = {
     cancelOrder: 'ଅର୍ଡର ବାତିଲ',
     choose: 'ବାଛନ୍ତୁ',
     more: 'ଆହୁରି ଉତ୍ପାଦ',
+    shopNow: 'ବର୍ତ୍ତମାନ କିଣନ୍ତୁ 🛍️',
+    moreOptions: 'ଆହୁରି ବିକଳ୍ପ',
+    clickHere: 'ଏଠାରେ କ୍ଲିକ୍ କରନ୍ତୁ',
+    shopWelcome: (shop: string) =>
+      `😀 ନମସ୍କାର!\n\n${shop}କୁ ସ୍ୱାଗତ 🛍️\nହାତତିଆରି ଉତ୍ପାଦ, ସିଧାସଳଖ ତିଆରିକାରୀଙ୍କଠାରୁ।\n\nଦୟାକରି ତଳେ ଥିବା ବିକଳ୍ପ ମଧ୍ୟରୁ ଗୋଟିଏ ବାଛନ୍ତୁ 👇`,
+    clickBelow: (shop: string) => `${shop}ର ଉତ୍ପାଦ ବାଛିବା ପାଇଁ ତଳ ଲିଙ୍କରେ କ୍ଲିକ୍ କରନ୍ତୁ 👇`,
     welcome:
       'ସ୍ମାର୍ଟ ଭିଲେଜ ମାର୍କେଟପ୍ଲେସକୁ ସ୍ୱାଗତ! ହାତତିଆରି ବ୍ୟାଗ ଓ ଆହୁରି ଅନେକ, ସିଧାସଳଖ ତିଆରିକାରୀଙ୍କଠାରୁ।\nଆପଣ କ\'ଣ କରିବାକୁ ଚାହାଁନ୍ତି?',
     whatNext: 'ଆପଣ କ\'ଣ କରିବାକୁ ଚାହାଁନ୍ତି?',
@@ -178,6 +196,12 @@ export const BUTTON_TEXT = {
     cancelOrder: 'অৰ্ডাৰ বাতিল',
     choose: 'বাছক',
     more: 'আৰু সামগ্ৰী',
+    shopNow: 'এতিয়াই কিনক 🛍️',
+    moreOptions: 'আৰু বিকল্প',
+    clickHere: 'ইয়াত ক্লিক কৰক',
+    shopWelcome: (shop: string) =>
+      `😀 নমস্কাৰ!\n\n${shop}লৈ স্বাগতম 🛍️\nহাতে বনোৱা সামগ্ৰী, পোনপটীয়াকৈ নিৰ্মাতাৰ পৰা।\n\nঅনুগ্ৰহ কৰি তলৰ বিকল্পবোৰৰ এটা বাছক 👇`,
+    clickBelow: (shop: string) => `${shop}ৰ সামগ্ৰী বাছিবলৈ তলৰ লিংকত ক্লিক কৰক 👇`,
     welcome:
       'স্মাৰ্ট ভিলেজ মাৰ্কেটপ্লেচলৈ স্বাগতম! হাতে বনোৱা বেগ আৰু বহুতো, পোনপটীয়াকৈ নিৰ্মাতাৰ পৰা।\nআপুনি কি কৰিব বিচাৰে?',
     whatNext: 'আপুনি কি কৰিব বিচাৰে?',

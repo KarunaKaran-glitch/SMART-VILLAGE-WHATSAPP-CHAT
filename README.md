@@ -21,6 +21,8 @@ Meta sends each incoming WhatsApp message to `POST /webhook`. The server:
 
 `GET /webhook` answers Meta's one-time verification check using `VERIFY_TOKEN`.
 
+`GET /shop/<code>?t=<secret>` is the shop web page opened from the [Click here] button.
+
 ## Getting started
 
 ### Requirements
@@ -133,6 +135,8 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 | Command | What it does |
 |---|---|
 | `LANG` | Choose the language again |
+| `Hi <shop code>` | Open one seller's shop (this is what the seller's link sends). The customer is offered English + the seller's language, then sees that shop's welcome: Shop now, My orders, More options |
+| `SHOPNOW` | Get a [Click here] link to the shop's web page. The link holds a secret for this customer, works for 24 hours, and an older link stops working when a new one is made |
 | `MENU` | List the approved products (name and price) |
 | `<number>` | Pick a product from the menu: the bot sends its photo and price, then send a quantity (1–99) |
 | `CART` | Show the cart and its total |

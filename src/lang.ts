@@ -3,10 +3,22 @@ import { AsyncLocalStorage } from 'async_hooks';
 // The language of the person a message is being written for.
 // handleWebhook sets it to the sender's language; a message to someone else
 // (a notice to a seller or an admin) is built inside inLang(their language, ...).
-const store = new AsyncLocalStorage<{ lang: string }>();
+// It also holds the shop (seller) the sender came from through a shop link, so the customer's
+// screens show that shop. A message built for someone else (inLang) has no shop.
+const store = new AsyncLocalStorage<{ lang: string; shop?: string }>();
 
 export function currentLang(): string {
   return store.getStore()?.lang ?? 'en';
+}
+
+// The sender's shop name for the rest of the current webhook call
+export function setShop(shop: string | undefined): void {
+  const s = store.getStore();
+  if (s) s.shop = shop;
+}
+
+export function currentShop(): string | undefined {
+  return store.getStore()?.shop;
 }
 
 // Use this language for the rest of the current webhook call

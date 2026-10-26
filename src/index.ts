@@ -14,7 +14,7 @@ import { st } from './stockText';
 import { pay } from './payText';
 import { uf } from './upiFlowText';
 import { bt, STAFF_BUTTONS } from './buttonText';
-import { currentLang, inLang, setLang } from './lang';
+import { currentLang, currentShop, inLang, setLang, setShop } from './lang';
 import { ACTIVE_PAYMENT_METHOD } from './paymentConfig';
 import {
   downloadWhatsAppMedia,
@@ -26,7 +26,8 @@ import {
   signatureCheckEnabled,
   validSignature,
 } from './whatsapp';
-import { getImage, imageUrl, makeUpiQr, saveImage } from './images';
+import { getImage, imageUrl, makeUpiQr, publicUrl, saveImage } from './images';
+import crypto from 'crypto';
 
 const app = express();
 // Keep the raw request body: the Meta signature is calculated over the exact bytes.
@@ -53,6 +54,8 @@ type RichReply = {
   buttons?: Button[];
   list?: { button: string; rows: Row[] };
   imageKey?: string;
+  // One button that opens a web page (WhatsApp "cta_url" message)
+  link?: { title: string; url: string };
 };
 type Reply = string | RichReply | Reply[];
 
@@ -75,6 +78,16 @@ async function sendReply(to: string, reply: Reply): Promise<void> {
   }
 
   const body = clip(reply.text, 1024);
+  if (reply.link) {
+    const title = clip(reply.link.title, 20);
+    console.log(`>> Link button to ${to}:\n${maskDigits(body)}\n   [${title}] -> ${reply.link.url}\n`);
+    await sendWhatsAppInteractive(to, {
+      type: 'cta_url',
+      body: { text: body },
+      action: { name: 'cta_url', parameters: { display_text: title, url: reply.link.url } },
+    });
+    return;
+  }
   if (reply.list && reply.list.rows.length > 0) {
     const rows = reply.list.rows.slice(0, 10).map((r) => ({
       id: r.id,
@@ -322,6 +335,19 @@ async function shopLinkReply(
 
 function welcomeReply(language: string, text?: string): RichReply {
   const B = bt(language);
+  // A customer who came through a seller's link: that shop's welcome, like Chennai Metro's
+  // [Book Tickets] [Nearby Station] [More Options]
+  const shop = currentShop();
+  if (shop) {
+    return {
+      text: text ?? B.shopWelcome(shop),
+      buttons: [
+        { id: 'SHOPNOW', title: B.shopNow },
+        { id: 'MYORDERS', title: B.myOrders },
+        { id: 'MAINMENU', title: B.moreOptions },
+      ],
+    };
+  }
   return {
     text: text ?? B.welcome,
     buttons: [
@@ -334,6 +360,8 @@ function welcomeReply(language: string, text?: string): RichReply {
 
 // The first screen after "hi" depends on the role: sellers and admins see their own work first
 function homeReply(user: { language: string; role: string }): RichReply {
+  // Outside inLang, so a customer keeps their shop's welcome (see lang.ts)
+  if (user.role !== 'SELLER' && user.role !== 'ADMIN') return welcomeReply(user.language);
   return inLang(user.language, () => {
     if (user.role === 'SELLER') {
       return {
@@ -398,13 +426,18 @@ function withNav(role: string, reply: Reply): Reply {
 // Everything a customer can do, in one list (sellers and admins also get their own menu)
 function mainMenuReply(user: { language: string; role: string }): RichReply {
   const B = bt(user.language);
-  const rows: Row[] = [
-    { id: 'MENU', title: B.products },
-    { id: 'CART', title: B.cart },
+  // A shop customer shops on the shop's web page; others use the product lists and cart
+  const rows: Row[] = currentShop()
+    ? [{ id: 'SHOPNOW', title: B.shopNow }]
+    : [
+        { id: 'MENU', title: B.products },
+        { id: 'CART', title: B.cart },
+      ];
+  rows.push(
     { id: 'MYORDERS', title: B.myOrders },
     { id: 'ADDRESS', title: B.address },
-    { id: 'LANG', title: B.language },
-  ];
+    { id: 'LANG', title: B.language }
+  );
   if (user.role === 'SELLER') rows.push({ id: 'SELLER', title: B.sellerMenu });
   else if (user.role === 'ADMIN') rows.push({ id: 'ADMIN', title: B.adminMenu });
   else rows.push({ id: 'SELL', title: B.sell });
@@ -1611,6 +1644,52 @@ app.get('/images/:key', async (req: Request, res: Response) => {
   res.send(Buffer.from(image.data));
 });
 
+// ---- Shop web page (opened from the [Click here] button) ----
+
+const WEB_TOKEN_HOURS = 24;
+
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+}
+
+function simplePage(title: string, message: string): string {
+  return (
+    '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    `<title>${escapeHtml(title)}</title>` +
+    '<style>body{font-family:system-ui,sans-serif;margin:0;padding:24px 16px;background:#e8f5ee;color:#1d2b24}' +
+    'main{max-width:480px;margin:auto;background:#fff;border-radius:12px;padding:20px}</style></head>' +
+    `<body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p></main></body></html>`
+  );
+}
+
+// The customer who owns this link, if the secret is right and not older than 24 hours
+async function shopVisitor(code: string, token: unknown) {
+  if (typeof token !== 'string' || token.length < 20) return null;
+  const customer = await prisma.user.findUnique({ where: { webToken: token }, include: { shop: true } });
+  const fresh =
+    customer?.webTokenAt && Date.now() - customer.webTokenAt.getTime() < WEB_TOKEN_HOURS * 3600 * 1000;
+  if (!customer || !fresh || customer.shop?.shopCode !== code || customer.shop.role !== 'SELLER') return null;
+  return { customer, shop: customer.shop };
+}
+
+app.get('/shop/:code', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Content-Type-Options', 'nosniff');
+  const visit = await shopVisitor(String(req.params.code).toUpperCase(), req.query.t);
+  if (!visit) {
+    res
+      .status(403)
+      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and tap "Shop now" again.'));
+    return;
+  }
+  // Step 3 shows the products here
+  const shopName = visit.shop.shopName ?? visit.shop.shopCode ?? '';
+  res.send(
+    simplePage(shopName, `Hello ${visit.customer.name ?? ''}! The products of ${shopName} will be shown here soon.`)
+  );
+});
+
 // Meta calls this once to verify your webhook
 app.get('/webhook', (req: Request, res: Response) => {
   const mode = req.query['hub.mode'];
@@ -1668,6 +1747,7 @@ async function handleWebhook(body: any) {
       : null;
     // A seller in an English-only state: no language question
     const englishOnly = shop?.shopLanguage === 'en';
+    if (shop) setShop(shop.shopName ?? shop.shopCode ?? undefined);
 
     // New customer: save them and ask for a language
     if (!user) {
@@ -1702,6 +1782,14 @@ async function handleWebhook(body: any) {
 
     // Everything written for this person is in their language (seller and admin texts too)
     setLang(user.language);
+    // A customer who came through a seller's link sees that shop's screens
+    const myShop = user.shopId
+      ? await prisma.user.findUnique({
+          where: { id: user.shopId },
+          select: { shopName: true, shopCode: true, role: true },
+        })
+      : null;
+    if (myShop?.role === 'SELLER') setShop(myShop.shopName ?? myShop.shopCode ?? undefined);
     // Replies to a seller or admin that would end without a next step get navigation buttons
     const staffSend = (reply: Reply) => sendReply(phone, withNav(user.role, reply));
     const T = t(user.language);
@@ -2401,7 +2489,7 @@ async function handleWebhook(body: any) {
         user.state === 'ENTERING_SHOP_NAME') &&
       ([
         'MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER', 'SELL',
-        'MAINMENU', 'REMOVEMENU', 'PLACEORDER',
+        'MAINMENU', 'REMOVEMENU', 'PLACEORDER', 'SHOPNOW',
       ].includes(command) ||
         /^(REMOVE|CANCELORDER|QR|PRODUCT|BUY|ORDERINFO|MENU)\s+#?\d+$/.test(command) ||
         /^CATEGORY\s+#?\d+(\s+\d+)?$/.test(command) ||
@@ -2574,6 +2662,25 @@ async function handleWebhook(body: any) {
 
     if (command === 'MAINMENU') {
       await sendReply(phone, mainMenuReply(user));
+      return;
+    }
+
+    // SHOPNOW: the link to the shop's web page. Each tap makes a new secret for this customer
+    // (valid 24 hours), so the page knows who is ordering and an old link stops working.
+    if (command === 'SHOPNOW') {
+      if (myShop?.role !== 'SELLER' || !myShop.shopCode) {
+        await sendReply(phone, await productListReply(user.language));
+        return;
+      }
+      const token = crypto.randomBytes(18).toString('base64url');
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { webToken: token, webTokenAt: new Date() },
+      });
+      await sendReply(phone, {
+        text: B.clickBelow(myShop.shopName ?? myShop.shopCode),
+        link: { title: B.clickHere, url: publicUrl(`/shop/${myShop.shopCode}?t=${token}`) },
+      });
       return;
     }
 

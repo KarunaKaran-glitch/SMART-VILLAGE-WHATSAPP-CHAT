@@ -24,8 +24,13 @@ export function getImage(key: string) {
 // Link where WhatsApp (or a browser) can fetch an image.
 // Locally this is http://localhost:3000/images/<key>; live it must be the public HTTPS address.
 export function imageUrl(key: string): string {
+  return publicUrl(`/images/${key}`);
+}
+
+// Full address of a page on this server (photos, the shop web page)
+export function publicUrl(path: string): string {
   const base = process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-  return `${base.replace(/\/+$/, '')}/images/${key}`;
+  return `${base.replace(/\/+$/, '')}${path}`;
 }
 
 // Makes a UPI QR code with the amount and note filled in, saves it and returns its key.
