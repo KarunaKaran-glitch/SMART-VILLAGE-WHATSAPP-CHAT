@@ -30,6 +30,9 @@ import { getImage, imageUrl, makeUpiQr, publicUrl, saveImage, upiLink, upiQrData
 import crypto from 'crypto';
 import { PayPageState, renderPayPage, renderShopPage, simplePage } from './shopPage';
 import { wt } from './webText';
+import { dt } from './dashText';
+import { renderAdminPage } from './adminPage';
+import { renderSellerPage } from './sellerPage';
 
 const app = express();
 // Keep the raw request body: the Meta signature is calculated over the exact bytes.
@@ -1713,6 +1716,283 @@ app.get('/shop/:code', async (req: Request, res: Response) => {
   );
 });
 
+// ---- Dashboards for admins and sellers (web pages) ----
+
+// A new secret for this person's dashboard link (valid 24 hours; an older link stops working)
+async function newDashToken(userId: number): Promise<string> {
+  const token = crypto.randomBytes(18).toString('base64url');
+  await prisma.user.update({ where: { id: userId }, data: { dashToken: token, dashTokenAt: new Date() } });
+  return token;
+}
+
+// The admin or seller who owns this dashboard link, if the secret is right and fresh
+async function dashVisitor(token: unknown, role: 'ADMIN' | 'SELLER') {
+  if (typeof token !== 'string' || token.length < 20) return null;
+  const user = await prisma.user.findUnique({ where: { dashToken: token } });
+  const fresh = user?.dashTokenAt && Date.now() - user.dashTokenAt.getTime() < WEB_TOKEN_HOURS * 3600 * 1000;
+  return user && fresh && user.role === role ? user : null;
+}
+
+// A new seller's unique ID: 4 digits, not used by any shop yet. It is their dashboard key
+// (sent from their own phone) and the shop code customers use ("Hi 1122").
+async function newSellerId(): Promise<string> {
+  for (let i = 0; i < 100; i++) {
+    const id = String(1000 + crypto.randomInt(9000));
+    if (!(await prisma.user.findUnique({ where: { shopCode: id } }))) return id;
+  }
+  throw new Error('No free seller ID');
+}
+
+function botNumberText(): string {
+  const n = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
+  return n ? `+${n}` : '';
+}
+
+// The state choices for a shop (the state decides the customers' second language)
+function stateChoices(language: string) {
+  return inLang(language, () => [
+    { value: 'or', label: `${SHOP_TEXT.stateOdisha} (${SHOP_TEXT.withEnglish(LANGUAGES['3'].label)})` },
+    { value: 'as', label: `${SHOP_TEXT.stateAssam} (${SHOP_TEXT.withEnglish(LANGUAGES['4'].label)})` },
+    { value: 'hi', label: `${SHOP_TEXT.stateHindi} (${SHOP_TEXT.withEnglish(LANGUAGES['2'].label)})` },
+    { value: 'en', label: `${SHOP_TEXT.stateOther} (English)` },
+  ]);
+}
+
+// Admin dashboard: add a seller, list all sellers
+app.get('/admin', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Content-Type-Options', 'nosniff');
+  const admin = await dashVisitor(req.query.t, 'ADMIN');
+  if (!admin) {
+    res
+      .status(403)
+      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and open the dashboard again.'));
+    return;
+  }
+  const lang = admin.language;
+  const states = stateChoices(lang);
+  const categories = await prisma.category.findMany({ orderBy: { id: 'asc' } });
+  const sellers = await prisma.user.findMany({
+    where: { role: 'SELLER' },
+    include: { category: true, products: { select: { approval: true } } },
+    orderBy: { id: 'desc' },
+  });
+  const bot = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
+  const createdCode = typeof req.query.new === 'string' ? req.query.new : null;
+  const created = createdCode ? sellers.find((s) => s.shopCode === createdCode) : undefined;
+
+  res.send(
+    renderAdminPage({
+      language: lang,
+      token: String(req.query.t),
+      states,
+      categories: categories.map((c) => ({ id: c.id, name: categoryName(c, lang) })),
+      created: created ? { shopName: created.shopName ?? '', id: created.shopCode ?? '' } : null,
+      botNumber: botNumberText(),
+      sellers: sellers.map((s) => ({
+        id: s.shopCode ?? '-',
+        name: s.name ?? '-',
+        shopName: s.shopName ?? '-',
+        phone: s.phone,
+        state: states.find((x) => x.value === s.shopLanguage)?.label ?? '-',
+        category: s.category ? categoryName(s.category, lang) : '-',
+        products: s.products.length,
+        waiting: s.products.filter((p) => p.approval === 'PENDING').length,
+        shopLink:
+          bot && s.shopCode ? `https://wa.me/${bot}?text=${encodeURIComponent(`Hi ${s.shopCode}`)}` : null,
+      })),
+    })
+  );
+});
+
+// Admin adds a seller: { t, name, phone, shopName, shopLanguage, categoryId }.
+// The seller gets a unique ID and a WhatsApp message with it.
+app.post('/admin/sellers', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const admin = await dashVisitor(req.body?.t, 'ADMIN');
+    if (!admin) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const W = dt(admin.language);
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const shopName = typeof req.body.shopName === 'string' ? req.body.shopName.trim() : '';
+    const digits = typeof req.body.phone === 'string' ? req.body.phone.replace(/\D/g, '') : '';
+    // A 10-digit Indian number is stored with the 91 country code, like WhatsApp sends it
+    const phone = digits.length === 10 ? `91${digits}` : digits;
+    const shopLanguage = ['en', 'hi', 'or', 'as'].includes(req.body.shopLanguage) ? req.body.shopLanguage : 'en';
+    const category = await prisma.category.findUnique({ where: { id: Number(req.body.categoryId) || 0 } });
+
+    let error: string | null = null;
+    if (name.length < 2 || name.length > 60) error = W.nameInvalid;
+    else if (!/^91[6-9]\d{9}$/.test(phone)) error = W.phoneInvalid;
+    else if (shopName.length < 2 || shopName.length > 40) error = W.shopInvalid;
+    else if (!category) error = W.failed;
+    const existing = error ? null : await prisma.user.findUnique({ where: { phone } });
+    if (!error && existing?.role === 'ADMIN') error = W.isAdmin;
+    if (!error && existing?.role === 'SELLER') error = W.alreadySeller(existing.shopCode ?? '-');
+    if (error) {
+      res.status(400).json({ ok: false, error });
+      return;
+    }
+
+    const id = await newSellerId();
+    const sellerData = {
+      name,
+      role: 'SELLER' as const,
+      sellerStatus: 'APPROVED' as const,
+      shopName,
+      shopCode: id,
+      shopLanguage,
+      categoryId: category!.id,
+      state: 'BROWSING' as const,
+      pendingProductId: null,
+      pendingProductName: null,
+    };
+    // A new person gets the language of their state; someone who already uses the bot keeps theirs
+    const seller = existing
+      ? await prisma.user.update({ where: { id: existing.id }, data: sellerData })
+      : await prisma.user.create({ data: { ...sellerData, phone, language: shopLanguage } });
+    console.log(`Admin added seller ${maskDigits(phone)} with ID ${id}`);
+
+    // Tell the seller (WhatsApp only delivers this if they wrote to the bot in the last 24 hours)
+    try {
+      await sendReply(
+        seller.phone,
+        inLang(seller.language, () => ({
+          text: dt(seller.language).sellerWelcome(name, shopName, id),
+          buttons: [{ id, title: dt(seller.language).btnMyDashboard }],
+        }))
+      );
+    } catch (err) {
+      console.error('Seller welcome message failed:', err);
+    }
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error('Adding a seller failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// Seller dashboard: their products and a form to add one
+app.get('/seller', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Content-Type-Options', 'nosniff');
+  const seller = await dashVisitor(req.query.t, 'SELLER');
+  if (!seller) {
+    res
+      .status(403)
+      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and send your ID again.'));
+    return;
+  }
+  const products = await prisma.product.findMany({
+    where: { sellerId: seller.id },
+    include: { translations: true },
+    orderBy: { id: 'desc' },
+  });
+  res.send(
+    renderSellerPage({
+      language: seller.language,
+      token: String(req.query.t),
+      shopName: seller.shopName ?? '',
+      sellerId: seller.shopCode ?? '',
+      added: req.query.added === '1',
+      products: products.map((p) => ({
+        id: p.id,
+        name: localName(p, seller.language),
+        price: Number(p.price),
+        stock: p.stock,
+        imageUrl: p.imageKey ? `/images/${p.imageKey}` : null,
+        status:
+          p.approval === 'REJECTED'
+            ? 'rejected'
+            : p.approval === 'DRAFT' || !p.imageKey
+              ? 'draft'
+              : p.approval === 'PENDING'
+                ? 'waiting'
+                : p.isActive
+                  ? 'onSale'
+                  : 'hidden',
+      })),
+    })
+  );
+});
+
+// A photo sent by a web page as "data:image/jpeg;base64,...": only real JPEG, PNG or WebP files
+function decodePhoto(dataUrl: unknown): { data: Buffer; mimeType: string } | null {
+  if (typeof dataUrl !== 'string') return null;
+  const m = dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) return null;
+  const data = Buffer.from(m[2], 'base64');
+  const isJpeg = data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
+  const isPng = data.subarray(0, 4).toString('hex') === '89504e47';
+  const isWebp = data.subarray(0, 4).toString() === 'RIFF' && data.subarray(8, 12).toString() === 'WEBP';
+  return isJpeg || isPng || isWebp ? { data, mimeType: m[1] } : null;
+}
+
+// Seller adds a product on the dashboard: { t, name, price, description, photo }.
+// It waits for the admin (who gets its photo with Approve / Reject on WhatsApp).
+app.post('/seller/products', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const seller = await dashVisitor(req.body?.t, 'SELLER');
+    if (!seller) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const W = dt(seller.language);
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const price = Math.round(Number(req.body.price) * 100) / 100;
+    const description = typeof req.body.description === 'string' ? req.body.description.trim() : '';
+    const photo = decodePhoto(req.body.photo);
+
+    let error: string | null = null;
+    if (!req.body.photo) error = W.photoMissing;
+    else if (!photo) error = W.photoInvalid;
+    else if (name.length < 2 || name.length > 60) error = W.productNameInvalid;
+    else if (!(price >= 1 && price <= 100000)) error = W.priceInvalid;
+    else if (description.length > 300) error = W.descInvalid;
+    const imageKey = error ? null : await saveImage(photo!.data, photo!.mimeType);
+    if (!error && !imageKey) error = W.photoInvalid;
+    if (error) {
+      res.status(400).json({ ok: false, error });
+      return;
+    }
+
+    const product = await prisma.product.create({
+      data: {
+        name,
+        price,
+        description: description || null,
+        imageKey,
+        sellerId: seller.id,
+        categoryId: seller.categoryId,
+        translations: { create: [{ language: seller.language, name }] },
+        approval: 'PENDING',
+      },
+    });
+    console.log(`Seller ${seller.shopCode} added product #${product.id} on the dashboard`);
+
+    // Tell every admin, with the photo and Approve / Reject
+    try {
+      const admins = await prisma.user.findMany({ where: { role: 'ADMIN' } });
+      for (const a of admins) {
+        await sendReply(
+          a.phone,
+          inLang(a.language, () => adminProductReply({ ...product, imageKey: imageKey!, seller }))
+        );
+      }
+    } catch (err) {
+      console.error('Admin product notice failed:', err);
+    }
+    res.json({ ok: true, id: product.id });
+  } catch (err) {
+    console.error('Adding a product failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
 // One of this customer's orders from this shop, with what the payment page needs
 async function shopOrder(customerId: number, shopId: number, orderId: number) {
   if (!Number.isInteger(orderId)) return null;
@@ -1999,6 +2279,17 @@ async function handleWebhook(body: any) {
         data: { state: 'CHOOSING_LANGUAGE', pendingProductId: null },
       });
       await sendReply(phone, await languageReplyFor(user));
+      return;
+    }
+
+    // A seller sends their own unique ID (or taps [My dashboard]): the link to their dashboard.
+    // Only from the seller's own phone; from anyone else the number means nothing special.
+    if (user.role === 'SELLER' && user.shopCode && command === user.shopCode) {
+      const token = await newDashToken(user.id);
+      await sendReply(phone, {
+        text: dt(user.language).openSeller,
+        link: { title: dt(user.language).clickHere, url: publicUrl(`/seller?t=${token}`) },
+      });
       return;
     }
 
@@ -2535,6 +2826,16 @@ async function handleWebhook(body: any) {
 
     // ---- Admin commands (only for users with the ADMIN role) ----
     if (user.role === 'ADMIN' && user.state === 'BROWSING') {
+      // DASHBOARD: link to the admin web page (add sellers, see all sellers)
+      if (command === 'DASHBOARD') {
+        const token = await newDashToken(user.id);
+        await sendReply(phone, {
+          text: dt(user.language).openAdmin,
+          link: { title: dt(user.language).clickHere, url: publicUrl(`/admin?t=${token}`) },
+        });
+        return;
+      }
+
       if (command === 'PENDINGSELLERS') {
         const waiting = await prisma.user.findMany({
           where: { sellerStatus: 'PENDING' },
@@ -2650,6 +2951,7 @@ async function handleWebhook(body: any) {
           list: {
             button: REG_TEXT.btnAdminMenu,
             rows: [
+              { id: 'DASHBOARD', title: dt(user.language).rowAdminDashboard },
               { id: 'PENDINGPRODUCTS', title: REG_TEXT.rowProductsToCheck },
               { id: 'PENDINGSELLERS', title: REG_TEXT.rowSellerRequests },
               { id: 'SALES', title: REG_TEXT.rowSales },

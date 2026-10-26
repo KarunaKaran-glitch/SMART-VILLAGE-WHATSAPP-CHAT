@@ -19,7 +19,7 @@ export function escapeHtml(text: string): string {
 }
 
 // JSON that is safe inside a <script> tag
-function scriptJson(value: unknown): string {
+export function scriptJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
@@ -27,7 +27,7 @@ export function rupees(amount: number): string {
   return amount.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 }
 
-const STYLE = `
+export const STYLE = `
 :root{--bg:#e6f4ec;--card:#fff;--ink:#1d2b24;--muted:#5d6f66;--brand:#0f7a4d;--brand-ink:#fff;--line:#d5e6dc;--warn:#b3261e}
 *{box-sizing:border-box}
 body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;background:var(--bg);color:var(--ink);color-scheme:light}
