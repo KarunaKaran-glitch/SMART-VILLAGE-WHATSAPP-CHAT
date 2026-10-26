@@ -8,6 +8,7 @@ const en = {
     `Hello ${name}! 🎉\nYou are now a seller on Smart Village.\nShop: ${shop}\nYour unique ID: ${id}\n\n` +
     `Send ${id} here any time to open your seller dashboard: your products, orders and payments.`,
   btnMyDashboard: 'My dashboard',
+  sellerHome: 'Welcome back! 😀 Tap "My dashboard" to see your products, orders and payments on one page.',
   // Admin page
   adminTitle: 'Admin dashboard',
   addSeller: 'Add a seller',
@@ -69,6 +70,32 @@ const en = {
   approvedNote: 'Approved: customers can see it now.',
   rejectedNote: 'Rejected: customers will not see it.',
   fromShop: (shop: string, id: string) => `${shop} (ID ${id})`,
+  // Seller dashboard: shop link, payment details, product changes
+  shopLinkTitle: 'Your shop link',
+  shopLinkHint: (id: string) => `Send this link to your customers. They can also send "Hi ${id}" to the bot.`,
+  share: 'Share on WhatsApp',
+  shareText: (shop: string, link: string) => `Buy handmade products from ${shop} 🛍️ Tap here: ${link}`,
+  noBotNumber: 'The bot number is not set yet, so the link cannot be made. Customers can send "Hi" and your ID.',
+  payment: 'Payment details',
+  noUpiWarn: 'Add your UPI ID, otherwise customers cannot pay you.',
+  upiLabel: 'Your UPI ID (as shown in GPay, PhonePe or Paytm)',
+  saveUpi: 'Save UPI ID',
+  upiInvalid: 'This does not look like a UPI ID. Example: name@okaxis',
+  qrLabel: 'Your UPI QR code photo (optional)',
+  qrHint:
+    'If you add it, customers scan your own QR. Without it, they get a QR made from your UPI ID with the amount filled in.',
+  saveQr: 'Save QR photo',
+  removeQr: 'Remove QR photo',
+  stateLabel: 'Your state (customers can choose English or its language)',
+  saveState: 'Save state',
+  saved: 'Saved.',
+  change: 'Change',
+  saveChange: 'Save',
+  priceLabel: 'Price (₹)',
+  stockLabelEdit: 'Stock (leave empty if you do not count)',
+  stockInvalid: 'Stock must be a number from 0 to 9999, or empty.',
+  hide: 'Hide',
+  show: 'Show',
 };
 
 const hi: typeof en = {
@@ -79,6 +106,7 @@ const hi: typeof en = {
     `नमस्ते ${name}! 🎉\nअब आप Smart Village पर विक्रेता हैं।\nदुकान: ${shop}\nआपकी यूनिक आईडी: ${id}\n\n` +
     `अपना विक्रेता डैशबोर्ड (उत्पाद, ऑर्डर और भुगतान) खोलने के लिए कभी भी यहाँ ${id} भेजें।`,
   btnMyDashboard: 'मेरा डैशबोर्ड',
+  sellerHome: 'फिर से स्वागत है! 😀 अपने उत्पाद, ऑर्डर और भुगतान एक ही पेज पर देखने के लिए "मेरा डैशबोर्ड" दबाएँ।',
   adminTitle: 'एडमिन डैशबोर्ड',
   addSeller: 'विक्रेता जोड़ें',
   addHint:
@@ -137,6 +165,31 @@ const hi: typeof en = {
   approvedNote: 'मंज़ूर: अब ग्राहक इसे देख सकते हैं।',
   rejectedNote: 'अस्वीकार: ग्राहक इसे नहीं देखेंगे।',
   fromShop: (shop: string, id: string) => `${shop} (आईडी ${id})`,
+  shopLinkTitle: 'आपकी दुकान का लिंक',
+  shopLinkHint: (id: string) => `यह लिंक अपने ग्राहकों को भेजें। वे बॉट को "Hi ${id}" भी भेज सकते हैं।`,
+  share: 'WhatsApp पर भेजें',
+  shareText: (shop: string, link: string) => `${shop} से हाथ से बने उत्पाद खरीदें 🛍️ यहाँ दबाएँ: ${link}`,
+  noBotNumber: 'बॉट नंबर अभी सेट नहीं है, इसलिए लिंक नहीं बन सका। ग्राहक "Hi" और आपकी आईडी भेज सकते हैं।',
+  payment: 'भुगतान की जानकारी',
+  noUpiWarn: 'अपनी UPI आईडी जोड़ें, वरना ग्राहक आपको भुगतान नहीं कर पाएँगे।',
+  upiLabel: 'आपकी UPI आईडी (जैसी GPay, PhonePe या Paytm में दिखती है)',
+  saveUpi: 'UPI आईडी सेव करें',
+  upiInvalid: 'यह UPI आईडी जैसी नहीं लगती। उदाहरण: name@okaxis',
+  qrLabel: 'आपके UPI QR कोड की फ़ोटो (ज़रूरी नहीं)',
+  qrHint:
+    'जोड़ने पर ग्राहक आपका अपना QR स्कैन करेंगे। न जोड़ने पर उन्हें आपकी UPI आईडी से बना QR मिलेगा जिसमें राशि भरी होगी।',
+  saveQr: 'QR फ़ोटो सेव करें',
+  removeQr: 'QR फ़ोटो हटाएँ',
+  stateLabel: 'आपका राज्य (ग्राहक अंग्रेज़ी या उसकी भाषा चुन सकेंगे)',
+  saveState: 'राज्य सेव करें',
+  saved: 'सेव हो गया।',
+  change: 'बदलें',
+  saveChange: 'सेव करें',
+  priceLabel: 'कीमत (₹)',
+  stockLabelEdit: 'स्टॉक (अगर नहीं गिनते तो खाली छोड़ें)',
+  stockInvalid: 'स्टॉक 0 से 9999 तक की संख्या हो, या खाली छोड़ें।',
+  hide: 'छिपाएँ',
+  show: 'दिखाएँ',
 };
 
 const or: typeof en = {
@@ -147,6 +200,7 @@ const or: typeof en = {
     `ନମସ୍କାର ${name}! 🎉\nଆପଣ ବର୍ତ୍ତମାନ Smart Villageରେ ଜଣେ ବିକ୍ରେତା।\nଦୋକାନ: ${shop}\nଆପଣଙ୍କ ୟୁନିକ୍ ID: ${id}\n\n` +
     `ଆପଣଙ୍କ ବିକ୍ରେତା ଡ୍ୟାସବୋର୍ଡ (ଉତ୍ପାଦ, ଅର୍ଡର ଓ ପେମେଣ୍ଟ) ଖୋଲିବା ପାଇଁ ଯେକୌଣସି ସମୟରେ ଏଠାରେ ${id} ପଠାନ୍ତୁ।`,
   btnMyDashboard: 'ମୋ ଡ୍ୟାସବୋର୍ଡ',
+  sellerHome: 'ପୁଣି ସ୍ୱାଗତ! 😀 ଆପଣଙ୍କ ଉତ୍ପାଦ, ଅର୍ଡର ଓ ପେମେଣ୍ଟ ଗୋଟିଏ ପେଜରେ ଦେଖିବା ପାଇଁ "ମୋ ଡ୍ୟାସବୋର୍ଡ" ଦବାନ୍ତୁ।',
   adminTitle: 'ଆଡମିନ୍ ଡ୍ୟାସବୋର୍ଡ',
   addSeller: 'ବିକ୍ରେତା ଯୋଡ଼ନ୍ତୁ',
   addHint:
@@ -205,6 +259,31 @@ const or: typeof en = {
   approvedNote: 'ଅନୁମୋଦିତ: ଗ୍ରାହକମାନେ ଏବେ ଏହା ଦେଖିପାରିବେ।',
   rejectedNote: 'ପ୍ରତ୍ୟାଖ୍ୟାତ: ଗ୍ରାହକମାନେ ଏହା ଦେଖିବେ ନାହିଁ।',
   fromShop: (shop: string, id: string) => `${shop} (ID ${id})`,
+  shopLinkTitle: 'ଆପଣଙ୍କ ଦୋକାନ ଲିଙ୍କ',
+  shopLinkHint: (id: string) => `ଏହି ଲିଙ୍କ ଆପଣଙ୍କ ଗ୍ରାହକଙ୍କୁ ପଠାନ୍ତୁ। ସେମାନେ ବଟ୍‌କୁ "Hi ${id}" ମଧ୍ୟ ପଠାଇପାରିବେ।`,
+  share: 'WhatsAppରେ ପଠାନ୍ତୁ',
+  shareText: (shop: string, link: string) => `${shop}ରୁ ହାତତିଆରି ଉତ୍ପାଦ କିଣନ୍ତୁ 🛍️ ଏଠାରେ ଦବାନ୍ତୁ: ${link}`,
+  noBotNumber: 'ବଟ୍ ନମ୍ବର ଏପର୍ଯ୍ୟନ୍ତ ସେଟ୍ ହୋଇନାହିଁ, ତେଣୁ ଲିଙ୍କ ତିଆରି ହୋଇପାରିଲା ନାହିଁ। ଗ୍ରାହକମାନେ "Hi" ଓ ଆପଣଙ୍କ ID ପଠାଇପାରିବେ।',
+  payment: 'ପେମେଣ୍ଟ ବିବରଣୀ',
+  noUpiWarn: 'ଆପଣଙ୍କ UPI ID ଯୋଡ଼ନ୍ତୁ, ନଚେତ୍ ଗ୍ରାହକମାନେ ଆପଣଙ୍କୁ ପଇସା ଦେଇପାରିବେ ନାହିଁ।',
+  upiLabel: 'ଆପଣଙ୍କ UPI ID (GPay, PhonePe ବା Paytmରେ ଯେପରି ଦେଖାଯାଏ)',
+  saveUpi: 'UPI ID ସେଭ୍ କରନ୍ତୁ',
+  upiInvalid: 'ଏହା UPI ID ପରି ଲାଗୁନାହିଁ। ଉଦାହରଣ: name@okaxis',
+  qrLabel: 'ଆପଣଙ୍କ UPI QR କୋଡ୍ ଫଟୋ (ଇଚ୍ଛାଧୀନ)',
+  qrHint:
+    'ଯୋଡ଼ିଲେ ଗ୍ରାହକମାନେ ଆପଣଙ୍କ ନିଜ QR ସ୍କାନ୍ କରିବେ। ନ ଯୋଡ଼ିଲେ ସେମାନେ ଆପଣଙ୍କ UPI IDରୁ ତିଆରି, ରାଶି ଭରା QR ପାଇବେ।',
+  saveQr: 'QR ଫଟୋ ସେଭ୍ କରନ୍ତୁ',
+  removeQr: 'QR ଫଟୋ ହଟାନ୍ତୁ',
+  stateLabel: 'ଆପଣଙ୍କ ରାଜ୍ୟ (ଗ୍ରାହକମାନେ ଇଂରାଜୀ ବା ଏହାର ଭାଷା ବାଛିପାରିବେ)',
+  saveState: 'ରାଜ୍ୟ ସେଭ୍ କରନ୍ତୁ',
+  saved: 'ସେଭ୍ ହେଲା।',
+  change: 'ବଦଳାନ୍ତୁ',
+  saveChange: 'ସେଭ୍ କରନ୍ତୁ',
+  priceLabel: 'ଦାମ (₹)',
+  stockLabelEdit: 'ଷ୍ଟକ୍ (ଗଣୁନଥିଲେ ଖାଲି ଛାଡ଼ନ୍ତୁ)',
+  stockInvalid: 'ଷ୍ଟକ୍ 0 ରୁ 9999 ମଧ୍ୟରେ ଏକ ସଂଖ୍ୟା ହେବା ଦରକାର, କିମ୍ବା ଖାଲି।',
+  hide: 'ଲୁଚାନ୍ତୁ',
+  show: 'ଦେଖାନ୍ତୁ',
 };
 
 const as: typeof en = {
@@ -215,6 +294,7 @@ const as: typeof en = {
     `নমস্কাৰ ${name}! 🎉\nআপুনি এতিয়া Smart Villageত বিক্ৰেতা।\nদোকান: ${shop}\nআপোনাৰ ইউনিক ID: ${id}\n\n` +
     `আপোনাৰ বিক্ৰেতা ডেশ্বব’ৰ্ড (সামগ্ৰী, অৰ্ডাৰ আৰু পেমেণ্ট) খুলিবলৈ যিকোনো সময়তে ইয়াত ${id} পঠিয়াওক।`,
   btnMyDashboard: 'মোৰ ডেশ্বব’ৰ্ড',
+  sellerHome: 'পুনৰ স্বাগতম! 😀 আপোনাৰ সামগ্ৰী, অৰ্ডাৰ আৰু পেমেণ্ট এখন পেজতে চাবলৈ "মোৰ ডেশ্বব’ৰ্ড" টিপক।',
   adminTitle: 'এডমিন ডেশ্বব’ৰ্ড',
   addSeller: 'বিক্ৰেতা যোগ কৰক',
   addHint:
@@ -273,6 +353,31 @@ const as: typeof en = {
   approvedNote: 'অনুমোদিত: গ্ৰাহকে এতিয়া ইয়াক দেখিব পাৰে।',
   rejectedNote: 'নাকচ: গ্ৰাহকে ইয়াক নেদেখিব।',
   fromShop: (shop: string, id: string) => `${shop} (ID ${id})`,
+  shopLinkTitle: 'আপোনাৰ দোকানৰ লিংক',
+  shopLinkHint: (id: string) => `এই লিংক আপোনাৰ গ্ৰাহকক পঠিয়াওক। তেওঁলোকে বটলৈ "Hi ${id}" পঠিয়াবও পাৰে।`,
+  share: 'WhatsAppত পঠিয়াওক',
+  shareText: (shop: string, link: string) => `${shop}ৰ পৰা হাতে বনোৱা সামগ্ৰী কিনক 🛍️ ইয়াত টিপক: ${link}`,
+  noBotNumber: "বটৰ নম্বৰ এতিয়াও ছেট কৰা নাই, সেয়েহে লিংক বনাব পৰা নগ'ল। গ্ৰাহকে \"Hi\" আৰু আপোনাৰ ID পঠিয়াব পাৰে।",
+  payment: 'পেমেণ্টৰ বিৱৰণ',
+  noUpiWarn: 'আপোনাৰ UPI ID যোগ কৰক, নহ’লে গ্ৰাহকে আপোনাক ধন দিব নোৱাৰিব।',
+  upiLabel: 'আপোনাৰ UPI ID (GPay, PhonePe বা Paytmত যিদৰে দেখায়)',
+  saveUpi: 'UPI ID ছেভ কৰক',
+  upiInvalid: 'এইটো UPI ID যেন লগা নাই। উদাহৰণ: name@okaxis',
+  qrLabel: 'আপোনাৰ UPI QR ক’ডৰ ফটো (ইচ্ছাধীন)',
+  qrHint:
+    'যোগ কৰিলে গ্ৰাহকে আপোনাৰ নিজৰ QR স্কেন কৰিব। নকৰিলে তেওঁলোকে আপোনাৰ UPI IDৰ পৰা বনোৱা, ধন ভৰোৱা QR পাব।',
+  saveQr: 'QR ফটো ছেভ কৰক',
+  removeQr: 'QR ফটো আঁতৰাওক',
+  stateLabel: 'আপোনাৰ ৰাজ্য (গ্ৰাহকে ইংৰাজী বা ইয়াৰ ভাষা বাছিব পাৰিব)',
+  saveState: 'ৰাজ্য ছেভ কৰক',
+  saved: "ছেভ হ'ল।",
+  change: 'সলনি কৰক',
+  saveChange: 'ছেভ কৰক',
+  priceLabel: 'দাম (₹)',
+  stockLabelEdit: 'ষ্টক (গণনা নকৰিলে খালী ৰাখক)',
+  stockInvalid: 'ষ্টক 0ৰ পৰা 9999লৈ এটা সংখ্যা হ’ব লাগে, নহয় খালী।',
+  hide: 'লুকুৱাওক',
+  show: 'দেখুৱাওক',
 };
 
 const DASH_TEXT: Record<string, typeof en> = { en, hi, or, as };

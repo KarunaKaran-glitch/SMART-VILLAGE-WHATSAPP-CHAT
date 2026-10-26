@@ -137,7 +137,7 @@ Commands are not case-sensitive. `#` before a number is optional (`SHIP 12` and 
 | `LANG` | Choose the language again |
 | `Hi <shop code>` | Open one seller's shop (this is what the seller's link sends). The customer is offered English + the seller's language, then sees that shop's welcome: Shop now, My orders, More options |
 | `SHOPNOW` | Get a [Click here] link to the shop's web page. The link holds a secret for this customer, works for 24 hours, and an older link stops working when a new one is made |
-| `MENU`, `CART`, `ORDER`, `CATEGORY n`, `PRODUCT n`, a product number | The older chat shopping commands. They now answer like `SHOPNOW` (the customer's shop link), or, without a shop link, explain how to open one. The chat cart code is still there but no longer reachable |
+| `MENU`, `CART`, `ORDER`, `CATEGORY n`, `PRODUCT n`, a product number | The older chat shopping commands. They now answer like `SHOPNOW` (the customer's shop link), or, without a shop link, explain how to open one. (the old chat shopping was removed on 26 Oct 2026) |
 | `ADDRESS` | Set or change the delivery address (the shop page fills it in) |
 | `QR <order id>` | Get a QR code to pay that order: the seller's own QR photo, or a QR made from the seller's UPI ID with the amount and note filled in |
 | `PAID <order id> <transaction no.>` | Report a UPI payment; the seller is asked to check it (`PAID` alone shows how) |

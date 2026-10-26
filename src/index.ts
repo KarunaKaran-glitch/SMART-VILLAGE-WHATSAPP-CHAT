@@ -5,7 +5,6 @@ import { CHOOSE_LANGUAGE, LANGUAGES, t } from './messages';
 import { SHOP_TEXT } from './shopText';
 import { ot } from './orderText';
 import { SELLER_TEXT } from './sellerText';
-import { ct } from './cartEditText';
 import { mo } from './myOrdersText';
 import { ad } from './addressText';
 import { cn, sellerAdminCancelNotice, sellerCancelNotice } from './cancelText';
@@ -204,59 +203,10 @@ function categoryName(c: { name: string; names: unknown }, language: string): st
   return names[language] ?? c.name;
 }
 
-// The category list (tap one to choose it); used by customers, sellers and applicants
-async function categoryRows(language: string, idPrefix: string, withCounts: boolean): Promise<Row[]> {
+// The category list (tap one to choose it); used by sellers and applicants
+async function categoryRows(language: string, idPrefix: string): Promise<Row[]> {
   const categories = await prisma.category.findMany({ orderBy: { id: 'asc' }, take: 10 });
-  const rows: Row[] = [];
-  for (const c of categories) {
-    let description: string | undefined;
-    if (withCounts) {
-      const n = (await loadProducts(c.id)).length;
-      if (n === 0) continue; // customers only see categories that have products
-      description = bt(language).itemCount(n);
-    }
-    rows.push({ id: `${idPrefix} ${c.id}`, title: categoryName(c, language), description });
-  }
-  return rows;
-}
-
-// Products a customer can buy (optionally only one category)
-function loadProducts(categoryId?: number) {
-  return prisma.product.findMany({
-    where: {
-      ...(categoryId ? { categoryId } : {}),
-      isActive: true,
-      approval: 'APPROVED', // checked by the admin: handmade only
-      imageKey: { not: null }, // every product on the menu has a photo
-      seller: { upiId: { not: null } }, // customers can only pay sellers who set a UPI ID
-      OR: [{ stock: null }, { stock: { gt: 0 } }],
-    },
-    include: { translations: true },
-    orderBy: { id: 'asc' },
-  });
-}
-
-async function cartText(userId: number, language: string, withHint = true): Promise<string> {
-  const T = t(language);
-  const cart = await prisma.cart.findUnique({
-    where: { customerId: userId },
-    include: {
-      items: {
-        include: { product: { include: { translations: true } } },
-        orderBy: { id: 'asc' },
-      },
-    },
-  });
-  if (!cart || cart.items.length === 0) return T.emptyCart;
-
-  let total = 0;
-  const lines = cart.items.map((item, i) => {
-    const lineTotal = Number(item.product.price) * item.quantity;
-    total += lineTotal;
-    return `${i + 1}. ${localName(item.product, language)} x ${item.quantity} - ₹${lineTotal}`;
-  });
-  const summary = `${T.cartTitle}\n${lines.join('\n')}\n${T.cartTotal}: ₹${total}`;
-  return withHint ? `${summary}\n\n${ct(language).hint}` : summary;
+  return categories.map((c) => ({ id: `${idPrefix} ${c.id}`, title: categoryName(c, language) }));
 }
 
 // ---- Tap screens (buttons and lists) ----
@@ -375,11 +325,12 @@ function homeReply(user: { language: string; role: string }): RichReply {
   if (user.role !== 'SELLER' && user.role !== 'ADMIN') return welcomeReply(user.language);
   return inLang(user.language, () => {
     if (user.role === 'SELLER') {
+      // Sellers work on their dashboard page; the chat is the way in
       return {
-        text: SELLER_TEXT.home,
+        text: dt(user.language).sellerHome,
         buttons: [
+          { id: 'DASHBOARD', title: dt(user.language).btnMyDashboard },
           { id: 'MYORDERS', title: SELLER_TEXT.btnOrders },
-          { id: 'ADD', title: SELLER_TEXT.btnAdd },
           { id: 'SELLER', title: SELLER_TEXT.btnMenu },
         ],
       };
@@ -415,8 +366,8 @@ function withNav(role: string, reply: Reply): Reply {
     return {
       ...rich,
       buttons: [
+        { id: 'DASHBOARD', title: dt(currentLang()).btnMyDashboard },
         { id: 'MYPRODUCTS', title: SELLER_TEXT.rowProducts },
-        { id: 'ADD', title: SELLER_TEXT.btnAdd },
         { id: 'SELLER', title: SELLER_TEXT.btnMenu },
       ],
     };
@@ -448,141 +399,6 @@ function mainMenuReply(user: { language: string; role: string }): RichReply {
   else if (user.role === 'ADMIN') rows.push({ id: 'ADMIN', title: B.adminMenu });
   else rows.push({ id: 'SELL', title: B.sell });
   return { text: B.whatNext, list: { button: B.menu, rows } };
-}
-
-// Products as a tap list, 9 per page plus "More products"
-async function productListReply(language: string): Promise<Reply> {
-  // MENU first shows the categories (Keychains, Handbags, Wallets ...)
-  const B = bt(language);
-  const rows = await categoryRows(language, 'CATEGORY', true);
-  if (rows.length === 0) return { text: B.noProducts, buttons: [{ id: 'MAINMENU', title: B.menu }] };
-  return { text: B.categoriesBody, list: { button: B.categoriesButton, rows } };
-}
-
-// CATEGORY n (page p): the products of one category as photo cards, so customers choose
-// by colour and design. Each card is the photo with name and price and a [Select] button;
-// a last message offers [More] (next 10) and [All categories].
-async function categoryProductsReply(language: string, categoryId: number, page: number): Promise<Reply> {
-  const B = bt(language);
-  const category = await prisma.category.findUnique({ where: { id: categoryId } });
-  const products = category ? await loadProducts(categoryId) : [];
-  if (!category || products.length === 0) return productListReply(language);
-
-  const perPage = 10;
-  const pages = Math.ceil(products.length / perPage);
-  const current = Math.min(Math.max(page, 1), pages);
-  const cards: Reply[] = products.slice((current - 1) * perPage, current * perPage).map((p) => ({
-    text: `${localName(p, language)} - ₹${p.price}`,
-    imageKey: p.imageKey!,
-    buttons: [{ id: `PRODUCT ${p.id}`, title: B.select }],
-  }));
-
-  const nav: Button[] = [];
-  if (current < pages) nav.push({ id: `CATEGORY ${categoryId} ${current + 1}`, title: `${B.moreItems} ›` });
-  nav.push({ id: 'MENU', title: B.allCategories });
-  const shown = `${(current - 1) * perPage + 1}-${(current - 1) * perPage + cards.length} / ${products.length}`;
-  return [
-    ...cards,
-    { text: `${categoryName(category, language)} (${shown})\n${B.pickHint}`, buttons: nav },
-  ];
-}
-
-// One product: its photo, name and price, with Add to cart / Back
-async function productReply(language: string, productId: number): Promise<Reply> {
-  const B = bt(language);
-  const p = await prisma.product.findUnique({ where: { id: productId }, include: { translations: true } });
-  if (!p || !p.isActive || p.approval !== 'APPROVED' || !p.imageKey || p.stock === 0) {
-    return welcomeReply(language, t(language).invalidProduct);
-  }
-  // The details screen: photo, name, price and the seller's description.
-  // The other photo cards are still just above in the chat, so the second button
-  // opens the category list instead of sending all photos again.
-  return {
-    text: `${localName(p, language)} - ₹${p.price}${p.description ? `\n\n${p.description}` : ''}`,
-    imageKey: p.imageKey,
-    buttons: [
-      { id: `BUY ${p.id}`, title: B.addToCart },
-      { id: 'MENU', title: B.allCategories },
-    ],
-  };
-}
-
-// Quantity as a tap list: 1 to 10 (typing a bigger number up to 99 still works)
-function qtyReply(language: string, name: string): RichReply {
-  const B = bt(language);
-  return {
-    text: B.askQty(name),
-    list: {
-      button: B.choose,
-      rows: Array.from({ length: 10 }, (_, i) => ({ id: String(i + 1), title: String(i + 1) })),
-    },
-  };
-}
-
-function afterAddReply(language: string, text: string): RichReply {
-  const B = bt(language);
-  return {
-    text,
-    buttons: [
-      { id: 'ORDER', title: B.placeOrder },
-      { id: 'MENU', title: B.shopMore },
-      { id: 'CART', title: B.viewCart },
-    ],
-  };
-}
-
-async function cartReply(userId: number, language: string, prefix?: string): Promise<Reply> {
-  const B = bt(language);
-  const T = t(language);
-  const summary = await cartText(userId, language, false);
-  const text = prefix ? `${prefix}\n\n${summary}` : summary;
-  if (summary === T.emptyCart) {
-    return { text, buttons: [{ id: 'MENU', title: B.products }] };
-  }
-  return {
-    text,
-    buttons: [
-      { id: 'ORDER', title: B.placeOrder },
-      { id: 'REMOVEMENU', title: B.removeItem },
-      { id: 'MENU', title: B.shopMore },
-    ],
-  };
-}
-
-// Which cart line to remove (same numbering as the cart), or empty the cart
-async function removeMenuReply(userId: number, language: string): Promise<Reply> {
-  const B = bt(language);
-  const cart = await prisma.cart.findUnique({
-    where: { customerId: userId },
-    include: { items: { include: { product: { include: { translations: true } } }, orderBy: { id: 'asc' } } },
-  });
-  if (!cart || cart.items.length === 0) return cartReply(userId, language);
-  const rows: Row[] = cart.items.slice(0, 9).map((item, i) => ({
-    id: `REMOVE ${i + 1}`,
-    title: localName(item.product, language),
-    description: `x ${item.quantity}`,
-  }));
-  rows.push({ id: 'CLEAR', title: B.clearCart });
-  return { text: B.removeWhich, list: { button: B.removeItem, rows } };
-}
-
-// Before placing the order: total and delivery address, so the customer can check them
-async function confirmOrderReply(userId: number, language: string, address: string): Promise<Reply> {
-  const B = bt(language);
-  const cart = await prisma.cart.findUnique({
-    where: { customerId: userId },
-    include: { items: { include: { product: true } } },
-  });
-  if (!cart || cart.items.length === 0) return cartReply(userId, language);
-  const total = cart.items.reduce((sum, i) => sum + Number(i.product.price) * i.quantity, 0);
-  return {
-    text: B.confirmOrder(total, address),
-    buttons: [
-      { id: 'PLACEORDER', title: B.placeOrder },
-      { id: 'ADDRESS', title: B.changeAddress },
-      { id: 'CART', title: B.viewCart },
-    ],
-  };
 }
 
 // The customer's last orders as a tap list
@@ -648,33 +464,6 @@ async function orderInfoReply(userId: number, language: string, orderId: number)
       { id: 'SHOPNOW', title: B.shopNow },
     ],
   };
-}
-
-// REMOVE n: removes line n of the cart (same numbering as the CART message)
-async function removeFromCart(userId: number, language: string, line: number): Promise<Reply> {
-  const cart = await prisma.cart.findUnique({
-    where: { customerId: userId },
-    include: { items: { orderBy: { id: 'asc' } } },
-  });
-  if (!cart || cart.items.length === 0) return cartReply(userId, language);
-
-  const item = cart.items[line - 1];
-  if (!item) return cartReply(userId, language, ct(language).invalidLine);
-
-  await prisma.cartItem.delete({ where: { id: item.id } });
-  return cartReply(userId, language, ct(language).removed);
-}
-
-// CLEAR: empties the cart
-async function clearCart(userId: number, language: string): Promise<Reply> {
-  const cart = await prisma.cart.findUnique({
-    where: { customerId: userId },
-    include: { items: true },
-  });
-  if (cart && cart.items.length > 0) {
-    await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-  }
-  return { text: ct(language).cleared, buttons: [{ id: 'MENU', title: bt(language).products }] };
 }
 
 // Buttons to carry on after a customer message that has no next step of its own
@@ -1059,30 +848,6 @@ async function createOrders(
     console.error('Seller notification failed:', err);
   }
   return { placed };
-}
-
-async function placeOrder(userId: number, language: string, address: string): Promise<Reply> {
-  const result = await createOrders(userId, language, address);
-  if ('error' in result) return result.error;
-  return paymentReply(language, result.placed);
-}
-
-// Tells the customer how to pay: one message per seller, with Show QR / I have paid buttons
-function paymentReply(language: string, placed: Placed[]): Reply {
-  const P = pay(language);
-  if (ACTIVE_PAYMENT_METHOD === 'UPI_DIRECT') {
-    const B = bt(language);
-    return placed.map((p, i) => ({
-      text:
-        (i === 0 ? `${P.header}\n\n` : '') +
-        `${P.block(p.orderId, p.shop, p.total, p.upiId ?? '')}\n\n${B.payTapHint}`,
-      buttons: [
-        { id: `QR ${p.orderId}`, title: B.showQr },
-        { id: `PAID ${p.orderId}`, title: B.paid },
-      ],
-    }));
-  }
-  return placed.map((p) => ot(language).placed(p.orderId, p.total)).join('\n\n');
 }
 
 // Seller moves an order forward: CONFIRM, then SHIP, then DELIVER
@@ -1489,7 +1254,7 @@ async function decideProduct(productId: number, approve: boolean): Promise<strin
 
 // The category list for a seller or applicant to choose their kind of product
 async function categoryChoiceReply(language: string, intro?: string): Promise<RichReply> {
-  const rows = await categoryRows(language, 'SETCATEGORY', false);
+  const rows = await categoryRows(language, 'SETCATEGORY');
   return inLang(language, () => ({
     text: intro ? `${intro}\n${SELLER_TEXT.askCategory}` : SELLER_TEXT.askCategory,
     list: { button: bt(language).categoriesButton, rows },
@@ -1930,13 +1695,24 @@ app.get('/seller', async (req: Request, res: Response) => {
     include: { translations: true },
     orderBy: { id: 'desc' },
   });
+  const bot = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
   res.send(
     renderSellerPage({
       language: seller.language,
       token: String(req.query.t),
       shopName: seller.shopName ?? '',
       sellerId: seller.shopCode ?? '',
-      added: req.query.added === '1',
+      notice:
+        req.query.done === 'added'
+          ? dt(seller.language).productAdded
+          : req.query.done === 'saved'
+            ? dt(seller.language).saved
+            : null,
+      shopLink: bot && seller.shopCode ? `https://wa.me/${bot}?text=${encodeURIComponent(`Hi ${seller.shopCode}`)}` : null,
+      upiId: seller.upiId,
+      qrUrl: seller.upiQrKey ? `/images/${seller.upiQrKey}` : null,
+      shopLanguage: seller.shopLanguage,
+      states: stateChoices(seller.language),
       products: products.map((p) => ({
         id: p.id,
         name: localName(p, seller.language),
@@ -2032,6 +1808,94 @@ app.post('/seller/products', async (req: Request, res: Response) => {
   }
 });
 
+// Seller changes one of their products: { t, price, stock } or { t, active }.
+// Price and stock change at once; hide / show only for approved products.
+app.post('/seller/products/:id', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const seller = await dashVisitor(req.body?.t, 'SELLER');
+    if (!seller) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const W = dt(seller.language);
+    const productId = Number(req.params.id);
+    const product = Number.isInteger(productId)
+      ? await prisma.product.findFirst({ where: { id: productId, sellerId: seller.id } })
+      : null;
+    if (!product) {
+      res.status(404).json({ ok: false, error: W.failed });
+      return;
+    }
+
+    if (typeof req.body.active === 'boolean') {
+      if (product.approval !== 'APPROVED') {
+        res.status(409).json({ ok: false, error: W.failed });
+        return;
+      }
+      await prisma.product.update({ where: { id: product.id }, data: { isActive: req.body.active } });
+    } else {
+      const price = Math.round(Number(req.body.price) * 100) / 100;
+      const stock = req.body.stock === null ? null : Number(req.body.stock);
+      if (!(price >= 1 && price <= 100000)) {
+        res.status(400).json({ ok: false, error: W.priceInvalid });
+        return;
+      }
+      if (stock !== null && !(Number.isInteger(stock) && stock >= 0 && stock <= 9999)) {
+        res.status(400).json({ ok: false, error: W.stockInvalid });
+        return;
+      }
+      await prisma.product.update({ where: { id: product.id }, data: { price, stock } });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Product change failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// Seller's settings: { t, upi } or { t, qr } (a photo) or { t, removeQr: true } or { t, shopLanguage }
+app.post('/seller/settings', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const seller = await dashVisitor(req.body?.t, 'SELLER');
+    if (!seller) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const W = dt(seller.language);
+
+    if (typeof req.body.upi === 'string') {
+      // Same rule as the UPI command in the chat
+      const upi = req.body.upi.trim();
+      if (!/^[A-Za-z0-9._-]{2,64}@[A-Za-z]{2,32}$/.test(upi) || /^yourname@/i.test(upi)) {
+        res.status(400).json({ ok: false, error: W.upiInvalid });
+        return;
+      }
+      await prisma.user.update({ where: { id: seller.id }, data: { upiId: upi } });
+    } else if (req.body.qr !== undefined) {
+      const photo = decodePhoto(req.body.qr);
+      const key = photo ? await saveImage(photo.data, photo.mimeType) : null;
+      if (!key) {
+        res.status(400).json({ ok: false, error: W.photoInvalid });
+        return;
+      }
+      await prisma.user.update({ where: { id: seller.id }, data: { upiQrKey: key } });
+    } else if (req.body.removeQr === true) {
+      await prisma.user.update({ where: { id: seller.id }, data: { upiQrKey: null } });
+    } else if (['en', 'hi', 'or', 'as'].includes(req.body.shopLanguage)) {
+      await prisma.user.update({ where: { id: seller.id }, data: { shopLanguage: req.body.shopLanguage } });
+    } else {
+      res.status(400).json({ ok: false, error: W.failed });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Seller settings change failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
 // One of this customer's orders from this shop, with what the payment page needs
 async function shopOrder(customerId: number, shopId: number, orderId: number) {
   if (!Number.isInteger(orderId)) return null;
@@ -2113,12 +1977,8 @@ app.post('/shop/:code/order/:id/paid', async (req: Request, res: Response) => {
       res.status(409).json({ ok: false, error: reply });
       return;
     }
+    // No WhatsApp "thank you" here: the page itself shows "Payment reported"
     console.log(`Web payment reported for order #${order.id}`);
-    try {
-      await sendReply(customer.phone, reply);
-    } catch (err) {
-      console.error('Customer paid message failed:', err);
-    }
     res.json({ ok: true });
   } catch (err) {
     console.error('Web payment report failed:', err);
@@ -2193,12 +2053,7 @@ app.post('/shop/:code/order', async (req: Request, res: Response) => {
     const order = result.placed[0];
     console.log(`Web order #${order.orderId} from ${maskDigits(customer.phone)} for ${shop.shopCode}`);
 
-    // The payment details also go to the customer's WhatsApp (Step 4 shows them on the page)
-    try {
-      await sendReply(customer.phone, inLang(customer.language, () => paymentReply(customer.language, result.placed)));
-    } catch (err) {
-      console.error('Customer payment message failed:', err);
-    }
+    // No WhatsApp message here: the payment page that opens next shows everything
     res.json({ ok: true, orderId: order.orderId, total: order.total });
   } catch (err) {
     console.error('Web order failed:', err);
@@ -2308,7 +2163,6 @@ async function handleWebhook(body: any) {
     if (myShop?.role === 'SELLER') setShop(myShop.shopName ?? myShop.shopCode ?? undefined);
     // Replies to a seller or admin that would end without a next step get navigation buttons
     const staffSend = (reply: Reply) => sendReply(phone, withNav(user.role, reply));
-    const T = t(user.language);
     const B = bt(user.language);
 
     // LANG works in every state
@@ -2323,7 +2177,7 @@ async function handleWebhook(body: any) {
 
     // A seller sends their own unique ID (or taps [My dashboard]): the link to their dashboard.
     // Only from the seller's own phone; from anyone else the number means nothing special.
-    if (user.role === 'SELLER' && user.shopCode && command === user.shopCode) {
+    if (user.role === 'SELLER' && (command === 'DASHBOARD' || (user.shopCode && command === user.shopCode))) {
       const token = await newDashToken(user.id);
       await sendReply(phone, {
         text: dt(user.language).openSeller,
@@ -2845,6 +2699,7 @@ async function handleWebhook(body: any) {
             list: {
               button: SELLER_TEXT.btnMenu,
               rows: [
+                { id: 'DASHBOARD', title: dt(user.language).btnMyDashboard },
                 { id: 'MYLINK', title: SHOP_TEXT.rowLink },
                 { id: 'ADD', title: SELLER_TEXT.btnAdd },
                 { id: 'MYPRODUCTS', title: SELLER_TEXT.rowProducts },
@@ -2854,7 +2709,6 @@ async function handleWebhook(body: any) {
                 { id: 'MYPURCHASES', title: SELLER_TEXT.rowPurchases },
                 { id: 'MAINMENU', title: SELLER_TEXT.rowShop },
                 { id: 'SUBMIT', title: SELLER_TEXT.btnSubmit },
-                { id: 'MYCATEGORY', title: SELLER_TEXT.rowCategory },
               ],
             },
           });
@@ -3064,14 +2918,7 @@ async function handleWebhook(body: any) {
         where: { id: user.id },
         data: { address: text, state: 'BROWSING' },
       });
-      // If there is something in the cart, go straight to the order check
-      const cartCount = await prisma.cartItem.count({ where: { cart: { customerId: user.id } } });
-      await sendReply(
-        phone,
-        cartCount > 0
-          ? await confirmOrderReply(user.id, user.language, text)
-          : welcomeReply(user.language, A.saved)
-      );
+      await sendReply(phone, welcomeReply(user.language, A.saved));
       return;
     }
 
@@ -3109,80 +2956,10 @@ async function handleWebhook(body: any) {
       return;
     }
 
-    // ---- State: choosing a quantity ----
+    // The old chat quantity step no longer exists (customers shop on the shop page)
     if (user.state === 'CHOOSING_QUANTITY') {
-      if (command === 'CANCEL') {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { state: 'BROWSING', pendingProductId: null },
-        });
-        await sendReply(phone, welcomeReply(user.language, T.cancelled));
-        return;
-      }
-
-      const qty = Number(text);
-      if (!Number.isInteger(qty) || qty < 1 || qty > 99) {
-        await sendReply(phone, { ...qtyReply(user.language, ''), text: T.invalidQty });
-        return;
-      }
-
-      const product = user.pendingProductId
-        ? await prisma.product.findUnique({
-            where: { id: user.pendingProductId },
-            include: { translations: true },
-          })
-        : null;
-
-      if (!product) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { state: 'BROWSING', pendingProductId: null },
-        });
-        await sendReply(phone, welcomeReply(user.language, T.invalidProduct));
-        return;
-      }
-
-      const cart = await prisma.cart.upsert({
-        where: { customerId: user.id },
-        update: {},
-        create: { customerId: user.id },
-      });
-
-      const existing = await prisma.cartItem.findUnique({
-        where: { cartId_productId: { cartId: cart.id, productId: product.id } },
-      });
-      const already = existing?.quantity ?? 0;
-      const productLabel = localName(product, user.language);
-      if (!product.isActive || product.approval !== 'APPROVED') {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { state: 'BROWSING', pendingProductId: null },
-        });
-        await sendReply(phone, welcomeReply(user.language, st(user.language).unavailable(productLabel)));
-        return;
-      }
-      if (product.stock !== null && already + qty > product.stock) {
-        // Stay in the quantity step so a smaller number can be chosen
-        const left = Math.max(product.stock - already, 0);
-        await sendReply(phone, {
-          ...qtyReply(user.language, productLabel),
-          text: st(user.language).onlyLeft(productLabel, left),
-        });
-        return;
-      }
-
-      await prisma.cartItem.upsert({
-        where: { cartId_productId: { cartId: cart.id, productId: product.id } },
-        update: { quantity: { increment: qty } },
-        create: { cartId: cart.id, productId: product.id, quantity: qty },
-      });
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { state: 'BROWSING', pendingProductId: null },
-      });
-      await sendReply(phone, afterAddReply(user.language, B.added(productLabel, qty)));
-      return;
+      await prisma.user.update({ where: { id: user.id }, data: { state: 'BROWSING', pendingProductId: null } });
+      user.state = 'BROWSING';
     }
 
     // ---- State: browsing ----
@@ -3214,74 +2991,8 @@ async function handleWebhook(body: any) {
       return;
     }
 
-    // MENU: the categories (older "MENU 2" links also land here)
-    if (/^MENU(?:\s+\d+)?$/.test(command)) {
-      await sendReply(phone, await productListReply(user.language));
-      return;
-    }
-
-    // CATEGORY n (or CATEGORY n 2 for the next page): the products of one category
-    const categoryMatch = command.match(/^CATEGORY\s+#?(\d+)(?:\s+(\d+))?$/);
-    if (categoryMatch) {
-      await sendReply(
-        phone,
-        await categoryProductsReply(user.language, Number(categoryMatch[1]), Number(categoryMatch[2] ?? 1))
-      );
-      return;
-    }
-
     if (command === 'MAINMENU') {
       await sendReply(phone, mainMenuReply(user));
-      return;
-    }
-
-    // PRODUCT n: one product's photo with Add to cart / Back
-    const productMatch = command.match(/^PRODUCT\s+#?(\d+)$/);
-    if (productMatch) {
-      await sendReply(phone, await productReply(user.language, Number(productMatch[1])));
-      return;
-    }
-
-    // BUY n: start choosing the quantity for product n
-    const buyMatch = command.match(/^BUY\s+#?(\d+)$/);
-    if (buyMatch) {
-      const product = await prisma.product.findUnique({
-        where: { id: Number(buyMatch[1]) },
-        include: { translations: true },
-      });
-      if (!product || !product.isActive || product.approval !== 'APPROVED' || product.stock === 0) {
-        await sendReply(phone, welcomeReply(user.language, T.invalidProduct));
-        return;
-      }
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { state: 'CHOOSING_QUANTITY', pendingProductId: product.id },
-      });
-      await sendReply(phone, qtyReply(user.language, localName(product, user.language)));
-      return;
-    }
-
-    if (command === 'CART') {
-      await sendReply(phone, await cartReply(user.id, user.language));
-      return;
-    }
-
-    if (command === 'REMOVEMENU') {
-      await sendReply(phone, await removeMenuReply(user.id, user.language));
-      return;
-    }
-
-    if (command === 'CLEAR') {
-      await sendReply(phone, await clearCart(user.id, user.language));
-      return;
-    }
-
-    const removeMatch = command.match(/^REMOVE\s+#?(\d+)$/);
-    if (removeMatch) {
-      await sendReply(
-        phone,
-        await removeFromCart(user.id, user.language, Number(removeMatch[1]))
-      );
       return;
     }
 
@@ -3356,43 +3067,6 @@ async function handleWebhook(body: any) {
       });
       const A = ad(user.language);
       await sendReply(phone, withCancel(user.address ? A.askChange(user.address) : A.ask));
-      return;
-    }
-
-    // ORDER (Place order): check the cart and the address first; PLACEORDER really places it
-    if (command === 'ORDER' || command === 'PLACEORDER') {
-      const cartCount = await prisma.cartItem.count({ where: { cart: { customerId: user.id } } });
-      if (cartCount === 0) {
-        await sendReply(phone, await cartReply(user.id, user.language));
-        return;
-      }
-      // First order: ask for the delivery address (the only thing that must be typed)
-      if (!user.address) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { state: 'ENTERING_ADDRESS' },
-        });
-        await sendReply(phone, withCancel(ad(user.language).ask));
-        return;
-      }
-      await sendReply(
-        phone,
-        command === 'ORDER'
-          ? await confirmOrderReply(user.id, user.language, user.address)
-          : await placeOrder(user.id, user.language, user.address)
-      );
-      return;
-    }
-
-    // A typed number picks a product from the list (same order as MENU)
-    const n = Number(text);
-    if (Number.isInteger(n) && n >= 1) {
-      const products = await loadProducts();
-      const product = products[n - 1];
-      await sendReply(
-        phone,
-        product ? await productReply(user.language, product.id) : welcomeReply(user.language, T.invalidProduct)
-      );
       return;
     }
 
