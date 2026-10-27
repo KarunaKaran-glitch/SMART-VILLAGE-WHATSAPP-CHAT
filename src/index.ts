@@ -1793,13 +1793,29 @@ app.get('/seller', async (req: Request, res: Response) => {
     orderBy: { id: 'desc' },
   });
   const bot = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
+  const orders = await sellerOrderRows(seller.id, seller.language);
+  // Tile numbers: orders waiting for the seller, orders to ship, and all delivered sales
+  const delivered = await prisma.orderItem.findMany({
+    where: { sellerId: seller.id, status: 'DELIVERED' },
+    select: { orderId: true, unitPrice: true, quantity: true },
+  });
+  const local = Object.values(LANGUAGES).find((l) => l.code === seller.shopLanguage && l.code !== 'en');
   res.send(
     renderSellerPage({
       language: seller.language,
       token: String(req.query.t),
       shopName: seller.shopName ?? '',
+      sellerName: seller.name ?? seller.shopName ?? '',
       sellerId: seller.shopCode ?? '',
-      orders: await sellerOrderRows(seller.id, seller.language),
+      orders,
+      stats: {
+        action: orders.filter((o) => o.actions.includes('RECEIVED') || o.actions.includes('CONFIRM')).length,
+        toShip: orders.filter((o) => o.status === 'CONFIRMED' || o.status === 'SHIPPED').length,
+        delivered: new Set(delivered.map((i) => i.orderId)).size,
+        onSale: products.filter((p) => p.approval === 'APPROVED' && p.isActive && p.imageKey).length,
+        earned: delivered.reduce((sum, i) => sum + Number(i.unitPrice) * i.quantity, 0),
+      },
+      languages: local ? `English + ${local.label}` : 'English',
       notice:
         req.query.done === 'added'
           ? dt(seller.language).productAdded
