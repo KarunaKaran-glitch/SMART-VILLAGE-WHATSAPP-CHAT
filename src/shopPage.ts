@@ -1,5 +1,5 @@
 import { dt } from './dashText';
-import { APP_STYLE, ICON, escapeHtml, rupees, scriptJson, svg } from './pageKit';
+import { APP_STYLE, ICON, WA_OPEN_SCRIPT, escapeHtml, rupees, scriptJson, svg } from './pageKit';
 import { wt } from './webText';
 
 // The customer's pages, in the same app look as the dashboards:
@@ -51,9 +51,11 @@ export function simplePage(
     '<main class="gone"><div class="card gonecard">' +
     `<h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p>${steps}` +
     (back
-      ? `<a class="btn whatsapp block big" href="${escapeHtml(back.whatsAppLink)}">${svg(ICON.chat, 22)} Back to WhatsApp</a>`
+      ? `<a class="btn whatsapp block big" data-wa href="${escapeHtml(back.whatsAppLink)}">${svg(ICON.chat, 22)} Back to WhatsApp</a>`
       : '') +
-    '</div></main></body></html>'
+    '</div></main>' +
+    (back ? `<script>${WA_OPEN_SCRIPT}</script>` : '') +
+    '</body></html>'
   );
 }
 
@@ -413,9 +415,9 @@ if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
     `<li><i>1</i><span>${escapeHtml(W.stepGoBack)}</span></li>` +
     `<li><i>2</i><span>${escapeHtml(W.stepSend('\u0000')).replace('\u0000', hi)}</span></li>` +
     `<li><i>3</i><span>${escapeHtml(W.stepShopNow)}</span></li></ol>` +
-    `<a class="btn whatsapp block big" href="${escapeHtml(data.whatsAppLink)}">${svg(ICON.chat, 22)} ${escapeHtml(W.backToWhatsApp)}</a>` +
+    `<a class="btn whatsapp block big" data-wa href="${escapeHtml(data.whatsAppLink)}">${svg(ICON.chat, 22)} ${escapeHtml(W.backToWhatsApp)}</a>` +
     '</div></main>' +
-    `<script>${script}</script></body></html>`
+    `<script>${script}${WA_OPEN_SCRIPT}</script></body></html>`
   );
 }
 
@@ -575,7 +577,7 @@ btn.addEventListener('click', async () => {
       `<h2>${escapeHtml(view.title)}</h2><p>${escapeHtml(view.text)}</p>` +
       (tracker ? `<h3 class="sec left">${escapeHtml(W.trackTitle)}</h3>${tracker}` : '') +
       (data.whatsAppLink
-        ? `<a class="btn whatsapp block" href="${escapeHtml(data.whatsAppLink)}">${escapeHtml(W.backToWhatsApp)}</a>`
+        ? `<a class="btn whatsapp block" data-wa href="${escapeHtml(data.whatsAppLink)}">${escapeHtml(W.backToWhatsApp)}</a>`
         : '') +
       '</div>' +
       summary;
@@ -586,6 +588,7 @@ btn.addEventListener('click', async () => {
     appbar(data.shopName, `#${data.orderId} · ₹${total}`) +
     `<main>${body}</main>` +
     (script ? `<script>${script}</script>` : '') +
+    (data.whatsAppLink ? `<script>${WA_OPEN_SCRIPT}</script>` : '') +
     '</body></html>'
   );
 }

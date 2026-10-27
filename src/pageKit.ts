@@ -241,3 +241,29 @@ export const DASH_STYLE = `
 .plusbtn{margin-top:-24px;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#ff8a3d,var(--accent2));border:4px solid #fff;box-shadow:0 6px 14px rgba(240,90,14,.4)}
 .tabbar a.center{color:var(--ink)}
 `;
+
+// "Back to WhatsApp" buttons (a wa.me link with data-wa) open the WhatsApp app itself, straight
+// into the bot chat, instead of the wa.me web page: on Android through an app link, elsewhere
+// through whatsapp:// (phone app or WhatsApp Desktop). Without an app it falls back to wa.me.
+export const WA_OPEN_SCRIPT = `
+document.querySelectorAll('a[data-wa]').forEach((a) => {
+  const m = /^https:\\/\\/wa\\.me\\/(\\d+)(?:\\?text=(.*))?$/.exec(a.href);
+  if (!m) return;
+  const query = 'phone=' + m[1] + (m[2] ? '&text=' + m[2] : '');
+  a.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (/Android/i.test(navigator.userAgent)) {
+      location.href = 'intent://send?' + query + '#Intent;scheme=whatsapp;S.browser_fallback_url=' +
+        encodeURIComponent(a.href) + ';end';
+      return;
+    }
+    let left = false;
+    const away = () => { left = true; };
+    addEventListener('blur', away, { once: true });
+    addEventListener('pagehide', away, { once: true });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) left = true; }, { once: true });
+    location.href = 'whatsapp://send?' + query;
+    setTimeout(() => { if (!left && !document.hidden) location.href = a.href; }, 1600);
+  });
+});
+`;
