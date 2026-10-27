@@ -1493,7 +1493,7 @@ app.get('/shop/:code', async (req: Request, res: Response) => {
   if (!visit) {
     res
       .status(403)
-      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and tap "Shop now" again.'));
+      .send(simplePage('Link expired', 'This shopping link is closed or too old. It is easy to start again:', backToWhatsApp(String(req.params.code))));
     return;
   }
   const { customer, shop } = visit;
@@ -1564,6 +1564,15 @@ function botNumberText(): string {
   return n ? `+${n}` : '';
 }
 
+// The [Back to WhatsApp] button on an old-link page: the bot chat with "Hi <shop code>" typed in
+// for a shop link; without a known bot number it just opens WhatsApp
+function backToWhatsApp(shopCode?: string) {
+  const bot = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
+  const code = shopCode && /^\d{4}$/.test(shopCode) ? shopCode : undefined;
+  const text = code ? `?text=${encodeURIComponent(`Hi ${code}`)}` : '';
+  return { whatsAppLink: bot ? `https://wa.me/${bot}${text}` : 'whatsapp://', shopCode: code };
+}
+
 // The state choices for a shop (the state decides the customers' second language)
 function stateChoices(language: string) {
   return inLang(language, () => [
@@ -1582,7 +1591,7 @@ app.get('/admin', async (req: Request, res: Response) => {
   if (!admin) {
     res
       .status(403)
-      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and open the dashboard again.'));
+      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and open the dashboard again.', backToWhatsApp()));
     return;
   }
   const lang = admin.language;
@@ -1851,7 +1860,7 @@ app.get('/seller', async (req: Request, res: Response) => {
   if (!seller) {
     res
       .status(403)
-      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and send your ID again.'));
+      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and send your ID again.', backToWhatsApp()));
     return;
   }
   const products = await prisma.product.findMany({
@@ -2098,7 +2107,7 @@ app.get('/shop/:code/order/:id', async (req: Request, res: Response) => {
   if (!visit || !order) {
     res
       .status(403)
-      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and tap "Shop now" again.'));
+      .send(simplePage('Link expired', 'This shopping link is closed or too old. It is easy to start again:', backToWhatsApp(String(req.params.code))));
     return;
   }
   const { customer, shop } = visit;

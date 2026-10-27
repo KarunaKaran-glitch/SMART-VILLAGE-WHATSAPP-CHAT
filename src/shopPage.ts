@@ -31,11 +31,29 @@ const appbar = (shopName: string, sub: string) =>
   '</header>';
 
 // A short page for old or wrong links
-export function simplePage(title: string, message: string): string {
+// The page also has a big [Back to WhatsApp] button and, for an old shop link, the steps to shop
+// again ("Send Hi 2494" → Shop now). It is in English: an old link does not say who is visiting.
+export function simplePage(
+  title: string,
+  message: string,
+  back?: { whatsAppLink: string; shopCode?: string }
+): string {
+  const steps = back?.shopCode
+    ? '<ol class="again">' +
+      '<li><i>1</i><span>Go back to WhatsApp</span></li>' +
+      `<li><i>2</i><span>Send <b>Hi ${escapeHtml(back.shopCode)}</b></span></li>` +
+      '<li><i>3</i><span>Tap <b>Shop now</b> to see the products again</span></li></ol>'
+    : '';
   return (
     head('en', title, CUSTOMER_STYLE) +
-    `<main><div class="card statuscard"><div class="bigicon">⏱️</div><h2>${escapeHtml(title)}</h2>` +
-    `<p>${escapeHtml(message)}</p></div></main></body></html>`
+    '<div class="gonehero"><div class="goneicon">' +
+    `${svg(ICON.clock, 44)}</div></div>` +
+    '<main class="gone"><div class="card gonecard">' +
+    `<h2>${escapeHtml(title)}</h2><p>${escapeHtml(message)}</p>${steps}` +
+    (back
+      ? `<a class="btn whatsapp block big" href="${escapeHtml(back.whatsAppLink)}">${svg(ICON.chat, 22)} Back to WhatsApp</a>`
+      : '') +
+    '</div></main></body></html>'
   );
 }
 
@@ -91,6 +109,7 @@ const T = ${scriptJson({
     expired: W.expired,
     continue: W.continue,
     placeOrder: W.placeOrder,
+    onlyAvailable: W.onlyAvailable(999),
   })};
 const ITEMS_TEXT = ${scriptJson(W.items(999))};
 const fmt = (n) => n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
@@ -106,14 +125,25 @@ try {
 function save() { try { sessionStorage.setItem(SAVE_KEY, JSON.stringify(qty)); } catch (e) {} }
 
 // ADD, or − n + ; drawn in the product card and in the details view alike
+// At the stock limit the + looks faded, and tapping it says how many there are
 function draw(id) {
   const n = qty[id] || 0;
+  const full = n >= byId(id).max;
   document.querySelectorAll('.qty[data-id="' + id + '"]').forEach((box) => {
     box.innerHTML = n === 0
       ? '<button type="button" class="addbtn">' + T.add + ' +</button>'
       : '<div class="stepper"><button type="button" data-d="-1" aria-label="-">−</button><span>' + n +
-        '</span><button type="button" data-d="1" aria-label="+">+</button></div>';
+        '</span><button type="button" data-d="1" aria-label="+"' + (full ? ' class="full"' : '') + '>+</button></div>';
   });
+}
+let toastTimer;
+function toast(text) {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast gone'; document.body.appendChild(t); }
+  t.textContent = text;
+  t.classList.remove('gone');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add('gone'), 2200);
 }
 
 function update() {
@@ -132,7 +162,8 @@ document.addEventListener('click', (e) => {
   const id = Number(b.closest('.qty').dataset.id);
   const p = byId(id);
   const d = b.classList.contains('addbtn') ? 1 : Number(b.dataset.d);
-  qty[id] = Math.max(0, Math.min(p.max, (qty[id] || 0) + d));
+  if (d > 0 && (qty[id] || 0) >= p.max) { toast(T.onlyAvailable.replace('999', p.max)); return; }
+  qty[id] =Math.max(0, Math.min(p.max, (qty[id] || 0) + d));
   if (!qty[id]) delete qty[id];
   save();
   draw(id);
@@ -510,6 +541,8 @@ main.shop{padding-bottom:150px}
 .stepper{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#ff8a3d,var(--accent2));border-radius:10px;overflow:hidden;box-shadow:0 3px 10px rgba(240,90,14,.3)}
 .stepper button{border:0;background:transparent;color:#fff;width:40px;height:37px;font-size:1.3rem;font-weight:700}
 .stepper span{color:#fff;font-weight:800;min-width:30px;text-align:center}
+.stepper button.full{opacity:.4}
+#toast{top:auto;bottom:calc(96px + env(safe-area-inset-bottom));z-index:30;white-space:nowrap}
 .addr{margin-top:16px}
 .addrhead{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:1rem}
 .addrhead i{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--bluebg);color:var(--brand2);flex:none}
@@ -578,4 +611,14 @@ body.reviewing .cartbar{display:none}
 .statuscard p{margin:0;color:var(--muted)}
 .statuspic{display:block;width:100%;max-height:300px;object-fit:contain;border-radius:12px}
 .bigicon{font-size:3.4rem;margin:10px 0 0}
+.gonehero{background:linear-gradient(160deg,var(--brand2),var(--brand) 75%);height:150px;border-radius:0 0 30px 30px;display:flex;justify-content:center;align-items:flex-end}
+.goneicon{width:96px;height:96px;margin-bottom:-48px;border-radius:50%;background:#fff;color:var(--accent2);display:grid;place-items:center;box-shadow:0 8px 24px rgba(16,24,40,.18);border:5px solid #fff3eb}
+main.gone{padding-top:60px}
+.gonecard{text-align:center;padding:22px 18px}
+.gonecard h2{margin:0 0 6px;font-size:1.35rem}
+.gonecard>p{margin:0;color:var(--muted);line-height:1.5}
+.again{list-style:none;margin:18px 0 6px;padding:12px 14px;background:#f8fafc;border-radius:14px;text-align:left;display:flex;flex-direction:column;gap:10px}
+.again li{display:flex;align-items:center;gap:10px;font-size:.92rem}
+.again i{font-style:normal;width:26px;height:26px;border-radius:50%;background:var(--brand2);color:#fff;display:grid;place-items:center;font-size:.8rem;font-weight:800;flex:none}
+.btn.big{padding:15px 16px;font-size:1.05rem;margin-top:16px;box-shadow:0 8px 20px rgba(37,211,102,.35)}
 `;
