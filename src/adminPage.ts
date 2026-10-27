@@ -1,8 +1,11 @@
 import { dt } from './dashText';
-import { STYLE, escapeHtml, scriptJson } from './shopPage';
+import { APP_STYLE, ICON, svg } from './sellerPage';
+import { escapeHtml, scriptJson } from './shopPage';
 
-// The admin dashboard (opened from the admin's [Click here] button): a form to add a seller,
-// who gets a unique ID, and the list of sellers with their IDs.
+// The admin dashboard (opened from the admin's [Click here] button), in the same app style as the
+// seller dashboard: a top bar, a bottom tab bar, and four tabs: Home (tiles and the next products
+// to check), Approve (every waiting product with photo, Approve / Reject), Sellers (each seller
+// with ID, call and "send ID on WhatsApp") and Add seller (the form that gives a seller a unique ID).
 
 export type AdminSellerRow = {
   id: string; // the seller's unique ID (shop code)
@@ -29,67 +32,129 @@ export function renderAdminPage(data: {
   language: string;
   token: string;
   waiting: AdminWaitingProduct[];
+  stats: { sellers: number; orders: number; sales: string };
   states: { value: string; label: string }[];
   categories: { id: number; name: string }[];
   sellers: AdminSellerRow[];
-  created: { shopName: string; id: string } | null; // just added (shown at the top)
+  created: { shopName: string; id: string } | null; // just added (shown at the top of Sellers)
   botNumber: string; // shown as "+15556478208", or '' when not set
 }): string {
   const W = dt(data.language);
 
-  const notice = data.created
-    ? `<div class="box ok"><b>✅ ${escapeHtml(W.created(data.created.shopName, data.created.id))}</b>` +
-      `<p class="desc">${escapeHtml(W.tellSeller(data.created.id, data.botNumber || 'the bot'))}</p></div>`
-    : '';
+  // ---- Products to check ----
+  const checkCard = (p: AdminWaitingProduct) =>
+    `<article class="card check" data-id="${p.id}">` +
+    (p.imageUrl ? `<div class="bigimg"><img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy"></div>` : '') +
+    `<div class="ohead"><b>${escapeHtml(p.name)}</b><span class="pprice">₹${escapeHtml(p.price)}</span></div>` +
+    (p.description ? `<p class="hint">${escapeHtml(p.description)}</p>` : '') +
+    `<p class="shopline">${svg(ICON.store, 16)} ${escapeHtml(p.shop)} · #${p.id}</p>` +
+    '<p class="msg"></p>' +
+    `<div class="acts two"><button type="button" class="btn approve" data-ok="1">✓ ${escapeHtml(W.approve)}</button>` +
+    `<button type="button" class="btn ghost-red" data-ok="0">✕ ${escapeHtml(W.reject)}</button></div></article>`;
 
-  // Products to check: photo, details and Approve / Reject
-  const waiting =
-    `<h2>${escapeHtml(W.productsWaiting)} (${data.waiting.length})</h2>` +
+  // ---- Sellers ----
+  const sellerCard = (s: AdminSellerRow) => {
+    const tell = `https://wa.me/${s.phone}?text=${encodeURIComponent(W.tellId(s.shopName, s.id, data.botNumber))}`;
+    const initial = Array.from(s.shopName.trim() || '?')[0].toUpperCase();
+    return (
+      `<article class="card seller${data.created?.id === s.id ? ' fresh' : ''}">` +
+      '<div class="srow">' +
+      `<div class="savatar">${escapeHtml(initial)}</div>` +
+      `<div class="sinfo"><b>${escapeHtml(s.shopName)}</b><span>${escapeHtml(s.name)} · +${escapeHtml(s.phone)}</span></div>` +
+      `<span class="idchip">ID ${escapeHtml(s.id)}</span></div>` +
+      `<p class="hint">${escapeHtml(s.state)} · ${escapeHtml(s.category)}</p>` +
+      `<p class="hint">${escapeHtml(W.productCount(s.products, s.waiting))}</p>` +
+      (s.shopLink ? `<p class="linktext small">${escapeHtml(s.shopLink)}</p>` : '') +
+      '<div class="acts two">' +
+      `<a class="callbtn" href="tel:+${escapeHtml(s.phone)}">${svg(ICON.phone, 16)} ${escapeHtml(W.call)}</a>` +
+      `<a class="btn whatsapp small" href="${escapeHtml(tell)}">${escapeHtml(W.sendId)}</a></div>` +
+      '</article>'
+    );
+  };
+
+  // ---- Tabs ----
+  const tiles =
+    '<div class="tiles">' +
+    `<a class="tile hot" href="#approve"><b>${data.waiting.length}</b><span>${escapeHtml(W.statToApprove)}</span></a>` +
+    `<a class="tile" href="#sellers"><b>${data.stats.sellers}</b><span>${escapeHtml(W.statSellers)}</span></a>` +
+    `<div class="tile"><b>${data.stats.orders}</b><span>${escapeHtml(W.statOrders)}</span></div>` +
+    `<a class="tile" href="#addseller"><b>+</b><span>${escapeHtml(W.tabAddSeller)}</span></a>` +
+    `<div class="tile wide money"><span>${escapeHtml(W.statSales)}</span><b>₹${escapeHtml(data.stats.sales)}</b></div>` +
+    '</div>';
+
+  const home =
+    '<section class="tab" id="tab-home">' +
+    `<div class="hello"><h2>${escapeHtml(W.adminHello)}</h2><p>${escapeHtml(W.adminSub)}</p></div>` +
+    tiles +
+    `<h3 class="sec">${escapeHtml(W.nextToApprove)} (${data.waiting.length})</h3>` +
     (data.waiting.length
-      ? data.waiting
+      ? '<div class="minis">' +
+        data.waiting
+          .slice(0, 4)
           .map(
             (p) =>
-              `<div class="box check" data-id="${p.id}">` +
-              (p.imageUrl ? `<img class="big" src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">` : '') +
-              `<p class="name">#${p.id} ${escapeHtml(p.name)} · ₹${escapeHtml(p.price)}</p>` +
-              (p.description ? `<p class="desc">${escapeHtml(p.description)}</p>` : '') +
-              `<p class="desc">${escapeHtml(p.shop)}</p>` +
-              '<p class="msg"></p>' +
-              `<div class="two"><button type="button" class="go" data-ok="1">${escapeHtml(W.approve)}</button>` +
-              `<button type="button" class="no" data-ok="0">${escapeHtml(W.reject)}</button></div></div>`
+              `<a class="mini" href="#approve">` +
+              (p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">` : '<span class="noimg"></span>') +
+              `<span>${escapeHtml(p.name)}</span><b>₹${escapeHtml(p.price)}</b></a>`
           )
-          .join('')
-      : `<div class="box">${escapeHtml(W.noProductsWaiting)}</div>`);
+          .join('') +
+        '</div>' +
+        `<a class="btn primary block" href="#approve">${escapeHtml(W.seeAllProducts)}</a>`
+      : `<div class="card empty">${escapeHtml(W.noProductsWaiting)}</div>`) +
+    '</section>';
+
+  const approve =
+    '<section class="tab" id="tab-approve">' +
+    `<h3 class="sec">${escapeHtml(W.productsWaiting)} (${data.waiting.length})</h3>` +
+    (data.waiting.length ? data.waiting.map(checkCard).join('') : `<div class="card empty">${escapeHtml(W.noProductsWaiting)}</div>`) +
+    '</section>';
+
+  const sellers =
+    '<section class="tab" id="tab-sellers">' +
+    (data.created
+      ? `<div class="card created"><b>✅ ${escapeHtml(W.created(data.created.shopName, data.created.id))}</b>` +
+        `<p class="hint">${escapeHtml(W.tellSeller(data.created.id, data.botNumber || 'the bot'))}</p></div>`
+      : '') +
+    `<h3 class="sec">${escapeHtml(W.sellers)} (${data.sellers.length})</h3>` +
+    (data.sellers.length ? data.sellers.map(sellerCard).join('') : `<div class="card empty">${escapeHtml(W.noSellers)}</div>`) +
+    `<a class="btn primary block" href="#addseller">+ ${escapeHtml(W.addSeller)}</a>` +
+    '</section>';
 
   const options = (list: { value: string; label: string }[]) =>
     list.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
-
-  const form =
-    `<h2>${escapeHtml(W.addSeller)}</h2><div class="box"><p class="desc">${escapeHtml(W.addHint)}</p>` +
+  const addSeller =
+    '<section class="tab" id="tab-addseller">' +
+    `<h3 class="sec">${escapeHtml(W.addSeller)}</h3><div class="card form">` +
+    `<div class="formhead">${svg(ICON.userPlus, 30)}<p class="hint">${escapeHtml(W.addHint)}</p></div>` +
     `<label for="name">${escapeHtml(W.sellerName)}</label><input id="name" maxlength="60" autocomplete="off">` +
-    `<label for="phone">${escapeHtml(W.phone)}</label><input id="phone" inputmode="numeric" maxlength="13" autocomplete="off" placeholder="9876543210">` +
+    `<label for="phone">${escapeHtml(W.phone)}</label><input id="phone" inputmode="numeric" maxlength="16" autocomplete="off" placeholder="9876543210">` +
     `<label for="shop">${escapeHtml(W.shopName)}</label><input id="shop" maxlength="40" autocomplete="off">` +
     `<label for="state">${escapeHtml(W.state)}</label><select id="state">${options(data.states)}</select>` +
     `<label for="category">${escapeHtml(W.category)}</label><select id="category">` +
     options(data.categories.map((c) => ({ value: String(c.id), label: c.name }))) +
     '</select><p class="msg" id="msg"></p>' +
-    `<button type="button" class="go" id="save">${escapeHtml(W.save)}</button></div>`;
+    `<button type="button" class="btn primary block" id="save">${escapeHtml(W.save)}</button></div>` +
+    '</section>';
 
-  const sellers = data.sellers.length
-    ? data.sellers
-        .map(
-          (s) =>
-            `<div class="box seller"><div class="row"><b>${escapeHtml(s.shopName)}</b>` +
-            `<span class="idchip">${escapeHtml(W.uniqueId)} ${escapeHtml(s.id)}</span></div>` +
-            `<p class="desc">${escapeHtml(s.name)} · +${escapeHtml(s.phone)}<br>${escapeHtml(s.state)} · ${escapeHtml(s.category)}<br>` +
-            `${escapeHtml(W.productCount(s.products, s.waiting))}</p>` +
-            (s.shopLink ? `<p class="desc link">${escapeHtml(s.shopLink)}</p>` : '') +
-            '</div>'
-        )
-        .join('')
-    : `<div class="box">${escapeHtml(W.noSellers)}</div>`;
+  const tabbar =
+    '<nav class="tabbar">' +
+    [
+      ['home', W.tabHome, ICON.home],
+      ['approve', W.tabApprove, ICON.check],
+      ['sellers', W.tabSellers, ICON.store],
+      ['addseller', W.tabAddSeller, ICON.userPlus],
+    ]
+      .map(
+        ([id, label, icon]) =>
+          `<a href="#${id}" data-tab="${id}">${svg(icon)}<span>${escapeHtml(label)}</span>` +
+          (id === 'approve' && data.waiting.length ? `<i class="dot">${data.waiting.length}</i>` : '') +
+          '</a>'
+      )
+      .join('') +
+    '</nav>';
 
   const script = `
+const TOKEN = ${scriptJson(data.token)};
 const T = ${scriptJson({
     saving: W.saving,
     save: W.save,
@@ -98,6 +163,17 @@ const T = ${scriptJson({
     approvedNote: W.approvedNote,
     rejectedNote: W.rejectedNote,
   })};
+
+// Tabs: the part after # in the address, so a reload stays on the same tab
+const TABS = ['home', 'approve', 'sellers', 'addseller'];
+function showTab() {
+  const t = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
+  TABS.forEach((x) => { document.getElementById('tab-' + x).hidden = x !== t; });
+  document.querySelectorAll('.tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === t));
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', showTab);
+showTab();
 
 // Approve / Reject a waiting product; the card then shows the decision
 document.querySelectorAll('.check').forEach((card) => {
@@ -111,12 +187,12 @@ document.querySelectorAll('.check').forEach((card) => {
       const res = await fetch('/admin/products/' + card.dataset.id, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ t: ${scriptJson(data.token)}, approve }),
+        body: JSON.stringify({ t: TOKEN, approve }),
       });
       const out = await res.json().catch(() => ({}));
       if (res.ok && out.ok) {
-        card.querySelector('.two').remove();
-        note.className = approve ? 'done-ok' : 'done-no';
+        card.querySelector('.acts').remove();
+        card.classList.add(approve ? 'decided-ok' : 'decided-no');
         note.textContent = (approve ? '✅ ' : '✖️ ') + (approve ? T.approvedNote : T.rejectedNote);
         return;
       }
@@ -127,11 +203,13 @@ document.querySelectorAll('.check').forEach((card) => {
     card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
   });
 });
+
+// Add a seller, then show the Sellers tab with the new seller's ID
 const btn = document.getElementById('save');
 const msg = document.getElementById('msg');
 btn.addEventListener('click', async () => {
   const body = {
-    t: ${scriptJson(data.token)},
+    t: TOKEN,
     name: document.getElementById('name').value.trim(),
     phone: document.getElementById('phone').value.replace(/\\D/g, ''),
     shopName: document.getElementById('shop').value.trim(),
@@ -149,7 +227,7 @@ btn.addEventListener('click', async () => {
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.ok) {
-      location.href = '/admin?t=' + encodeURIComponent(body.t) + '&new=' + encodeURIComponent(out.id);
+      location.href = '/admin?t=' + encodeURIComponent(TOKEN) + '&new=' + encodeURIComponent(out.id) + '#sellers';
       return;
     }
     msg.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
@@ -164,33 +242,47 @@ btn.addEventListener('click', async () => {
   return (
     `<!doctype html><html lang="${escapeHtml(data.language)}"><head><meta charset="utf-8">` +
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-    `<title>${escapeHtml(W.adminTitle)}</title><style>${STYLE}${ADMIN_STYLE}</style></head><body><main>` +
-    `<div class="banner"><h1>${escapeHtml(W.adminTitle)}</h1><span class="chip">Smart Village</span></div>` +
-    notice +
-    waiting +
-    form +
-    `<h2>${escapeHtml(W.sellers)} (${data.sellers.length})</h2>` +
-    sellers +
-    `</main><script>${script}</script></body></html>`
+    '<meta name="theme-color" content="#1f3c88">' +
+    `<title>${escapeHtml(W.adminTitle)}</title><style>${APP_STYLE}${ADMIN_STYLE}</style></head><body>` +
+    '<header class="appbar">' +
+    `<div class="avatar">${svg(ICON.check, 24)}</div>` +
+    `<div class="who"><b>${escapeHtml(W.adminTitle)}</b><span>Smart Village</span></div>` +
+    '</header>' +
+    `<main>${home}${approve}${sellers}${addSeller}</main>` +
+    tabbar +
+    `<script>${script}</script></body></html>`
   );
 }
 
 const ADMIN_STYLE = `
-main{padding-bottom:32px}
-.box+.box{margin-top:10px}
-.box.ok{border:2px solid var(--brand);margin-bottom:8px}
-label{font-weight:600;display:block;margin:10px 0 4px}
-input,select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:10px;font:inherit;background:#fff}
-.go{margin-top:6px}
-.msg{margin:10px 0 0}
-.idchip{background:var(--brand);color:#fff;border-radius:999px;padding:3px 10px;font-weight:700;font-size:.9rem;white-space:nowrap}
-.seller .desc{margin:6px 0 0}
-.link{overflow-wrap:anywhere;font-size:.8rem}
-.big{display:block;width:100%;max-height:320px;object-fit:contain;border-radius:10px;background:var(--line);margin-bottom:8px}
-.two{display:flex;gap:10px}
-.two button{flex:1;margin-top:4px}
-.no{border:1.5px solid var(--warn);color:var(--warn);background:#fff;border-radius:10px;font-size:1.05rem;font-weight:700;padding:13px}
-.no:disabled{opacity:.5}
-.done-ok{color:var(--brand);font-weight:700}
-.done-no{color:var(--warn);font-weight:700}
+.bigimg{margin:-14px -14px 12px;background:#eef2f7;aspect-ratio:4/3;overflow:hidden;border-radius:14px 14px 0 0}
+.bigimg img{width:100%;height:100%;object-fit:contain;display:block}
+.pprice{font-weight:800;font-size:1.1rem;white-space:nowrap}
+.shopline{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.85rem;margin:8px 0 0}
+.two{display:flex;gap:10px;margin-top:12px}
+.two>*{flex:1}
+.btn.approve{background:var(--ok);color:#fff}
+.decided-ok{outline:2px solid var(--ok)}
+.decided-no{outline:2px solid var(--warn);opacity:.85}
+.check .msg{color:var(--ink);font-weight:700}
+.minis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.mini{background:var(--card);border-radius:14px;overflow:hidden;text-decoration:none;display:flex;flex-direction:column;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.mini img,.mini .noimg{width:100%;aspect-ratio:1/1;object-fit:cover;background:#eef2f7;display:block}
+.mini span{padding:8px 10px 0;font-weight:600;font-size:.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini b{padding:2px 10px 10px}
+.srow{display:flex;align-items:center;gap:12px}
+.savatar{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;display:grid;place-items:center;font-weight:800;font-size:1.2rem;flex:none}
+.sinfo{flex:1;min-width:0;display:flex;flex-direction:column}
+.sinfo b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sinfo span{color:var(--muted);font-size:.85rem}
+.idchip{background:var(--accent);color:#fff;border-radius:999px;padding:4px 10px;font-weight:800;font-size:.85rem;white-space:nowrap}
+.seller .hint{margin:6px 0 0}
+.seller .callbtn{justify-content:center}
+.linktext.small{font-size:.8rem;margin-top:6px}
+.seller.fresh{outline:2px solid var(--ok)}
+.created{border-left:5px solid var(--ok)}
+.formhead{display:flex;gap:12px;align-items:flex-start;color:var(--brand2)}
+.formhead .hint{margin:0}
+.formhead svg{flex:none}
+.tabbar a{font-size:.7rem}
 `;

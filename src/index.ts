@@ -1555,6 +1555,14 @@ app.get('/admin', async (req: Request, res: Response) => {
     renderAdminPage({
       language: lang,
       token: String(req.query.t),
+      stats: {
+        sellers: sellers.length,
+        orders: await prisma.order.count(),
+        sales: rupees(
+          (await prisma.orderItem.findMany({ where: { status: 'DELIVERED' }, select: { unitPrice: true, quantity: true } }))
+            .reduce((sum, i) => sum + Number(i.unitPrice) * i.quantity, 0)
+        ),
+      },
       waiting: waiting.map((p) => ({
         id: p.id,
         name: p.name,

@@ -41,7 +41,7 @@ export type SellerStats = {
 };
 
 // Simple line icons for the tab bar and buttons
-const ICON = {
+export const ICON = {
   home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
   orders: '<path d="M4 7h16l-1.5 12h-13z"/><path d="M8 7a4 4 0 0 1 8 0"/>',
   products: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
@@ -51,8 +51,11 @@ const ICON = {
   phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
   pin: '<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.8"/>',
+  store: '<path d="M4 9l1.5-5h13L20 9"/><path d="M4 9h16v2a3 3 0 0 1-5.3 2 3 3 0 0 1-5.4 0A3 3 0 0 1 4 11z"/><path d="M5.5 13.5V20h13v-6.5"/><path d="M10 20v-4h4v4"/>',
+  userPlus: '<circle cx="10" cy="8" r="4"/><path d="M3 21a7 7 0 0 1 12.5-4.3"/><path d="M19 14v6M16 17h6"/>',
 };
-const svg = (paths: string, size = 22) =>
+export const svg = (paths: string, size = 22) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 
 export function renderSellerPage(data: {
@@ -471,7 +474,7 @@ if (toast) setTimeout(() => toast.classList.add('gone'), 3500);
     `<!doctype html><html lang="${escapeHtml(data.language)}"><head><meta charset="utf-8">` +
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<meta name="theme-color" content="#1f3c88">' +
-    `<title>${escapeHtml(data.shopName)} · ${escapeHtml(W.sellerTitle)}</title><style>${SELLER_STYLE}</style></head><body>` +
+    `<title>${escapeHtml(data.shopName)} · ${escapeHtml(W.sellerTitle)}</title><style>${APP_STYLE}</style></head><body>` +
     '<header class="appbar">' +
     `<div class="avatar">${escapeHtml(initial)}</div>` +
     `<div class="who"><b>${escapeHtml(data.shopName)}</b><span>${escapeHtml(W.sellerTitle)} · ID ${escapeHtml(data.sellerId)}</span></div>` +
@@ -484,7 +487,8 @@ if (toast) setTimeout(() => toast.classList.add('gone'), 3500);
   );
 }
 
-const SELLER_STYLE = `
+// Shared by the seller and admin dashboards (app look: top bar, cards, bottom tab bar)
+export const APP_STYLE = `
 :root{--bg:#f1f3f6;--card:#fff;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--brand:#1f3c88;--brand2:#2f5fd0;
 --accent:#fb641b;--accent2:#f05a0e;--ok:#15803d;--okbg:#dcfce7;--warn:#b91c1c;--warnbg:#fee2e2;--amber:#b45309;--amberbg:#fef3c7;--blue:#1d4ed8;--bluebg:#dbeafe}
 *{box-sizing:border-box}

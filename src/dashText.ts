@@ -144,6 +144,21 @@ const en = {
   upiMissing: 'UPI missing',
   myShop: 'My shop',
   sellsIn: (langs: string) => `Customers can use: ${langs}`,
+  // Admin dashboard: app layout
+  adminHello: 'Hello, Admin 👋',
+  adminSub: 'Here is the marketplace today.',
+  tabApprove: 'Approve',
+  tabSellers: 'Sellers',
+  tabAddSeller: 'Add seller',
+  statToApprove: 'To approve',
+  statSellers: 'Sellers',
+  statOrders: 'Orders',
+  statSales: 'Sales (delivered)',
+  nextToApprove: 'Waiting for your check',
+  seeAllProducts: 'Check all products',
+  sendId: 'Send ID on WhatsApp',
+  tellId: (shop: string, id: string, bot: string) =>
+    `Hello! Your seller ID for ${shop} is ${id}. Send ${id} to ${bot || 'the Smart Village bot'} on WhatsApp to open your seller dashboard.`,
 };
 
 const hi: typeof en = {
@@ -284,6 +299,20 @@ const hi: typeof en = {
   upiMissing: 'UPI नहीं',
   myShop: 'मेरी दुकान',
   sellsIn: (langs: string) => `ग्राहक इस्तेमाल कर सकते हैं: ${langs}`,
+  adminHello: 'नमस्ते, एडमिन 👋',
+  adminSub: 'आज मार्केटप्लेस का हाल।',
+  tabApprove: 'मंज़ूरी',
+  tabSellers: 'विक्रेता',
+  tabAddSeller: 'विक्रेता जोड़ें',
+  statToApprove: 'मंज़ूरी बाकी',
+  statSellers: 'विक्रेता',
+  statOrders: 'ऑर्डर',
+  statSales: 'बिक्री (पहुँचाई गई)',
+  nextToApprove: 'आपकी जाँच बाकी',
+  seeAllProducts: 'सभी उत्पाद जाँचें',
+  sendId: 'WhatsApp पर आईडी भेजें',
+  tellId: (shop: string, id: string, bot: string) =>
+    `नमस्ते! ${shop} के लिए आपकी विक्रेता आईडी ${id} है। अपना डैशबोर्ड खोलने के लिए WhatsApp पर ${bot || 'Smart Village बॉट'} को ${id} भेजें।`,
 };
 
 const or: typeof en = {
@@ -424,6 +453,20 @@ const or: typeof en = {
   upiMissing: 'UPI ନାହିଁ',
   myShop: 'ମୋ ଦୋକାନ',
   sellsIn: (langs: string) => `ଗ୍ରାହକମାନେ ବ୍ୟବହାର କରିପାରିବେ: ${langs}`,
+  adminHello: 'ନମସ୍କାର, ଆଡମିନ୍ 👋',
+  adminSub: 'ଆଜି ମାର୍କେଟପ୍ଲେସର ସ୍ଥିତି।',
+  tabApprove: 'ଅନୁମୋଦନ',
+  tabSellers: 'ବିକ୍ରେତା',
+  tabAddSeller: 'ବିକ୍ରେତା ଯୋଡ଼ନ୍ତୁ',
+  statToApprove: 'ଅନୁମୋଦନ ବାକି',
+  statSellers: 'ବିକ୍ରେତା',
+  statOrders: 'ଅର୍ଡର',
+  statSales: 'ବିକ୍ରି (ପହଞ୍ଚିଥିବା)',
+  nextToApprove: 'ଆପଣଙ୍କ ଯାଞ୍ଚ ବାକି',
+  seeAllProducts: 'ସବୁ ଉତ୍ପାଦ ଯାଞ୍ଚ କରନ୍ତୁ',
+  sendId: 'WhatsAppରେ ID ପଠାନ୍ତୁ',
+  tellId: (shop: string, id: string, bot: string) =>
+    `ନମସ୍କାର! ${shop} ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ID ${id}। ଆପଣଙ୍କ ଡ୍ୟାସବୋର୍ଡ ଖୋଲିବା ପାଇଁ WhatsAppରେ ${bot || 'Smart Village ବଟ୍'}କୁ ${id} ପଠାନ୍ତୁ।`,
 };
 
 const as: typeof en = {
@@ -564,6 +607,20 @@ const as: typeof en = {
   upiMissing: 'UPI নাই',
   myShop: 'মোৰ দোকান',
   sellsIn: (langs: string) => `গ্ৰাহকে ব্যৱহাৰ কৰিব পাৰে: ${langs}`,
+  adminHello: 'নমস্কাৰ, এডমিন 👋',
+  adminSub: 'আজি মাৰ্কেটপ্লেচৰ অৱস্থা।',
+  tabApprove: 'অনুমোদন',
+  tabSellers: 'বিক্ৰেতা',
+  tabAddSeller: 'বিক্ৰেতা যোগ',
+  statToApprove: 'অনুমোদন বাকী',
+  statSellers: 'বিক্ৰেতা',
+  statOrders: 'অৰ্ডাৰ',
+  statSales: 'বিক্ৰী (পহুঁচোৱা)',
+  nextToApprove: 'আপোনাৰ পৰীক্ষা বাকী',
+  seeAllProducts: 'সকলো সামগ্ৰী পৰীক্ষা কৰক',
+  sendId: 'WhatsAppত ID পঠিয়াওক',
+  tellId: (shop: string, id: string, bot: string) =>
+    `নমস্কাৰ! ${shop}ৰ বাবে আপোনাৰ বিক্ৰেতা ID ${id}। আপোনাৰ ডেশ্বব’ৰ্ড খুলিবলৈ WhatsAppত ${bot || 'Smart Village বট'}লৈ ${id} পঠিয়াওক।`,
 };
 
 const DASH_TEXT: Record<string, typeof en> = { en, hi, or, as };
