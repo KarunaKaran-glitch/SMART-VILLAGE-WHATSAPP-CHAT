@@ -38,6 +38,7 @@ export const ICON = {
   wallet: '<path d="M4 7h15a1 1 0 0 1 1 1v11H5a1 1 0 0 1-1-1z"/><path d="M4 7l11-3v3"/><circle cx="16" cy="13" r="1.3"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  heart: '<path d="M12 20s-7.5-4.6-9.2-9.3A4.9 4.9 0 0 1 12 6.3a4.9 4.9 0 0 1 9.2 4.4C19.5 15.4 12 20 12 20z"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>',
 };
 export const svg = (paths: string, size = 22) =>

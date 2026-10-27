@@ -109,7 +109,7 @@ function draw(id) {
   const n = qty[id] || 0;
   document.querySelectorAll('.qty[data-id="' + id + '"]').forEach((box) => {
     box.innerHTML = n === 0
-      ? '<button type="button" class="addbtn">' + T.add + '</button>'
+      ? '<button type="button" class="addbtn">' + T.add + ' +</button>'
       : '<div class="stepper"><button type="button" data-d="-1" aria-label="-">−</button><span>' + n +
         '</span><button type="button" data-d="1" aria-label="+">+</button></div>';
   });
@@ -184,6 +184,7 @@ const opened = /^#p(\\d+)$/.exec(location.hash);
 if (opened) showSheet(Number(opened[1]));
 if (ORDERING) {
 const go = document.getElementById('go');
+const goText = document.getElementById('gotext');
 const msg = document.getElementById('msg');
 go.addEventListener('click', async () => {
   if (!sheet.hidden) history.back();
@@ -197,7 +198,7 @@ go.addEventListener('click', async () => {
     return;
   }
   go.disabled = true;
-  go.textContent = T.sending;
+  goText.textContent = T.sending;
   try {
     const res = await fetch(location.pathname + '/order', {
       method: 'POST',
@@ -216,7 +217,7 @@ go.addEventListener('click', async () => {
     msg.textContent = T.failed;
   }
   go.disabled = false;
-  go.textContent = T.continue + ' ›';
+  goText.textContent = T.continue + ' ›';
 });
 }
 update();
@@ -232,22 +233,34 @@ update();
   const body = !data.products.length
     ? `<div class="card empty">${escapeHtml(W.noProducts)}</div>`
     : (data.canOrder ? '' : `<div class="warnbar warnbox">⚠️ ${escapeHtml(W.notReady)}</div>`) +
-      `<h3 class="sec">${escapeHtml(W.chooseProducts)} (${data.products.length})</h3>` +
+      `<h3 class="sec">${escapeHtml(W.chooseProducts)} <span class="count">${data.products.length}</span></h3>` +
       `<div class="grid">${cards}</div>` +
       (data.canOrder
-        ? `<h3 class="sec">${svg(ICON.pin, 18)} ${escapeHtml(W.address)}</h3><div class="card form">` +
+        ? '<div class="card addr">' +
+          `<label class="addrhead" for="address"><i>${svg(ICON.pin, 20)}</i><b>${escapeHtml(W.address)}</b></label>` +
           `<textarea id="address" maxlength="200" placeholder="${escapeHtml(W.addressHint)}">${escapeHtml(data.address)}</textarea></div>`
         : '');
 
+  // The shop's banner: round logo, name, "Handmade by ..." and three trust labels
+  const hero =
+    '<header class="shophero"><div class="shopid">' +
+    `<div class="bigav">${escapeHtml(Array.from(data.shopName.trim() || '?')[0].toUpperCase())}</div>` +
+    `<div><h1>${escapeHtml(data.shopName)}</h1><p>${escapeHtml(W.handmadeBy(data.shopName))}</p></div></div>` +
+    '<div class="trust">' +
+    `<span>${svg(ICON.truck, 16)} ${escapeHtml(W.freeDelivery)}</span>` +
+    `<span>${svg(ICON.wallet, 16)} ${escapeHtml(W.payByUpi)}</span>` +
+    `<span>${svg(ICON.heart, 16)} ${escapeHtml(W.handmade)}</span>` +
+    '</div></header>';
+
   return (
     head(data.language, data.shopName, CUSTOMER_STYLE) +
-    appbar(data.shopName, W.handmadeBy(data.shopName)) +
-    `<div class="perks"><span>🚚 ${escapeHtml(W.freeDelivery)}</span><span>💳 ${escapeHtml(W.payByUpi)}</span></div>` +
+    hero +
     `<main class="shop">${body}</main>` +
     (ordering
-      ? '<div class="cartbar empty"><p class="msg" id="msg"></p><div class="cartrow">' +
-        `<div class="sum"><span id="count"></span><b id="total">₹0</b></div>` +
-        `<button type="button" class="btn primary" id="go">${escapeHtml(W.continue)} ›</button></div></div>`
+      ? '<div class="cartbar empty"><p class="msg" id="msg"></p>' +
+        '<button type="button" class="cartrow" id="go">' +
+        `<span class="sum"><span id="count"></span><b id="total">₹0</b></span>` +
+        `<span class="gotext" id="gotext">${escapeHtml(W.continue)} ›</span></button></div>`
       : '') +
     (data.products.length ? `${sheet}<script>${script}</script>` : '') +
     '</body></html>'
@@ -264,7 +277,7 @@ export function renderPayPage(data: {
   token: string;
   orderId: number;
   total: number;
-  lines: { name: string; qty: number; amount: number }[];
+  lines: { name: string; qty: number; amount: number; imageUrl: string | null }[];
   state: PayPageState;
   orderStatus: string; // PENDING, PAID, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
   qrSrc: string | null; // the seller's QR photo, or one made with the amount filled in
@@ -279,11 +292,17 @@ export function renderPayPage(data: {
 
   const summary =
     `<h3 class="sec">${escapeHtml(W.yourOrder)}</h3><div class="card">` +
-    `<ul class="lines">${data.lines
-      .map((l) => `<li><span>${escapeHtml(l.name)} × ${l.qty}</span><b>₹${rupees(l.amount)}</b></li>`)
+    `<ul class="items">${data.lines
+      .map(
+        (l) =>
+          '<li>' +
+          (l.imageUrl ? `<img src="${escapeHtml(l.imageUrl)}" alt="" loading="lazy">` : '<span class="noimg"></span>') +
+          `<div><p>${escapeHtml(l.name)}</p><span>× ${l.qty}</span></div><b>₹${rupees(l.amount)}</b></li>`
+      )
       .join('')}</ul>` +
-    `<div class="total"><span>${escapeHtml(W.amount)}</span><b>₹${total}</b></div>` +
-    `<p class="hint">🚚 ${escapeHtml(W.freeDelivery)}</p></div>`;
+    `<div class="deliv"><span>${svg(ICON.truck, 16)} ${escapeHtml(W.freeDelivery)}</span><b>₹0</b></div>` +
+    `<div class="total"><span>${escapeHtml(W.amount)}</span><b>₹${total}</b></div></div>`;
+  const step = (n: number, text: string) => `<h3 class="sec step"><i>${n}</i>${escapeHtml(text)}</h3>`;
 
   let body: string;
   let script = '';
@@ -291,6 +310,7 @@ export function renderPayPage(data: {
     body =
       `<div class="card amountcard"><span>${escapeHtml(W.amount)}</span><b>₹${total}</b>` +
       `<p>${escapeHtml(W.payDirect(data.shopName))}</p></div>` +
+      step(1, W.payByUpi) +
       (data.qrSrc
         ? `<div class="card qrcard"><p class="hint">${escapeHtml(W.scanQr)}</p>` +
           `<img class="qr" src="${escapeHtml(data.qrSrc)}" alt="UPI QR">` +
@@ -306,7 +326,8 @@ export function renderPayPage(data: {
           `<p class="hint">${escapeHtml(W.payAppNote)}</p>`
         : '') +
       '</div>' +
-      `<h3 class="sec">${escapeHtml(W.afterPay)}</h3><div class="card form">` +
+      step(2, W.afterPay) +
+      '<div class="card form">' +
       `<label for="ref">${escapeHtml(W.refLabel)}</label>` +
       '<input id="ref" inputmode="text" autocomplete="off" maxlength="24" placeholder="123456789012">' +
       `<p class="hint">${escapeHtml(W.refHint)}</p>` +
@@ -398,26 +419,45 @@ btn.addEventListener('click', async () => {
 const CUSTOMER_STYLE = `
 main{padding-bottom:40px}
 main.shop{padding-bottom:150px}
-.perks{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;background:#fff;padding:8px 12px;border-bottom:1px solid var(--line);font-size:.82rem;font-weight:600;color:var(--brand)}
-.perks span{background:var(--bluebg);border-radius:999px;padding:4px 10px}
+.shophero{position:relative;overflow:hidden;background:linear-gradient(160deg,var(--brand2) 0%,var(--brand) 75%);color:#fff;padding:22px 18px 18px;border-radius:0 0 26px 26px;box-shadow:0 6px 18px rgba(31,60,136,.25)}
+.shophero::before{content:"";position:absolute;right:-60px;top:-70px;width:210px;height:210px;border-radius:50%;background:rgba(255,255,255,.08)}
+.shophero::after{content:"";position:absolute;left:-40px;bottom:-80px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.05)}
+.shopid{position:relative;z-index:1;display:flex;align-items:center;gap:14px;max-width:640px;margin:0 auto}
+.bigav{width:62px;height:62px;border-radius:50%;background:#ffd34d;color:var(--brand);display:grid;place-items:center;font-weight:900;font-size:1.8rem;flex:none;border:3px solid rgba(255,255,255,.85);box-shadow:0 4px 12px rgba(0,0,0,.2)}
+.shopid h1{margin:0;font-size:1.4rem;line-height:1.2;letter-spacing:-.01em}
+.shopid p{margin:3px 0 0;opacity:.85;font-size:.88rem}
+.trust{position:relative;z-index:1;display:flex;gap:8px;flex-wrap:wrap;max-width:640px;margin:16px auto 0}
+.trust span{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:5px 11px;font-size:.78rem;font-weight:600}
+.count{background:var(--bluebg);color:var(--brand2);border-radius:999px;padding:1px 9px;font-size:.8rem;margin-left:4px}
 .warnbox{margin-top:4px}
 .sec svg{vertical-align:-3px}
 .sec.left{text-align:left;margin:16px 0 0}
 .pcard.out{opacity:.6}
 .pdesc{margin:2px 0 0;color:var(--muted);font-size:.8rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .qty{margin-top:8px}
-.addbtn{width:100%;border:1.5px solid var(--accent);background:#fff;color:var(--accent);border-radius:8px;padding:8px 0;font:inherit;font-weight:800;letter-spacing:.04em}
-.stepper{display:flex;align-items:center;justify-content:space-between;background:var(--accent);border-radius:8px;overflow:hidden}
-.stepper button{border:0;background:transparent;color:#fff;width:40px;height:36px;font-size:1.3rem;font-weight:700}
+.pcard{box-shadow:0 2px 12px rgba(16,24,40,.08);transition:transform .15s}
+.pcard:active{transform:scale(.98)}
+.pprice{color:var(--ink);font-size:1.12rem}
+.addbtn{width:100%;border:0;background:#fff3eb;color:var(--accent2);border-radius:10px;padding:9px 0;font:inherit;font-weight:800;letter-spacing:.04em;box-shadow:inset 0 0 0 1.5px #ffd2b8}
+.stepper{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#ff8a3d,var(--accent2));border-radius:10px;overflow:hidden;box-shadow:0 3px 10px rgba(240,90,14,.3)}
+.stepper button{border:0;background:transparent;color:#fff;width:40px;height:37px;font-size:1.3rem;font-weight:700}
 .stepper span{color:#fff;font-weight:800;min-width:30px;text-align:center}
-.cartbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 14px rgba(0,0,0,.08);padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
-.cartbar .msg{max-width:640px;margin:0 auto 8px}
-.cartrow{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.addr{margin-top:16px}
+.addrhead{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:1rem}
+.addrhead i{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--bluebg);color:var(--brand2);flex:none}
+.cartbar{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:6;max-width:616px;margin:0 auto;transition:transform .3s cubic-bezier(.2,.9,.3,1.2),opacity .2s}
+.cartbar.empty{transform:translateY(140%);opacity:0;pointer-events:none}
+.cartbar .msg{background:#fff;border-radius:12px;padding:8px 12px;margin:0 0 8px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.cartrow{width:100%;display:flex;align-items:center;gap:12px;border:0;border-radius:16px;padding:12px 16px;font:inherit;color:#fff;text-align:left;cursor:pointer;background:linear-gradient(135deg,#22a35a,#15803d);box-shadow:0 10px 24px rgba(21,128,61,.4)}
+.cartrow:disabled{opacity:.8}
 .cartrow .sum{flex:1;display:flex;flex-direction:column}
-.cartrow .sum span{color:var(--muted);font-size:.82rem}
-.cartrow .sum b{font-size:1.25rem}
-.cartrow .btn{flex:1.3;padding:14px 10px;font-size:1.02rem}
-.cartbar.empty .btn{opacity:.55}
+.cartrow .sum span{font-size:.78rem;opacity:.9;font-weight:600}
+.cartrow .sum b{font-size:1.2rem}
+.gotext{font-weight:800;font-size:1.05rem;white-space:nowrap}
+.deliv{display:flex;justify-content:space-between;align-items:center;padding:8px 0 0;color:var(--ok);font-size:.88rem;font-weight:600}
+.deliv span{display:flex;align-items:center;gap:6px}
+.step{display:flex;align-items:center;gap:8px}
+.step i{font-style:normal;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--brand2);color:#fff;font-size:.8rem}
 [data-open]{cursor:pointer}
 body.locked{overflow:hidden}
 .sheet{position:fixed;inset:0;z-index:5;display:flex;align-items:flex-end;justify-content:center}

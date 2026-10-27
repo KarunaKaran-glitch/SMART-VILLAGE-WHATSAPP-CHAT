@@ -2128,6 +2128,7 @@ app.get('/shop/:code/order/:id', async (req: Request, res: Response) => {
         name: localName(i.product, customer.language),
         qty: i.quantity,
         amount: Number(i.unitPrice) * i.quantity,
+        imageUrl: i.product.imageKey ? `/images/${i.product.imageKey}` : null,
       })),
       state,
       orderStatus: order.status,
