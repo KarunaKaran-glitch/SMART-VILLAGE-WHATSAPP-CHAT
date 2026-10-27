@@ -405,7 +405,6 @@ function mainMenuReply(user: { language: string; role: string }): RichReply {
   );
   if (user.role === 'SELLER') rows.push({ id: 'SELLER', title: B.sellerMenu });
   else if (user.role === 'ADMIN') rows.push({ id: 'ADMIN', title: B.adminMenu });
-  else rows.push({ id: 'SELL', title: B.sell });
   return { text: B.whatNext, list: { button: B.menu, rows } };
 }
 
