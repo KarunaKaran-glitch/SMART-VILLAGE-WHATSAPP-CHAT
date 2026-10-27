@@ -383,10 +383,19 @@ async function post(url, body, msgEl, notice) {
   return false;
 }
 
-// Shrink a photo on the phone (longest side 1200 px, JPEG) before uploading
+// Shrink a photo on the phone (longest side 1200 px, JPEG) before uploading, plus a small copy
+// (longest side 400 px) that the shop grid and the order lists load instead of the big one
+function shrink(img, side, quality) {
+  const scale = Math.min(1, side / Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * scale);
+  c.height = Math.round(img.height * scale);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', quality);
+}
 function readPhoto(input, previewEl, msgEl, done) {
   input.addEventListener('change', () => {
-    done(null);
+    done(null, null);
     previewEl.hidden = true;
     previewEl.parentElement.classList.remove('has');
     msgEl.textContent = '';
@@ -395,17 +404,12 @@ function readPhoto(input, previewEl, msgEl, done) {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const scale = Math.min(1, 1200 / Math.max(img.width, img.height));
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.width * scale);
-      c.height = Math.round(img.height * scale);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      const data = c.toDataURL('image/jpeg', 0.85);
+      const data = shrink(img, 1200, 0.85);
       previewEl.src = data;
       previewEl.hidden = false;
       previewEl.parentElement.classList.add('has');
       URL.revokeObjectURL(url);
-      done(data);
+      done(data, shrink(img, 400, 0.78));
     };
     img.onerror = () => { msgEl.textContent = T.photoInvalid; URL.revokeObjectURL(url); };
     img.src = url;
@@ -414,8 +418,9 @@ function readPhoto(input, previewEl, msgEl, done) {
 
 // Add a product (then show the Products tab)
 let photo = null;
+let thumb = null;
 const msg = document.getElementById('msg');
-readPhoto(document.getElementById('photo'), document.getElementById('preview'), msg, (d) => { photo = d; });
+readPhoto(document.getElementById('photo'), document.getElementById('preview'), msg, (d, t) => { photo = d; thumb = t; });
 const addBtn = document.getElementById('addbtn');
 addBtn.addEventListener('click', async () => {
   const name = document.getElementById('pname').value.trim();
@@ -427,7 +432,7 @@ addBtn.addEventListener('click', async () => {
   addBtn.disabled = true;
   addBtn.textContent = T.adding;
   history.replaceState(null, '', '#products');
-  if (!(await post('/seller/products', { name, price, description, photo }, msg, 'added'))) {
+  if (!(await post('/seller/products', { name, price, description, photo, thumb }, msg, 'added'))) {
     history.replaceState(null, '', '#add');
     addBtn.disabled = false;
     addBtn.textContent = T.addBtn;

@@ -135,6 +135,7 @@ model Product {
   isActive     Boolean              @default(true)
   stock        Int?
   imageKey     String? // Image.key of the product photo
+  thumbKey     String? // Image.key of a small copy (about 400 px) for grids and lists; null = use imageKey
   description  String? // short text from the seller: colour, size, material ...
   approval     ProductApproval      @default(PENDING)
   categoryId   Int?

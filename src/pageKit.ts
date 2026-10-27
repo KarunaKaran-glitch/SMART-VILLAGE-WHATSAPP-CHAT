@@ -175,6 +175,10 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0 4px}
 .tabbar a.on{color:var(--brand2)}
 .tabbar a.on svg{stroke-width:2.3}
 .tabbar .dot{position:absolute;top:4px;left:calc(50% + 6px);background:var(--accent);color:#fff;border-radius:999px;font-style:normal;font-size:.65rem;min-width:17px;height:17px;display:grid;place-items:center;padding:0 4px}
+/* A soft moving grey while a photo loads (the photo covers it once it is there) */
+.pimg,.items img,.items .noimg,.orow img,.mini img{background:linear-gradient(90deg,#eef2f7 25%,#f8fafc 50%,#eef2f7 75%);background-size:200% 100%;animation:shimmer 1.4s linear infinite}
+@keyframes shimmer{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.pimg,.items img,.items .noimg,.orow img,.mini img{animation:none}}
 `;
 
 // The dashboards' shared look (seller and admin): blue banner, stat cards over it, round quick

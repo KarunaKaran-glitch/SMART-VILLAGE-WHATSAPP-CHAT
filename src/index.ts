@@ -1474,7 +1474,8 @@ app.get('/images/:key', async (req: Request, res: Response) => {
   }
   res.set('Content-Type', image.mimeType);
   res.set('X-Content-Type-Options', 'nosniff');
-  res.set('Cache-Control', 'public, max-age=86400');
+  // Every photo gets a new random key and is never changed, so phones may keep it for a year
+  res.set('Cache-Control', 'public, max-age=31536000, immutable');
   res.send(Buffer.from(image.data));
 });
 
@@ -1565,6 +1566,7 @@ app.get('/shop/:code', async (req: Request, res: Response) => {
         description: p.description,
         price: Number(p.price),
         imageUrl: p.imageKey ? `/images/${p.imageKey}` : null,
+        thumbUrl: smallPhoto(p),
         maxQty: p.stock === null ? 99 : Math.min(p.stock, 99),
       })),
     })
@@ -1854,7 +1856,7 @@ async function sellerOrderRows(sellerId: number | null, language: string, onlyOr
         name: localName(i.product, language),
         qty: i.quantity,
         amount: Number(i.unitPrice) * i.quantity,
-        imageUrl: i.product.imageKey ? `/images/${i.product.imageKey}` : null,
+        imageUrl: smallPhoto(i.product),
       })),
       total: list.reduce((sum, i) => sum + Number(i.unitPrice) * i.quantity, 0),
       status,
@@ -1962,7 +1964,7 @@ app.get('/seller', async (req: Request, res: Response) => {
         name: localName(p, seller.language),
         price: Number(p.price),
         stock: p.stock,
-        imageUrl: p.imageKey ? `/images/${p.imageKey}` : null,
+        imageUrl: smallPhoto(p),
         status:
           p.approval === 'REJECTED'
             ? 'rejected'
@@ -1978,6 +1980,12 @@ app.get('/seller', async (req: Request, res: Response) => {
   );
 });
 
+// The small copy of a product photo for grids and lists (the full photo when there is none)
+function smallPhoto(p: { imageKey: string | null; thumbKey: string | null }): string | null {
+  const key = p.thumbKey ?? p.imageKey;
+  return key ? `/images/${key}` : null;
+}
+
 // A photo sent by a web page as "data:image/jpeg;base64,...": only real JPEG, PNG or WebP files
 function decodePhoto(dataUrl: unknown): { data: Buffer; mimeType: string } | null {
   if (typeof dataUrl !== 'string') return null;
@@ -1990,7 +1998,7 @@ function decodePhoto(dataUrl: unknown): { data: Buffer; mimeType: string } | nul
   return isJpeg || isPng || isWebp ? { data, mimeType: m[1] } : null;
 }
 
-// Seller adds a product on the dashboard: { t, name, price, description, photo }.
+// Seller adds a product on the dashboard: { t, name, price, description, photo, thumb }.
 // It waits for the admin (who gets its photo with Approve / Reject on WhatsApp).
 app.post('/seller/products', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
@@ -2018,6 +2026,9 @@ app.post('/seller/products', async (req: Request, res: Response) => {
       res.status(400).json({ ok: false, error });
       return;
     }
+    // The small copy made on the phone; without a good one the lists just use the full photo
+    const thumb = decodePhoto(req.body.thumb);
+    const thumbKey = thumb && thumb.data.length <= 200 * 1024 ? await saveImage(thumb.data, thumb.mimeType) : null;
 
     const product = await prisma.product.create({
       data: {
@@ -2025,6 +2036,7 @@ app.post('/seller/products', async (req: Request, res: Response) => {
         price,
         description: description || null,
         imageKey,
+        thumbKey,
         sellerId: seller.id,
         categoryId: seller.categoryId,
         translations: { create: [{ language: seller.language, name }] },
@@ -2198,7 +2210,7 @@ app.get('/shop/:code/order/:id', async (req: Request, res: Response) => {
         name: localName(i.product, customer.language),
         qty: i.quantity,
         amount: Number(i.unitPrice) * i.quantity,
-        imageUrl: i.product.imageKey ? `/images/${i.product.imageKey}` : null,
+        imageUrl: smallPhoto(i.product),
       })),
       state,
       orderStatus: order.status,

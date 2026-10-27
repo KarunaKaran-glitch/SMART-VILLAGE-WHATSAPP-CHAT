@@ -14,7 +14,8 @@ export type ShopPageProduct = {
   name: string;
   description: string | null;
   price: number;
-  imageUrl: string | null;
+  imageUrl: string | null; // the full photo (details view)
+  thumbUrl: string | null; // the small copy (grid)
   maxQty: number; // 0 = sold out
 };
 
@@ -76,7 +77,7 @@ export function renderShopPage(data: {
       return (
         `<article class="pcard${soldOut ? ' out' : ''}">` +
         `<div class="pimg" data-open="${p.id}">` +
-        (p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">` : '') +
+        (p.thumbUrl ? `<img src="${escapeHtml(p.thumbUrl)}" alt="" loading="lazy" decoding="async">` : '') +
         (soldOut ? `<span class="badge rejected">${escapeHtml(W.soldOut)}</span>` : '') +
         '</div><div class="pbody">' +
         `<p class="pname" data-open="${p.id}">${escapeHtml(p.name)}</p>` +
@@ -99,6 +100,7 @@ const PRODUCTS = ${scriptJson(
       name: p.name,
       desc: p.description || '',
       img: p.imageUrl,
+      thumb: p.thumbUrl,
     })),
   )};
 const T = ${scriptJson({
@@ -204,7 +206,7 @@ function fillReview() {
   let count = 0, total = 0;
   const rows = PRODUCTS.filter((p) => qty[p.id] > 0).map((p) => {
     const n = qty[p.id]; count += n; total += n * p.price;
-    return '<li>' + (p.img ? '<img src="' + esc(p.img) + '" alt="">' : '<span class="noimg"></span>') +
+    return '<li>' + (p.thumb ? '<img src="' + esc(p.thumb) + '" alt="">' : '<span class="noimg"></span>') +
       '<div><p>' + esc(p.name) + '</p><b>₹' + fmt(n * p.price) + '</b></div>' +
       '<div class="qty small" data-id="' + p.id + '"></div></li>';
   });
