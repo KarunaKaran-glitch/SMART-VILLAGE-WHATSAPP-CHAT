@@ -60,7 +60,7 @@ a{color:inherit}
 .appbar .who span{font-size:.8rem;opacity:.85}
 .iconbtn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.16);color:#fff;flex:none}
 main{max-width:640px;margin:0 auto;padding:12px 12px 96px}
-.tab[hidden]{display:none}
+.tab[hidden]{display:none!important}
 .toast{position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:9;background:#111827;color:#fff;padding:10px 16px;border-radius:999px;font-weight:600;font-size:.9rem;box-shadow:0 6px 18px rgba(0,0,0,.25);transition:opacity .4s}
 .toast.gone{opacity:0;pointer-events:none}
 .hello{background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:10px}
@@ -244,6 +244,42 @@ export const DASH_STYLE = `
 .tabbar a.center::after{display:none}
 .plusbtn{margin-top:-24px;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#ff8a3d,var(--accent2));border:4px solid #fff;box-shadow:0 6px 14px rgba(240,90,14,.4)}
 .tabbar a.center{color:var(--ink)}
+/* Desktop (wide screens only; phones keep the layout above): a left sidebar menu instead of the
+   bottom tab bar, and the content spread over the full width */
+@media (min-width:1024px){
+.appbar{padding:12px 28px}
+.tabbar{top:66px;bottom:0;right:auto;width:236px;flex-direction:column;gap:4px;padding:20px 14px;background:#fff;border-right:1px solid var(--line);box-shadow:none}
+.tabbar a{flex:none;flex-direction:row;justify-content:flex-start;gap:12px;padding:12px 14px;border-radius:12px;font-size:.95rem}
+.tabbar a:hover{background:#f3f4f6;color:var(--ink)}
+.tabbar a.on{background:var(--bluebg);color:var(--brand2)}
+.tabbar a.on::after{display:none}
+.tabbar .dot{position:static;margin-left:auto;font-size:.72rem;min-width:22px;height:22px}
+.tabbar a.center{order:-1;margin-bottom:10px;color:#fff;background:linear-gradient(135deg,#ff8a3d,var(--accent2));box-shadow:0 6px 16px rgba(240,90,14,.3);font-weight:700}
+.tabbar a.center:hover{color:#fff;filter:brightness(1.05)}
+.plusbtn{margin:0;width:26px;height:26px;border:0;box-shadow:none;background:rgba(255,255,255,.25)}
+.plusbtn svg{width:18px;height:18px}
+main{max-width:none;margin:0 0 0 236px;padding:26px 36px 48px}
+.tab{max-width:1120px;margin:0 auto}
+.hero{margin:0;border-radius:22px;padding:30px 34px 74px}
+.hero .hi{font-size:1.6rem}
+.earn{max-width:560px}
+.earn b{font-size:2.3rem}
+.stats{margin:-50px 26px 18px;gap:18px}
+.stat{padding:18px 20px}
+.stat b{font-size:1.8rem}
+.stat span{font-size:.85rem}
+.quick{padding:22px 10px}
+.qa:hover i{transform:translateY(-2px)}
+.qa i{transition:transform .15s}
+.grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
+.pcard{transition:box-shadow .15s,transform .15s}
+.pcard:hover{box-shadow:0 10px 26px rgba(16,24,40,.13);transform:translateY(-2px)}
+#tab-orders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+#tab-orders>.sec,#tab-orders>.empty{grid-column:1/-1;margin-bottom:0}
+#tab-orders .order{margin:0}
+#tab-add,#tab-account,#tab-addseller{max-width:720px}
+.toast{top:84px}
+}
 `;
 
 // "Back to WhatsApp" buttons (a wa.me link with data-wa) open the WhatsApp app itself, straight

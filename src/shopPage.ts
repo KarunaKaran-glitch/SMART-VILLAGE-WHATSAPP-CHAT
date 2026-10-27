@@ -701,4 +701,32 @@ main.gone{padding-top:60px}
 .again li{display:flex;align-items:center;gap:10px;font-size:.92rem}
 .again i{font-style:normal;width:26px;height:26px;border-radius:50%;background:var(--brand2);color:#fff;display:grid;place-items:center;font-size:.8rem;font-weight:800;flex:none}
 .btn.big{padding:15px 16px;font-size:1.05rem;margin-top:16px;box-shadow:0 8px 20px rgba(37,211,102,.35)}
+/* Desktop (wide screens only; phones keep the layout above): a wider shop with more products
+   per row, and the product details / order review as a window in the middle of the screen */
+@media (min-width:1024px){
+.shophero{padding:36px 40px 30px}
+.shopid,.trust{max-width:1064px}
+.bigav{width:78px;height:78px;font-size:2.2rem}
+.shopid h1{font-size:1.9rem}
+.shopid p{font-size:1rem}
+main.shop{max-width:1120px;padding:24px 28px 150px}
+main.shop .grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:18px}
+.pcard{transition:box-shadow .15s,transform .15s}
+.pcard:hover{box-shadow:0 12px 28px rgba(16,24,40,.14);transform:translateY(-3px)}
+.addr{max-width:640px}
+.cartbar{max-width:560px}
+.sheet{align-items:center;padding:24px}
+.sheetbox{border-radius:20px;max-width:900px;max-height:88vh;display:grid;grid-template-columns:1.1fr 1fr;padding-bottom:0;animation:sheetpop .2s ease-out}
+.sheetbox .sheetx{position:absolute;top:14px;right:14px;margin:0;float:none}
+.sheetimg{border-radius:20px 0 0 20px;display:flex;align-items:center;justify-content:center;min-height:420px}
+.sheetimg img{max-height:88vh}
+.sheetbody{padding:56px 28px 28px;align-self:center}
+.sname{font-size:1.35rem}
+.sprice{font-size:1.8rem}
+.reviewbox{display:flex;max-width:600px}
+.reviewbox .sheetx{position:sticky;align-self:flex-end;margin:12px 12px -48px 0}
+.reviewbox .sheetbody{padding:16px 22px;align-self:auto}
+.rfoot{border-radius:0 0 20px 20px}
+@keyframes sheetpop{from{transform:scale(.96);opacity:.6}}
+}
 `;

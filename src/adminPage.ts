@@ -343,4 +343,12 @@ const ADMIN_STYLE = `
 .facts span{display:flex;align-items:center;gap:8px;color:#374151;font-size:.85rem}
 .facts svg{color:var(--brand2);flex:none}
 .formhead i{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#fff;flex:none;background:linear-gradient(135deg,#34d36b,#16a34a);box-shadow:0 4px 10px rgba(0,0,0,.12)}
+@media (min-width:1024px){
+#tab-approve,#tab-sellers{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;align-items:start}
+#tab-approve>.sec,#tab-approve>.caught,#tab-sellers>.sec,#tab-sellers>.created,#tab-sellers>.btn,#tab-sellers>.empty{grid-column:1/-1;margin-bottom:0}
+#tab-sellers>.btn{justify-self:start;width:auto;padding:13px 28px}
+.check,.seller{margin:0}
+.mini{flex:0 0 200px}
+.tabbar a{font-size:.95rem}
+}
 `;
