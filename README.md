@@ -184,6 +184,9 @@ prisma/
   schema.prisma        Database models: User, Category, Product, ProductTranslation, Cart,
                        CartItem, Order, OrderItem, Payment, Image, ProcessedMessage
   migrations/          SQL migration history
+assets/
+  status/              Pictures sent with the customer's order updates (payment successful,
+                       confirmed, shipped, delivered), served at /assets/status/...
 scripts/
   validate.sh          The validation test (see Testing)
   validate-cleanup.sh  Removes the validation test's data

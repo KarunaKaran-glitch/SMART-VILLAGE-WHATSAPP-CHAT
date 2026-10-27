@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express, { Request, Response } from 'express';
+import path from 'path';
 import { prisma } from './db';
 import { CHOOSE_LANGUAGE, LANGUAGES, t } from './messages';
 import { SHOP_TEXT } from './shopText';
@@ -44,6 +45,8 @@ app.use(
     },
   })
 );
+// Fixed pictures sent with messages (for example the "Payment successful" picture)
+app.use('/assets', express.static(path.join(__dirname, '..', 'assets'), { maxAge: '7d' }));
 
 const PORT = process.env.PORT || 3000;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
@@ -58,6 +61,8 @@ type RichReply = {
   buttons?: Button[];
   list?: { button: string; rows: Row[] };
   imageKey?: string;
+  // A fixed picture from /assets instead of a saved photo (shown the same way, on top)
+  imageUrl?: string;
   // One button that opens a web page (WhatsApp "cta_url" message)
   link?: { title: string; url: string };
 };
@@ -119,7 +124,7 @@ async function sendReply(to: string, reply: Reply): Promise<void> {
 
   if (reply.buttons && reply.buttons.length > 0) {
     const buttons = reply.buttons.slice(0, 3).map((b) => ({ id: b.id, title: clip(b.title, 20) }));
-    const link = reply.imageKey ? imageUrl(reply.imageKey) : null;
+    const link = reply.imageUrl ?? (reply.imageKey ? imageUrl(reply.imageKey) : null);
     console.log(
       `>> Buttons to ${to}:${link ? ' ' + link : ''}\n${maskDigits(body)}\n` +
         '   ' + buttons.map((b) => `[${b.title}] -> ${b.id}`).join('   ') + '\n'
@@ -137,8 +142,21 @@ async function sendReply(to: string, reply: Reply): Promise<void> {
     await sendImage(to, reply.imageKey, body);
     return;
   }
+  if (reply.imageUrl) {
+    console.log(`>> Image to ${to}: ${reply.imageUrl}\n${maskDigits(body)}\n`);
+    await sendWhatsAppImage(to, reply.imageUrl, body);
+    return;
+  }
   await sendReply(to, body);
 }
+
+// The pictures sent to the customer as their order moves forward (files in assets/status)
+const STATUS_PICTURE = {
+  paid: '/assets/status/payment-successful.png',
+  CONFIRMED: '/assets/status/order-confirmed.jpg',
+  SHIPPED: '/assets/status/order-shipped.png',
+  DELIVERED: '/assets/status/order-delivered.jpg',
+} as const;
 
 // Same for a photo: prints its link (open it in a browser to see it) and sends it when live
 async function sendImage(to: string, key: string, caption: string) {
@@ -665,7 +683,16 @@ async function decidePayment(
       await sendReply(
         order.customer.phone,
         received
-          ? { text: U.received(orderId), buttons: nextButtons(lang) }
+          ? {
+              // The "Payment successful" picture, with the amount and the customer's own
+              // transaction number under the text (symbols, so it reads the same in every language)
+              text:
+                U.received(orderId) +
+                `\n\n💰 ₹${rupees(Number(payment.amount))}` +
+                (payment.reference ? `\n🧾 ${payment.reference}` : ''),
+              imageUrl: publicUrl(STATUS_PICTURE.paid),
+              buttons: nextButtons(lang),
+            }
           : {
               text: U.notReceived(orderId),
               buttons: [
@@ -892,8 +919,10 @@ async function updateOrderStatus(
       include: { customer: true },
     });
     if (order) {
+      // Each step comes with its picture (confirmed, shipped, delivered)
       await sendReply(order.customer.phone, {
         text: ot(order.customer.language).status(orderId, rule.to),
+        imageUrl: publicUrl(STATUS_PICTURE[rule.to]),
         buttons: nextButtons(order.customer.language),
       });
     }
