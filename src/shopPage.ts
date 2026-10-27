@@ -16,7 +16,6 @@ export type ShopPageProduct = {
   price: number;
   imageUrl: string | null;
   maxQty: number; // 0 = sold out
-  left: number | null; // shown as "Only n left" when stock is low
 };
 
 const head = (language: string, title: string, style: string) =>
@@ -58,11 +57,7 @@ export function renderShopPage(data: {
         `<article class="pcard${soldOut ? ' out' : ''}">` +
         `<div class="pimg" data-open="${p.id}">` +
         (p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">` : '') +
-        (soldOut
-          ? `<span class="badge rejected">${escapeHtml(W.soldOut)}</span>`
-          : p.left !== null
-            ? `<span class="badge waiting">${escapeHtml(W.onlyLeft(p.left))}</span>`
-            : '') +
+        (soldOut ? `<span class="badge rejected">${escapeHtml(W.soldOut)}</span>` : '') +
         '</div><div class="pbody">' +
         `<p class="pname" data-open="${p.id}">${escapeHtml(p.name)}</p>` +
         (p.description ? `<p class="pdesc">${escapeHtml(p.description)}</p>` : '') +
@@ -84,13 +79,11 @@ const PRODUCTS = ${scriptJson(
       name: p.name,
       desc: p.description || '',
       img: p.imageUrl,
-      left: p.left,
     })),
   )};
 const T = ${scriptJson({
     add: W.add,
     soldOut: W.soldOut,
-    onlyLeft: W.onlyLeft(999),
     pickOne: W.pickOne,
     addressInvalid: W.addressInvalid,
     sending: W.sending,
@@ -158,7 +151,7 @@ function showSheet(id) {
   document.getElementById('sprice').textContent = '₹' + fmt(p.price);
   const left = document.getElementById('sleft');
   const out = ORDERING && p.max <= 0;
-  left.textContent = out ? T.soldOut : p.left !== null ? T.onlyLeft.replace('999', p.left) : '';
+  left.textContent = out ? T.soldOut : '';
   left.hidden = !left.textContent;
   document.getElementById('sdesc').textContent = p.desc;
   const box = document.getElementById('sqty');

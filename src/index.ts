@@ -1512,7 +1512,6 @@ app.get('/shop/:code', async (req: Request, res: Response) => {
         price: Number(p.price),
         imageUrl: p.imageKey ? `/images/${p.imageKey}` : null,
         maxQty: p.stock === null ? 99 : Math.min(p.stock, 99),
-        left: p.stock !== null && p.stock <= 5 ? p.stock : null,
       })),
     })
   );
