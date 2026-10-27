@@ -366,6 +366,81 @@ update();
   );
 }
 
+// The thank-you page: the customer's old link after their order was delivered (the shop visit is
+// closed). First a tick that draws itself, falling confetti and "Thank you for choosing <shop>!"
+// with the delivery date; a few seconds later the card that says the visit is closed slides up,
+// with the steps to shop again and [Back to WhatsApp].
+export function renderThanksPage(data: {
+  language: string;
+  shopName: string;
+  shopCode: string;
+  orderId: number;
+  deliveredOn: string | null; // "27 October 2026", in the customer's language
+  whatsAppLink: string;
+}): string {
+  const W = wt(data.language);
+  const hi = `<b>Hi ${escapeHtml(data.shopCode)}</b>`;
+  const script = `
+// Confetti: small coloured pieces falling at random places and speeds
+const box = document.getElementById('confetti');
+const colours = ['#fb641b', '#22c55e', '#2f5fd0', '#facc15', '#ec4899', '#a78bfa'];
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  for (let i = 0; i < 60; i++) {
+    const c = document.createElement('i');
+    c.style.left = Math.random() * 100 + '%';
+    c.style.background = colours[i % colours.length];
+    c.style.animationDelay = (0.4 + Math.random() * 1.6).toFixed(2) + 's';
+    c.style.animationDuration = (2.4 + Math.random() * 1.8).toFixed(2) + 's';
+    c.style.setProperty('--x', (Math.random() * 160 - 80).toFixed(0) + 'px');
+    c.style.setProperty('--r', (Math.random() * 720 - 360).toFixed(0) + 'deg');
+    if (i % 3 === 0) c.style.borderRadius = '50%';
+    box.appendChild(c);
+  }
+}
+`;
+  return (
+    head(data.language, W.thanksTitle(data.shopName), CUSTOMER_STYLE + THANKS_STYLE) +
+    '<div id="confetti" aria-hidden="true"></div>' +
+    '<div class="thero"><svg class="tick" viewBox="0 0 120 120" aria-hidden="true">' +
+    '<circle class="ring" cx="60" cy="60" r="52"/><path class="mark" d="M36 62l16 16 32-34"/></svg></div>' +
+    '<main class="thanks"><div class="card tcard">' +
+    `<h1 class="t1">${escapeHtml(W.thanksTitle(data.shopName))}</h1>` +
+    `<p class="t2">${escapeHtml(data.deliveredOn ? W.deliveredOn(data.orderId, data.deliveredOn) : W.deliveredNoDate(data.orderId))}</p>` +
+    `<p class="t3">${escapeHtml(W.hopeYouLove)}</p></div>` +
+    '<div class="card gonecard later">' +
+    `<h2>${escapeHtml(W.visitClosed)}</h2><p>${escapeHtml(W.shopAgain)}</p>` +
+    '<ol class="again">' +
+    `<li><i>1</i><span>${escapeHtml(W.stepGoBack)}</span></li>` +
+    `<li><i>2</i><span>${escapeHtml(W.stepSend('\u0000')).replace('\u0000', hi)}</span></li>` +
+    `<li><i>3</i><span>${escapeHtml(W.stepShopNow)}</span></li></ol>` +
+    `<a class="btn whatsapp block big" href="${escapeHtml(data.whatsAppLink)}">${svg(ICON.chat, 22)} ${escapeHtml(W.backToWhatsApp)}</a>` +
+    '</div></main>' +
+    `<script>${script}</script></body></html>`
+  );
+}
+
+const THANKS_STYLE = `
+.thero{background:linear-gradient(160deg,#22a35a,#15803d 70%);height:170px;border-radius:0 0 30px 30px;display:flex;justify-content:center;align-items:flex-end}
+.tick{width:112px;height:112px;margin-bottom:-56px;background:#fff;border-radius:50%;box-shadow:0 10px 28px rgba(21,128,61,.35);animation:pop .5s cubic-bezier(.2,1.4,.4,1) both}
+.tick .ring{fill:none;stroke:#22c55e;stroke-width:7;stroke-dasharray:330;stroke-dashoffset:330;animation:draw .7s .3s ease-out forwards}
+.tick .mark{fill:none;stroke:#16a34a;stroke-width:9;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:80;stroke-dashoffset:80;animation:draw .45s .95s ease-out forwards}
+main.thanks{padding-top:70px}
+.tcard{text-align:center;padding:22px 18px}
+.t1{margin:0;font-size:1.45rem;line-height:1.25;color:var(--ink)}
+.t2{margin:10px 0 0;font-weight:600;color:var(--ok)}
+.t3{margin:8px 0 0;color:var(--muted)}
+.t1,.t2,.t3{opacity:0;animation:rise .5s ease-out forwards}
+.t1{animation-delay:1.2s}.t2{animation-delay:1.6s}.t3{animation-delay:2s}
+.later{opacity:0;animation:rise .6s 3.5s ease-out forwards}
+#confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:20}
+#confetti i{position:absolute;top:-20px;width:9px;height:14px;border-radius:2px;opacity:0;animation:fall linear forwards}
+@keyframes pop{from{transform:scale(.3);opacity:0}}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes fall{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:.9;transform:translate(var(--x),105vh) rotate(var(--r))}}
+@media (prefers-reduced-motion:reduce){.tick,.tick .ring,.tick .mark,.t1,.t2,.t3,.later{animation:none;opacity:1;stroke-dashoffset:0}}
+`;
+
 // The payment page of one order: the seller's QR code, UPI ID (Copy), [Pay with UPI app] and
 // "I have paid" with the transaction number. After that it shows the order's progress.
 export type PayPageState = 'pay' | 'waiting' | 'received' | 'cancelled';

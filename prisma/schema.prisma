@@ -169,6 +169,7 @@ model Order {
   status          OrderStatus @default(PENDING)
   total           Decimal     @db.Decimal(10, 2)
   deliveryAddress String?
+  deliveredAt     DateTime? // when the seller marked it delivered (shown on the thank-you page)
   items           OrderItem[]
   payments        Payment[]
   createdAt       DateTime    @default(now())

@@ -28,7 +28,7 @@ import {
 } from './whatsapp';
 import { getImage, imageUrl, makeUpiQr, publicUrl, saveImage, upiLink, upiQrDataUrl } from './images';
 import crypto from 'crypto';
-import { PayPageState, renderPayPage, renderShopPage, simplePage } from './shopPage';
+import { PayPageState, renderPayPage, renderShopPage, renderThanksPage, simplePage } from './shopPage';
 import { rupees } from './pageKit';
 import { wt } from './webText';
 import { dt } from './dashText';
@@ -901,7 +901,10 @@ async function updateOrderStatus(
   // If every item in the order now has this status, update the order itself too
   const all = await prisma.orderItem.findMany({ where: { orderId } });
   if (all.every((i) => i.status === rule.to)) {
-    await prisma.order.update({ where: { id: orderId }, data: { status: rule.to } });
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: rule.to, ...(rule.to === 'DELIVERED' ? { deliveredAt: new Date() } : {}) },
+    });
 
     // Cash on delivery: delivery means the cash was collected
     if (rule.to === 'DELIVERED') {
@@ -922,6 +925,8 @@ async function updateOrderStatus(
       const lang = order.customer.language;
       // Delivered closes the customer's visit to this shop (unless another order from the same
       // shop is still open): the bot forgets the shop, and to buy again they send "Hi <ID>".
+      // Their link stays known for 24 more hours, but only for the thank-you page: the shop and
+      // payment pages need the shop visit, which is now closed.
       let closed: { shopName: string; code: string } | null = null;
       if (rule.to === 'DELIVERED' && order.customer.shopId === sellerId) {
         const stillOpen = await prisma.order.count({
@@ -936,7 +941,7 @@ async function updateOrderStatus(
         if (stillOpen === 0 && seller?.shopCode) {
           await prisma.user.update({
             where: { id: order.customerId },
-            data: { shopId: null, webToken: null, webTokenAt: null },
+            data: { shopId: null, ...(order.customer.webToken ? { webTokenAt: new Date() } : {}) },
           });
           closed = { shopName: seller.shopName ?? seller.shopCode, code: seller.shopCode };
         }
@@ -1486,11 +1491,59 @@ async function shopVisitor(code: string, token: unknown) {
   return { customer, shop: customer.shop };
 }
 
+// After delivery the shop visit is closed, but the customer's own link (still fresh) opens a
+// thank-you page for their delivered order from this shop: that order, or else the latest one
+async function deliveredVisit(code: string, token: unknown, orderId?: number) {
+  if (typeof token !== 'string' || token.length < 20) return null;
+  const customer = await prisma.user.findUnique({ where: { webToken: token } });
+  const fresh =
+    customer?.webTokenAt && Date.now() - customer.webTokenAt.getTime() < WEB_TOKEN_HOURS * 3600 * 1000;
+  if (!customer || !fresh) return null;
+  const seller = await prisma.user.findFirst({ where: { shopCode: code, role: 'SELLER' } });
+  if (!seller) return null;
+  const order = await prisma.order.findFirst({
+    where: {
+      customerId: customer.id,
+      status: 'DELIVERED',
+      items: { some: { sellerId: seller.id }, every: { sellerId: seller.id } },
+      ...(orderId !== undefined && Number.isInteger(orderId) ? { id: orderId } : {}),
+    },
+    orderBy: { id: 'desc' },
+  });
+  return order ? { customer, seller, order } : null;
+}
+
+const DATE_LOCALE: Record<string, string> = { en: 'en-IN', hi: 'hi-IN', or: 'or-IN', as: 'as-IN' };
+
+function thanksPage(visit: NonNullable<Awaited<ReturnType<typeof deliveredVisit>>>) {
+  const { customer, seller, order } = visit;
+  return renderThanksPage({
+    language: customer.language,
+    shopName: seller.shopName ?? seller.shopCode ?? '',
+    shopCode: seller.shopCode ?? '',
+    orderId: order.id,
+    deliveredOn: order.deliveredAt
+      ? order.deliveredAt.toLocaleDateString(DATE_LOCALE[customer.language] ?? 'en-IN', {
+          timeZone: 'Asia/Kolkata',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })
+      : null,
+    whatsAppLink: backToWhatsApp(seller.shopCode ?? undefined).whatsAppLink,
+  });
+}
+
 app.get('/shop/:code', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
   res.set('X-Content-Type-Options', 'nosniff');
   const visit = await shopVisitor(String(req.params.code).toUpperCase(), req.query.t);
   if (!visit) {
+    const done = await deliveredVisit(String(req.params.code).toUpperCase(), req.query.t);
+    if (done) {
+      res.send(thanksPage(done));
+      return;
+    }
     res
       .status(403)
       .send(simplePage('Link expired', 'This shopping link is closed or too old. It is easy to start again:', backToWhatsApp(String(req.params.code))));
@@ -2105,6 +2158,13 @@ app.get('/shop/:code/order/:id', async (req: Request, res: Response) => {
   const visit = await shopVisitor(String(req.params.code).toUpperCase(), req.query.t);
   const order = visit ? await shopOrder(visit.customer.id, visit.shop.id, Number(req.params.id)) : null;
   if (!visit || !order) {
+    const done = visit
+      ? null
+      : await deliveredVisit(String(req.params.code).toUpperCase(), req.query.t, Number(req.params.id));
+    if (done) {
+      res.send(thanksPage(done));
+      return;
+    }
     res
       .status(403)
       .send(simplePage('Link expired', 'This shopping link is closed or too old. It is easy to start again:', backToWhatsApp(String(req.params.code))));
