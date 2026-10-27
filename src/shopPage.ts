@@ -289,7 +289,7 @@ btn.addEventListener('click', async () => {
               ? { pic: '/assets/status/order-shipped.png', icon: '', title: W.shippedTitle, text: W.shippedText(data.shopName), at: 3 }
               : s === 'CONFIRMED'
                 ? { pic: '/assets/status/order-confirmed.jpg', icon: '', title: W.confirmedTitle, text: W.confirmedText(data.shopName), at: 2 }
-                : { pic: '/assets/status/payment-successful.png', icon: '', title: W.receivedTitle, text: W.received(data.shopName), at: 1.5 };
+                : { pic: '/assets/status/payment-received.jpg', icon: '', title: W.receivedTitle, text: W.received(data.shopName), at: 1.5 };
     const steps = [D.stepOrdered, D.stPaid, D.stConfirmed, D.stShipped, D.stDelivered];
     const tracker =
       view.at < 0

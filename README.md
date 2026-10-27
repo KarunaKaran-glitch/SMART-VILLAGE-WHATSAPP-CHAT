@@ -185,7 +185,7 @@ prisma/
                        CartItem, Order, OrderItem, Payment, Image, ProcessedMessage
   migrations/          SQL migration history
 assets/
-  status/              Pictures sent with the customer's order updates (payment successful,
+  status/              Pictures sent with the customer's order updates (payment received,
                        confirmed, shipped, delivered), served at /assets/status/...
 scripts/
   validate.sh          The validation test (see Testing)

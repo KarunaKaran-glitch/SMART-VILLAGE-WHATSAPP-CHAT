@@ -153,7 +153,7 @@ async function sendReply(to: string, reply: Reply): Promise<void> {
 
 // The pictures sent to the customer as their order moves forward (files in assets/status)
 const STATUS_PICTURE = {
-  paid: '/assets/status/payment-successful.png',
+  paid: '/assets/status/payment-received.jpg',
   CONFIRMED: '/assets/status/order-confirmed.jpg',
   SHIPPED: '/assets/status/order-shipped.png',
   DELIVERED: '/assets/status/order-delivered.jpg',
