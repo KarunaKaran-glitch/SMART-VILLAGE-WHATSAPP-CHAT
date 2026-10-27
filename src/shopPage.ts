@@ -90,6 +90,7 @@ const T = ${scriptJson({
     failed: W.failed,
     expired: W.expired,
     continue: W.continue,
+    placeOrder: W.placeOrder,
   })};
 const ITEMS_TEXT = ${scriptJson(W.items(999))};
 const fmt = (n) => n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
@@ -136,6 +137,7 @@ document.addEventListener('click', (e) => {
   save();
   draw(id);
   update();
+  if (ORDERING && !review.hidden) fillReview();
 });
 
 // The details view: a big photo, the full description, the price and ADD / − + .
@@ -161,44 +163,97 @@ function showSheet(id) {
   sheet.hidden = false;
   document.body.classList.add('locked');
 }
+// "Review your order": every chosen product (− n + still works), free delivery, the total and
+// the address with Change; the order is sent only with [Place order]
+const review = document.getElementById('review');
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+function fillReview() {
+  let count = 0, total = 0;
+  const rows = PRODUCTS.filter((p) => qty[p.id] > 0).map((p) => {
+    const n = qty[p.id]; count += n; total += n * p.price;
+    return '<li>' + (p.img ? '<img src="' + esc(p.img) + '" alt="">' : '<span class="noimg"></span>') +
+      '<div><p>' + esc(p.name) + '</p><b>₹' + fmt(n * p.price) + '</b></div>' +
+      '<div class="qty small" data-id="' + p.id + '"></div></li>';
+  });
+  if (count === 0) { history.back(); return; }
+  document.getElementById('ritems').innerHTML = rows.join('');
+  PRODUCTS.forEach((p) => { if (qty[p.id] > 0) draw(p.id); });
+  document.getElementById('rtotal').textContent = '₹' + fmt(total);
+  document.getElementById('rtotal2').textContent = '₹' + fmt(total);
+  document.getElementById('rcount').textContent = ITEMS_TEXT.replace('999', count);
+  document.getElementById('raddr').textContent = document.getElementById('address').value.trim();
+  document.getElementById('rmsg').textContent = '';
+}
+function showReview() {
+  if (!ORDERING) return;
+  sheet.hidden = true;
+  fillReview();
+  review.hidden = false;
+  document.body.classList.add('locked', 'reviewing');
+}
 function hideSheet() {
   sheet.hidden = true;
-  document.body.classList.remove('locked');
+  if (review) review.hidden = true;
+  document.body.classList.remove('locked', 'reviewing');
 }
 document.addEventListener('click', (e) => {
   const o = e.target.closest('[data-open]');
   if (o) {
     history.pushState({ p: o.dataset.open }, '', '#p' + o.dataset.open);
     showSheet(Number(o.dataset.open));
-  } else if (e.target.closest('[data-close]') && !sheet.hidden) {
+  } else if (e.target.closest('[data-close]') && (!sheet.hidden || (review && !review.hidden))) {
     history.back();
   }
 });
 addEventListener('popstate', () => {
   const m = /^#p(\\d+)$/.exec(location.hash);
-  if (m) showSheet(Number(m[1])); else hideSheet();
+  if (m) showSheet(Number(m[1]));
+  else if (location.hash === '#review') showReview();
+  else hideSheet();
 });
 PRODUCTS.forEach((p) => { if (p.max > 0) draw(p.id); });
-// After a reload the details view stays open
+// After a reload the details view (or the review) stays open
 const opened = /^#p(\\d+)$/.exec(location.hash);
 if (opened) showSheet(Number(opened[1]));
 if (ORDERING) {
 const go = document.getElementById('go');
-const goText = document.getElementById('gotext');
 const msg = document.getElementById('msg');
-go.addEventListener('click', async () => {
-  if (!sheet.hidden) history.back();
-  const items = PRODUCTS.filter((p) => qty[p.id] > 0).map((p) => ({ id: p.id, qty: qty[p.id] }));
-  const address = document.getElementById('address').value.trim();
-  if (items.length === 0) { msg.textContent = T.pickOne; return; }
+const addressBox = document.getElementById('address');
+// [Continue]: check the products and the address, then show the review
+go.addEventListener('click', () => {
+  const count = PRODUCTS.reduce((n, p) => n + (qty[p.id] || 0), 0);
+  const address = addressBox.value.trim();
+  if (count === 0) { msg.textContent = T.pickOne; return; }
   if (address.length < 10 || address.length > 200) {
     msg.textContent = T.addressInvalid;
-    document.getElementById('address').scrollIntoView({ block: 'center' });
-    document.getElementById('address').focus();
+    if (!sheet.hidden) history.back();
+    addressBox.scrollIntoView({ block: 'center' });
+    addressBox.focus();
     return;
   }
-  go.disabled = true;
-  goText.textContent = T.sending;
+  if (!sheet.hidden) history.replaceState(null, '', '#review');
+  else history.pushState(null, '', '#review');
+  showReview();
+});
+if (location.hash === '#review') {
+  const count = PRODUCTS.reduce((n, p) => n + (qty[p.id] || 0), 0);
+  if (count > 0 && addressBox.value.trim().length >= 10) showReview();
+  else history.replaceState(null, '', location.pathname + location.search);
+}
+// Change: back to the page, at the address
+document.getElementById('rchange').addEventListener('click', () => {
+  history.back();
+  setTimeout(() => { addressBox.scrollIntoView({ block: 'center' }); addressBox.focus(); }, 300);
+});
+// [Place order]: the order is made, then on to its payment page
+const place = document.getElementById('place');
+const placeText = document.getElementById('placetext');
+const rmsg = document.getElementById('rmsg');
+place.addEventListener('click', async () => {
+  const items = PRODUCTS.filter((p) => qty[p.id] > 0).map((p) => ({ id: p.id, qty: qty[p.id] }));
+  const address = addressBox.value.trim();
+  place.disabled = true;
+  placeText.textContent = T.sending;
   try {
     const res = await fetch(location.pathname + '/order', {
       method: 'POST',
@@ -212,12 +267,12 @@ go.addEventListener('click', async () => {
       location.href = location.pathname + '/order/' + out.orderId + location.search;
       return;
     }
-    msg.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
+    rmsg.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
   } catch (e) {
-    msg.textContent = T.failed;
+    rmsg.textContent = T.failed;
   }
-  go.disabled = false;
-  goText.textContent = T.continue + ' ›';
+  place.disabled = false;
+  placeText.textContent = T.placeOrder + ' ›';
 });
 }
 update();
@@ -229,6 +284,19 @@ update();
     '<div class="sheetimg"><img id="simg" alt=""></div><div class="sheetbody">' +
     '<p class="sname" id="sname"></p><p class="sprice" id="sprice"></p><p class="sleft" id="sleft"></p>' +
     `<p class="sdesc" id="sdesc"></p><div class="qty" id="sqty"></div></div></div></div>`;
+
+  const review =
+    '<div class="sheet" id="review" hidden><div class="sheetbg" data-close></div><div class="sheetbox reviewbox">' +
+    '<button type="button" class="sheetx" data-close aria-label="Close">×</button>' +
+    `<div class="sheetbody"><h2 class="rtitle">${escapeHtml(W.yourOrder)}</h2>` +
+    '<ul class="items" id="ritems"></ul>' +
+    `<div class="deliv"><span>${svg(ICON.truck, 16)} ${escapeHtml(W.freeDelivery)}</span><b>₹0</b></div>` +
+    `<div class="total"><span>${escapeHtml(W.amount)}</span><b id="rtotal"></b></div>` +
+    `<div class="raddr"><i>${svg(ICON.pin, 20)}</i><div><b>${escapeHtml(W.address)}</b><p id="raddr"></p></div>` +
+    `<button type="button" class="btn outline small" id="rchange">${escapeHtml(W.change)}</button></div></div>` +
+    '<div class="rfoot"><p class="msg" id="rmsg"></p><button type="button" class="cartrow" id="place">' +
+    '<span class="sum"><span id="rcount"></span><b id="rtotal2"></b></span>' +
+    `<span class="gotext" id="placetext">${escapeHtml(W.placeOrder)} ›</span></button></div></div></div>`;
 
   const body = !data.products.length
     ? `<div class="card empty">${escapeHtml(W.noProducts)}</div>`
@@ -262,7 +330,7 @@ update();
         `<span class="sum"><span id="count"></span><b id="total">₹0</b></span>` +
         `<span class="gotext" id="gotext">${escapeHtml(W.continue)} ›</span></button></div>`
       : '') +
-    (data.products.length ? `${sheet}<script>${script}</script>` : '') +
+    (data.products.length ? `${sheet}${ordering ? review : ''}<script>${script}</script>` : '') +
     '</body></html>'
   );
 }
@@ -479,6 +547,20 @@ body.locked{overflow:hidden}
 .sheet .qty{margin-top:16px}
 .sheet .addbtn{padding:12px 0;font-size:1rem}
 .sheet .stepper button{height:46px;width:56px}
+.reviewbox{padding-bottom:0;display:flex;flex-direction:column}
+.reviewbox .sheetx{align-self:flex-end;flex:none}
+.rtitle{margin:4px 0 10px;font-size:1.2rem}
+.reviewbox .items li>div:nth-child(2){display:flex;flex-direction:column;gap:2px}
+.reviewbox .items b{font-size:.95rem}
+.qty.small{margin:0;flex:none;width:104px}
+.qty.small .stepper button{width:32px;height:32px;font-size:1.1rem}
+.raddr{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:12px;background:#f8fafc;border-radius:12px}
+.raddr i{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:var(--bluebg);color:var(--brand2);flex:none}
+.raddr div{flex:1;min-width:0}
+.raddr p{margin:2px 0 0;color:var(--muted);font-size:.88rem;overflow-wrap:anywhere}
+.rfoot{position:sticky;bottom:0;background:#fff;padding:10px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);margin-top:auto}
+.rfoot .msg{margin:0 0 8px}
+body.reviewing .cartbar{display:none}
 .amountcard{text-align:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}
 .amountcard span{opacity:.85;font-size:.9rem}
 .amountcard b{display:block;font-size:2.2rem;margin:4px 0}
