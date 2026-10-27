@@ -21,6 +21,7 @@ export type SellerProductRow = {
 export type SellerOrderRow = {
   id: number;
   date: string;
+  shop: string; // "Malathy Shop (ID 2494)", shown on the admin's Orders tab
   customerName: string;
   customerPhone: string; // digits with country code, for the call link
   address: string;
@@ -41,6 +42,68 @@ export type SellerStats = {
 };
 
 
+export const firstLetter = (name: string) => Array.from(name.trim() || '?')[0].toUpperCase();
+
+export function orderStatusLabels(language: string): Record<SellerOrderRow['status'], string> {
+  const W = dt(language);
+  return {
+    PENDING: W.stPending,
+    PAID: W.stPaid,
+    CONFIRMED: W.stConfirmed,
+    SHIPPED: W.stShipped,
+    DELIVERED: W.stDelivered,
+    CANCELLED: W.stCancelled,
+  };
+}
+
+// The inside of an order card, shared by the seller dashboard and the admin's Orders tab:
+// number, date and status, the shop (admin only), the progress tracker, each product with its
+// photo, the total, the customer with Call, and the payment line
+export function orderView(o: SellerOrderRow, language: string, withShop: boolean): string {
+  const W = dt(language);
+  const paymentText =
+    o.payment === 'check'
+      ? W.payCheck(o.reference)
+      : o.payment === 'paid'
+        ? W.payPaid
+        : o.payment === 'cancelled'
+          ? W.payCancelled
+          : W.payNotYet;
+  // Progress tracker: Ordered → Paid → Confirmed → Shipped → Delivered
+  const steps = [W.stepOrdered, W.stPaid, W.stConfirmed, W.stShipped, W.stDelivered];
+  const at =
+    o.status === 'DELIVERED' ? 4 : o.status === 'SHIPPED' ? 3 : o.status === 'CONFIRMED' ? 2 : o.payment === 'paid' ? 1 : 0;
+  const tracker =
+    o.status === 'CANCELLED'
+      ? `<div class="cancelled">✖ ${escapeHtml(W.stCancelled)}</div>`
+      : '<ol class="track">' +
+        steps
+          .map((s, i) => `<li class="${i < at ? 'done' : i === at ? 'now' : ''}"><span></span>${escapeHtml(s)}</li>`)
+          .join('') +
+        '</ol>';
+  return (
+    `<div class="ohead"><div><b>#${o.id}</b><span class="date">${escapeHtml(o.date)}</span></div>` +
+    `<span class="pill st-${o.status}">${escapeHtml(orderStatusLabels(language)[o.status])}</span></div>` +
+    (withShop ? `<p class="oshop">${svg(ICON.store, 16)} ${escapeHtml(o.shop)}</p>` : '') +
+    tracker +
+    // Each product with its photo, so the seller sees at a glance what to pack
+    `<ul class="items">${o.lines
+      .map(
+        (l) =>
+          '<li>' +
+          (l.imageUrl ? `<img src="${escapeHtml(l.imageUrl)}" alt="" loading="lazy">` : '<span class="noimg"></span>') +
+          `<div><p>${escapeHtml(l.name)}</p><span>× ${l.qty}</span></div><b>₹${rupees(l.amount)}</b></li>`
+      )
+      .join('')}</ul>` +
+    `<div class="total"><span>${escapeHtml(wt(language).total)}</span><b>₹${rupees(o.total)}</b></div>` +
+    '<div class="cust">' +
+    `<span class="cav">${escapeHtml(firstLetter(o.customerName))}</span>` +
+    `<div class="who"><b>${escapeHtml(o.customerName)}</b><span>${svg(ICON.pin, 15)} ${escapeHtml(o.address)}</span></div>` +
+    `<a class="callbtn" href="tel:+${escapeHtml(o.customerPhone)}">${svg(ICON.phone, 16)} ${escapeHtml(W.call)}</a></div>` +
+    `<p class="pay ${o.payment}">${escapeHtml(paymentText)}</p>`
+  );
+}
+
 export function renderSellerPage(data: {
   language: string;
   token: string;
@@ -59,21 +122,13 @@ export function renderSellerPage(data: {
   states: { value: string; label: string }[];
 }): string {
   const W = dt(data.language);
-  const firstLetter = (name: string) => Array.from(name.trim() || '?')[0].toUpperCase();
   const initial = firstLetter(data.shopName);
   const shareUrl = data.shopLink
     ? `https://wa.me/?text=${encodeURIComponent(W.shareText(data.shopName, data.shopLink))}`
     : null;
 
   // ---- Orders ----
-  const statusLabel = {
-    PENDING: W.stPending,
-    PAID: W.stPaid,
-    CONFIRMED: W.stConfirmed,
-    SHIPPED: W.stShipped,
-    DELIVERED: W.stDelivered,
-    CANCELLED: W.stCancelled,
-  };
+  const statusLabel = orderStatusLabels(data.language);
   const actionLabel = {
     RECEIVED: W.btnReceived,
     NOTRECEIVED: W.btnNotReceived,
@@ -81,58 +136,10 @@ export function renderSellerPage(data: {
     SHIP: W.btnShip,
     DELIVER: W.btnDeliver,
   };
-  const paymentText = (o: SellerOrderRow) =>
-    o.payment === 'check'
-      ? W.payCheck(o.reference)
-      : o.payment === 'paid'
-        ? W.payPaid
-        : o.payment === 'cancelled'
-          ? W.payCancelled
-          : W.payNotYet;
-  // Progress tracker: Ordered → Paid → Confirmed → Shipped → Delivered
-  const steps = [W.stepOrdered, W.stPaid, W.stConfirmed, W.stShipped, W.stDelivered];
-  const stepIndex = (o: SellerOrderRow) =>
-    o.status === 'DELIVERED'
-      ? 4
-      : o.status === 'SHIPPED'
-        ? 3
-        : o.status === 'CONFIRMED'
-          ? 2
-          : o.payment === 'paid'
-            ? 1
-            : 0;
-  const tracker = (o: SellerOrderRow) => {
-    if (o.status === 'CANCELLED') return `<div class="cancelled">✖ ${escapeHtml(W.stCancelled)}</div>`;
-    const at = stepIndex(o);
-    return (
-      '<ol class="track">' +
-      steps
-        .map((s, i) => `<li class="${i < at ? 'done' : i === at ? 'now' : ''}"><span></span>${escapeHtml(s)}</li>`)
-        .join('') +
-      '</ol>'
-    );
-  };
   const isTodo = (o: SellerOrderRow) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED';
   const orderCard = (o: SellerOrderRow) =>
     `<article class="card order s-${o.status} ${isTodo(o) ? 'todo' : 'closed'}" data-id="${o.id}">` +
-    `<div class="ohead"><div><b>#${o.id}</b><span class="date">${escapeHtml(o.date)}</span></div>` +
-    `<span class="pill st-${o.status}">${escapeHtml(statusLabel[o.status])}</span></div>` +
-    tracker(o) +
-    // Each product with its photo, so the seller sees at a glance what to pack
-    `<ul class="items">${o.lines
-      .map(
-        (l) =>
-          '<li>' +
-          (l.imageUrl ? `<img src="${escapeHtml(l.imageUrl)}" alt="" loading="lazy">` : '<span class="noimg"></span>') +
-          `<div><p>${escapeHtml(l.name)}</p><span>× ${l.qty}</span></div><b>₹${rupees(l.amount)}</b></li>`
-      )
-      .join('')}</ul>` +
-    `<div class="total"><span>${escapeHtml(wt(data.language).total)}</span><b>₹${rupees(o.total)}</b></div>` +
-    '<div class="cust">' +
-    `<span class="cav">${escapeHtml(firstLetter(o.customerName))}</span>` +
-    `<div class="who"><b>${escapeHtml(o.customerName)}</b><span>${svg(ICON.pin, 15)} ${escapeHtml(o.address)}</span></div>` +
-    `<a class="callbtn" href="tel:+${escapeHtml(o.customerPhone)}">${svg(ICON.phone, 16)} ${escapeHtml(W.call)}</a></div>` +
-    `<p class="pay ${o.payment}">${escapeHtml(paymentText(o))}</p>` +
+    orderView(o, data.language, false) +
     (o.actions.length
       ? '<div class="acts">' +
         o.actions
@@ -518,16 +525,6 @@ if (toast) setTimeout(() => toast.classList.add('gone'), 3500);
 
 // The seller dashboard's own look, on top of the shared app look
 const SELLER_STYLE = `
-/* Orders: a colour stripe for the status, the customer's initial */
-.order{border-left:4px solid var(--line);transition:box-shadow .3s}
-.order.s-PENDING,.order.s-PAID{border-left-color:#f59e0b}
-.order.s-CONFIRMED,.order.s-SHIPPED{border-left-color:var(--brand2)}
-.order.s-DELIVERED{border-left-color:#22c55e}
-.order.s-CANCELLED{border-left-color:#ef4444}
-.order.flash{box-shadow:0 0 0 3px var(--bluebg),0 6px 18px rgba(16,24,40,.12)}
-.cust{align-items:center}
-.cav{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff;display:grid;place-items:center;font-weight:800;flex:none}
-.cust .who{flex:1}
 /* Products */
 .pcard{box-shadow:0 2px 10px rgba(16,24,40,.07)}
 .pstock{font-weight:600}
@@ -542,8 +539,4 @@ const SELLER_STYLE = `
 .pcover p{margin:2px 0;color:var(--muted);font-size:.88rem}
 .pcover .langs{display:flex;align-items:center;justify-content:center;gap:4px}
 .pcover .pill{margin-top:8px}
-/* Tab bar with a raised round Add button in the middle */
-.tabbar a.center::after{display:none}
-.plusbtn{margin-top:-24px;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#ff8a3d,var(--accent2));border:4px solid #fff;box-shadow:0 6px 14px rgba(240,90,14,.4)}
-.tabbar a.center{color:var(--ink)}
 `;

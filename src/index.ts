@@ -1598,6 +1598,7 @@ app.get('/admin', async (req: Request, res: Response) => {
     include: { seller: true },
     orderBy: { id: 'asc' },
   });
+  const orders = await sellerOrderRows(null, lang);
   const bot = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
   const createdCode = typeof req.query.new === 'string' ? req.query.new : null;
   const created = createdCode ? sellers.find((s) => s.shopCode === createdCode) : undefined;
@@ -1622,6 +1623,7 @@ app.get('/admin', async (req: Request, res: Response) => {
         imageUrl: p.imageKey ? `/images/${p.imageKey}` : null,
         shop: dt(lang).fromShop(p.seller.shopName ?? p.seller.phone, p.seller.shopCode ?? '-'),
       })),
+      orders,
       states,
       categories: categories.map((c) => ({ id: c.id, name: categoryName(c, lang) })),
       created: created ? { shopName: created.shopName ?? '', id: created.shopCode ?? '' } : null,
@@ -1744,12 +1746,14 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
 // The seller's orders for the dashboard (open ones first), each with its one next step:
 // Money received / Not received when the customer reported a payment, then Confirm, Ship, Deliver.
 // The same rules as RECEIVED / CONFIRM / SHIP / DELIVER in the chat.
-async function sellerOrderRows(sellerId: number, language: string, onlyOrderId?: number): Promise<SellerOrderRow[]> {
+// One seller's orders (sellerId), or every shop's orders for the admin (sellerId null)
+async function sellerOrderRows(sellerId: number | null, language: string, onlyOrderId?: number): Promise<SellerOrderRow[]> {
   const items = await prisma.orderItem.findMany({
-    where: { sellerId, ...(onlyOrderId ? { orderId: onlyOrderId } : {}) },
+    where: { ...(sellerId !== null ? { sellerId } : {}), ...(onlyOrderId ? { orderId: onlyOrderId } : {}) },
     include: {
       order: { include: { customer: true, payments: { orderBy: { id: 'desc' }, take: 1 } } },
       product: { include: { translations: true } },
+      seller: { select: { shopName: true, shopCode: true, phone: true } },
     },
     orderBy: { orderId: 'desc' },
     take: 300,
@@ -1779,6 +1783,7 @@ async function sellerOrderRows(sellerId: number, language: string, onlyOrderId?:
         hour: '2-digit',
         minute: '2-digit',
       }),
+      shop: dt(language).fromShop(list[0].seller.shopName ?? list[0].seller.phone, list[0].seller.shopCode ?? '-'),
       customerName: order.customer.name ?? '-',
       customerPhone: order.customer.phone,
       address: order.deliveryAddress ?? '-',

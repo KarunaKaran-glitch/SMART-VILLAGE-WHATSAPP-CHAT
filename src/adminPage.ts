@@ -1,10 +1,12 @@
 import { dt } from './dashText';
 import { APP_STYLE, DASH_STYLE, ICON, escapeHtml, scriptJson, svg } from './pageKit';
+import { firstLetter, orderView, type SellerOrderRow } from './sellerPage';
 
 // The admin dashboard (opened from the admin's [Click here] button), in the same app style as the
-// seller dashboard: a top bar, a bottom tab bar, and four tabs: Home (tiles and the next products
-// to check), Approve (every waiting product with photo, Approve / Reject), Sellers (each seller
-// with ID, call and "send ID on WhatsApp") and Add seller (the form that gives a seller a unique ID).
+// seller dashboard: a top bar, a bottom tab bar, and five tabs: Home (banner, stat cards and the next
+// products to check), Approve (every waiting product with photo, Approve / Reject), Add seller (the
+// form that gives a seller a unique ID), Sellers (each seller with ID, call and "send ID on WhatsApp")
+// and Orders (every shop's orders, to look at).
 
 export type AdminSellerRow = {
   id: string; // the seller's unique ID (shop code)
@@ -35,11 +37,11 @@ export function renderAdminPage(data: {
   states: { value: string; label: string }[];
   categories: { id: number; name: string }[];
   sellers: AdminSellerRow[];
+  orders: SellerOrderRow[]; // every shop's orders, newest open ones first
   created: { shopName: string; id: string } | null; // just added (shown at the top of Sellers)
   botNumber: string; // shown as "+15556478208", or '' when not set
 }): string {
   const W = dt(data.language);
-  const firstLetter = (name: string) => Array.from(name.trim() || '?')[0].toUpperCase();
 
   // ---- Products to check ----
   const checkCard = (p: AdminWaitingProduct) =>
@@ -95,11 +97,11 @@ export function renderAdminPage(data: {
     '<div class="hero">' +
     `<p class="hi">${escapeHtml(W.adminHello)}</p><p class="hisub">${escapeHtml(W.adminSub)}</p>` +
     `<div class="earn"><div><span>${escapeHtml(W.statSales)}</span><b>₹${escapeHtml(data.stats.sales)}</b></div>` +
-    `<em>${svg(ICON.orders, 16)} ${data.stats.orders} ${escapeHtml(W.statOrders)}</em></div></div>` +
+    `<a href="#orders"><em>${svg(ICON.orders, 16)} ${data.stats.orders} ${escapeHtml(W.statOrders)} ${svg(ICON.chevron, 14)}</em></a></div></div>` +
     '<div class="stats">' +
     stat('hot', ICON.clock, data.waiting.length, W.statToApprove, '#approve') +
     stat('blue', ICON.store, data.stats.sellers, W.statSellers, '#sellers') +
-    stat('green', ICON.orders, data.stats.orders, W.statOrders, '#home') +
+    stat('green', ICON.orders, data.stats.orders, W.statOrders, '#orders') +
     '</div>' +
     '<div class="card quick three">' +
     quick('orange', ICON.check, W.tabApprove, '#approve') +
@@ -164,18 +166,28 @@ export function renderAdminPage(data: {
     `<button type="button" class="btn primary block" id="save">${escapeHtml(W.save)}</button></div>` +
     '</section>';
 
+  // Every shop's orders, to look at (the sellers move them on from their own dashboards)
+  const orders =
+    '<section class="tab" id="tab-orders">' +
+    `<h3 class="sec">${escapeHtml(W.ordersTitle)} <span class="count">${data.orders.length}</span></h3>` +
+    (data.orders.length
+      ? data.orders.map((o) => `<article class="card order s-${o.status}">${orderView(o, data.language, true)}</article>`).join('')
+      : `<div class="card empty">${escapeHtml(W.noOrders)}</div>`) +
+    '</section>';
+
   const tabbar =
     '<nav class="tabbar">' +
     [
       ['home', W.tabHome, ICON.home],
       ['approve', W.tabApprove, ICON.check],
-      ['sellers', W.tabSellers, ICON.store],
       ['addseller', W.tabAddSeller, ICON.userPlus],
+      ['sellers', W.tabSellers, ICON.store],
+      ['orders', W.tabOrders, ICON.orders],
     ]
       .map(
         ([id, label, icon]) =>
-          `<a href="#${id}" data-tab="${id}"${id === 'addseller' ? ' class="addtab"' : ''}>` +
-          `${id === 'addseller' ? `<i class="plusmini">${svg(ICON.plus, 18)}</i>` : svg(icon)}<span>${escapeHtml(label)}</span>` +
+          `<a href="#${id}" data-tab="${id}"${id === 'addseller' ? ' class="center"' : ''}>` +
+          `${id === 'addseller' ? `<i class="plusbtn">${svg(ICON.plus, 26)}</i>` : svg(icon)}<span>${escapeHtml(label)}</span>` +
           (id === 'approve' && data.waiting.length ? `<i class="dot">${data.waiting.length}</i>` : '') +
           '</a>'
       )
@@ -194,7 +206,7 @@ const T = ${scriptJson({
   })};
 
 // Tabs: the part after # in the address, so a reload stays on the same tab
-const TABS = ['home', 'approve', 'sellers', 'addseller'];
+const TABS = ['home', 'approve', 'addseller', 'sellers', 'orders'];
 function showTab() {
   const t = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
   TABS.forEach((x) => { document.getElementById('tab-' + x).hidden = x !== t; });
@@ -277,7 +289,7 @@ btn.addEventListener('click', async () => {
     `<div class="avatar">${svg(ICON.check, 24)}</div>` +
     `<div class="who"><b>${escapeHtml(W.adminTitle)}</b><span>Smart Village</span></div>` +
     '</header>' +
-    `<main>${home}${approve}${sellers}${addSeller}</main>` +
+    `<main>${home}${approve}${sellers}${addSeller}${orders}</main>` +
     tabbar +
     `<script>${script}</script></body></html>`
   );
@@ -331,5 +343,4 @@ const ADMIN_STYLE = `
 .facts span{display:flex;align-items:center;gap:8px;color:#374151;font-size:.85rem}
 .facts svg{color:var(--brand2);flex:none}
 .formhead i{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#fff;flex:none;background:linear-gradient(135deg,#34d36b,#16a34a);box-shadow:0 4px 10px rgba(0,0,0,.12)}
-.plusmini{width:28px;height:28px;margin:-3px 0 -1px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#ff8a3d,var(--accent2));box-shadow:0 3px 8px rgba(240,90,14,.35)}
 `;

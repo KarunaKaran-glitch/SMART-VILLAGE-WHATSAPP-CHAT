@@ -224,4 +224,18 @@ export const DASH_STYLE = `
 .oright .pill{font-size:.68rem;padding:2px 8px}
 .tabbar{border-top:0;box-shadow:0 -4px 16px rgba(16,24,40,.08)}
 .tabbar a.on::after{content:"";position:absolute;top:0;left:30%;right:30%;height:3px;border-radius:0 0 3px 3px;background:var(--brand2)}
+.earn a{color:inherit;text-decoration:none}
+.oshop{display:flex;align-items:center;gap:6px;margin:8px 0 0;color:var(--brand2);font-weight:700;font-size:.88rem}
+.order{border-left:4px solid var(--line);transition:box-shadow .3s}
+.order.s-PENDING,.order.s-PAID{border-left-color:#f59e0b}
+.order.s-CONFIRMED,.order.s-SHIPPED{border-left-color:var(--brand2)}
+.order.s-DELIVERED{border-left-color:#22c55e}
+.order.s-CANCELLED{border-left-color:#ef4444}
+.order.flash{box-shadow:0 0 0 3px var(--bluebg),0 6px 18px rgba(16,24,40,.12)}
+.cust{align-items:center}
+.cav{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff;display:grid;place-items:center;font-weight:800;flex:none}
+.cust .who{flex:1}
+.tabbar a.center::after{display:none}
+.plusbtn{margin-top:-24px;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#ff8a3d,var(--accent2));border:4px solid #fff;box-shadow:0 6px 14px rgba(240,90,14,.4)}
+.tabbar a.center{color:var(--ink)}
 `;
