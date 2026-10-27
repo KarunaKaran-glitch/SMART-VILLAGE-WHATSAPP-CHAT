@@ -1,5 +1,5 @@
 import { dt } from './dashText';
-import { APP_STYLE, ICON, escapeHtml, scriptJson, svg } from './pageKit';
+import { APP_STYLE, DASH_STYLE, ICON, escapeHtml, scriptJson, svg } from './pageKit';
 
 // The admin dashboard (opened from the admin's [Click here] button), in the same app style as the
 // seller dashboard: a top bar, a bottom tab bar, and four tabs: Home (tiles and the next products
@@ -39,11 +39,15 @@ export function renderAdminPage(data: {
   botNumber: string; // shown as "+15556478208", or '' when not set
 }): string {
   const W = dt(data.language);
+  const firstLetter = (name: string) => Array.from(name.trim() || '?')[0].toUpperCase();
 
   // ---- Products to check ----
   const checkCard = (p: AdminWaitingProduct) =>
     `<article class="card check" data-id="${p.id}">` +
-    (p.imageUrl ? `<div class="bigimg"><img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy"></div>` : '') +
+    (p.imageUrl
+      ? `<div class="bigimg"><img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">` +
+        `<span class="waitchip">${svg(ICON.clock, 14)} ${escapeHtml(W.statusWaiting)}</span></div>`
+      : '') +
     `<div class="ohead"><b>${escapeHtml(p.name)}</b><span class="pprice">₹${escapeHtml(p.price)}</span></div>` +
     (p.description ? `<p class="hint">${escapeHtml(p.description)}</p>` : '') +
     `<p class="shopline">${svg(ICON.store, 16)} ${escapeHtml(p.shop)} · #${p.id}</p>` +
@@ -61,35 +65,53 @@ export function renderAdminPage(data: {
       `<div class="savatar">${escapeHtml(initial)}</div>` +
       `<div class="sinfo"><b>${escapeHtml(s.shopName)}</b><span>${escapeHtml(s.name)} · +${escapeHtml(s.phone)}</span></div>` +
       `<span class="idchip">ID ${escapeHtml(s.id)}</span></div>` +
-      `<p class="hint">${escapeHtml(s.state)} · ${escapeHtml(s.category)}</p>` +
-      `<p class="hint">${escapeHtml(W.productCount(s.products, s.waiting))}</p>` +
+      '<div class="facts">' +
+      `<span>${svg(ICON.globe, 15)} ${escapeHtml(s.state)}</span>` +
+      `<span>${svg(ICON.tag, 15)} ${escapeHtml(s.category)}</span>` +
+      `<span>${svg(ICON.products, 15)} ${escapeHtml(W.productCount(s.products, s.waiting))}</span></div>` +
       (s.shopLink ? `<p class="linktext small">${escapeHtml(s.shopLink)}</p>` : '') +
       '<div class="acts two">' +
       `<a class="callbtn" href="tel:+${escapeHtml(s.phone)}">${svg(ICON.phone, 16)} ${escapeHtml(W.call)}</a>` +
-      `<a class="btn whatsapp small" href="${escapeHtml(tell)}">${escapeHtml(W.sendId)}</a></div>` +
+      `<a class="btn whatsapp small" href="${escapeHtml(tell)}">${svg(ICON.share, 16)} ${escapeHtml(W.sendId)}</a></div>` +
       '</article>'
     );
   };
 
   // ---- Tabs ----
-  const tiles =
-    '<div class="tiles">' +
-    `<a class="tile hot" href="#approve"><b>${data.waiting.length}</b><span>${escapeHtml(W.statToApprove)}</span></a>` +
-    `<a class="tile" href="#sellers"><b>${data.stats.sellers}</b><span>${escapeHtml(W.statSellers)}</span></a>` +
-    `<div class="tile"><b>${data.stats.orders}</b><span>${escapeHtml(W.statOrders)}</span></div>` +
-    `<a class="tile" href="#addseller"><b>+</b><span>${escapeHtml(W.tabAddSeller)}</span></a>` +
-    `<div class="tile wide money"><span>${escapeHtml(W.statSales)}</span><b>₹${escapeHtml(data.stats.sales)}</b></div>` +
-    '</div>';
+  // Home: a blue banner with the total sales, three stat cards laid over it, round quick buttons,
+  // the next products to check (a sideways strip) and the newest sellers in short
+  const stat = (cls: string, icon: string, n: number, label: string, href: string) =>
+    `<a class="stat ${cls}" href="${href}"><i>${svg(icon, 20)}</i><b>${n}</b><span>${escapeHtml(label)}</span></a>`;
+  const quick = (cls: string, icon: string, label: string, href: string) =>
+    `<a class="qa ${cls}" href="${href}"><i>${svg(icon, 24)}</i><span>${escapeHtml(label)}</span></a>`;
+  const sellerRow = (s: AdminSellerRow) =>
+    '<a class="orow" href="#sellers">' +
+    `<span class="savatar small">${escapeHtml(firstLetter(s.shopName))}</span>` +
+    `<div class="omid"><b>${escapeHtml(s.shopName)}</b><span>${escapeHtml(s.name)} · ${escapeHtml(W.productCount(s.products, s.waiting))}</span></div>` +
+    `<div class="oright"><span class="idchip">ID ${escapeHtml(s.id)}</span></div></a>`;
 
   const home =
     '<section class="tab" id="tab-home">' +
-    `<div class="hello"><h2>${escapeHtml(W.adminHello)}</h2><p>${escapeHtml(W.adminSub)}</p></div>` +
-    tiles +
-    `<h3 class="sec">${escapeHtml(W.nextToApprove)} (${data.waiting.length})</h3>` +
+    '<div class="hero">' +
+    `<p class="hi">${escapeHtml(W.adminHello)}</p><p class="hisub">${escapeHtml(W.adminSub)}</p>` +
+    `<div class="earn"><div><span>${escapeHtml(W.statSales)}</span><b>₹${escapeHtml(data.stats.sales)}</b></div>` +
+    `<em>${svg(ICON.orders, 16)} ${data.stats.orders} ${escapeHtml(W.statOrders)}</em></div></div>` +
+    '<div class="stats">' +
+    stat('hot', ICON.clock, data.waiting.length, W.statToApprove, '#approve') +
+    stat('blue', ICON.store, data.stats.sellers, W.statSellers, '#sellers') +
+    stat('green', ICON.orders, data.stats.orders, W.statOrders, '#home') +
+    '</div>' +
+    '<div class="card quick three">' +
+    quick('orange', ICON.check, W.tabApprove, '#approve') +
+    quick('green', ICON.userPlus, W.addSeller, '#addseller') +
+    quick('blue', ICON.store, W.sellers, '#sellers') +
+    '</div>' +
     (data.waiting.length
-      ? '<div class="minis">' +
+      ? `<div class="sechead"><h3 class="sec">${escapeHtml(W.nextToApprove)} <span class="count">${data.waiting.length}</span></h3>` +
+        `<a href="#approve">${escapeHtml(W.seeMore)} ${svg(ICON.chevron, 16)}</a></div>` +
+        '<div class="minis">' +
         data.waiting
-          .slice(0, 4)
+          .slice(0, 6)
           .map(
             (p) =>
               `<a class="mini" href="#approve">` +
@@ -97,15 +119,22 @@ export function renderAdminPage(data: {
               `<span>${escapeHtml(p.name)}</span><b>₹${escapeHtml(p.price)}</b></a>`
           )
           .join('') +
-        '</div>' +
-        `<a class="btn primary block" href="#approve">${escapeHtml(W.seeAllProducts)}</a>`
-      : `<div class="card empty">${escapeHtml(W.noProductsWaiting)}</div>`) +
+        '</div>'
+      : `<h3 class="sec">${escapeHtml(W.nextToApprove)} <span class="count">0</span></h3>` +
+        `<div class="card caught">${svg(ICON.check, 30)}<p>${escapeHtml(W.noProductsWaiting)}</p></div>`) +
+    (data.sellers.length
+      ? `<div class="sechead"><h3 class="sec">${escapeHtml(W.sellers)} <span class="count">${data.sellers.length}</span></h3>` +
+        `<a href="#sellers">${escapeHtml(W.seeMore)} ${svg(ICON.chevron, 16)}</a></div>` +
+        `<div class="card list">${data.sellers.slice(0, 4).map(sellerRow).join('')}</div>`
+      : '') +
     '</section>';
 
   const approve =
     '<section class="tab" id="tab-approve">' +
-    `<h3 class="sec">${escapeHtml(W.productsWaiting)} (${data.waiting.length})</h3>` +
-    (data.waiting.length ? data.waiting.map(checkCard).join('') : `<div class="card empty">${escapeHtml(W.noProductsWaiting)}</div>`) +
+    `<h3 class="sec">${escapeHtml(W.productsWaiting)} <span class="count">${data.waiting.length}</span></h3>` +
+    (data.waiting.length
+      ? data.waiting.map(checkCard).join('')
+      : `<div class="card caught">${svg(ICON.check, 30)}<p>${escapeHtml(W.noProductsWaiting)}</p></div>`) +
     '</section>';
 
   const sellers =
@@ -114,7 +143,7 @@ export function renderAdminPage(data: {
       ? `<div class="card created"><b>✅ ${escapeHtml(W.created(data.created.shopName, data.created.id))}</b>` +
         `<p class="hint">${escapeHtml(W.tellSeller(data.created.id, data.botNumber || 'the bot'))}</p></div>`
       : '') +
-    `<h3 class="sec">${escapeHtml(W.sellers)} (${data.sellers.length})</h3>` +
+    `<h3 class="sec">${escapeHtml(W.sellers)} <span class="count">${data.sellers.length}</span></h3>` +
     (data.sellers.length ? data.sellers.map(sellerCard).join('') : `<div class="card empty">${escapeHtml(W.noSellers)}</div>`) +
     `<a class="btn primary block" href="#addseller">+ ${escapeHtml(W.addSeller)}</a>` +
     '</section>';
@@ -124,7 +153,7 @@ export function renderAdminPage(data: {
   const addSeller =
     '<section class="tab" id="tab-addseller">' +
     `<h3 class="sec">${escapeHtml(W.addSeller)}</h3><div class="card form">` +
-    `<div class="formhead">${svg(ICON.userPlus, 30)}<p class="hint">${escapeHtml(W.addHint)}</p></div>` +
+    `<div class="formhead"><i>${svg(ICON.userPlus, 26)}</i><p class="hint">${escapeHtml(W.addHint)}</p></div>` +
     `<label for="name">${escapeHtml(W.sellerName)}</label><input id="name" maxlength="60" autocomplete="off">` +
     `<label for="phone">${escapeHtml(W.phone)}</label><input id="phone" inputmode="numeric" maxlength="16" autocomplete="off" placeholder="9876543210">` +
     `<label for="shop">${escapeHtml(W.shopName)}</label><input id="shop" maxlength="40" autocomplete="off">` +
@@ -145,7 +174,8 @@ export function renderAdminPage(data: {
     ]
       .map(
         ([id, label, icon]) =>
-          `<a href="#${id}" data-tab="${id}">${svg(icon)}<span>${escapeHtml(label)}</span>` +
+          `<a href="#${id}" data-tab="${id}"${id === 'addseller' ? ' class="addtab"' : ''}>` +
+          `${id === 'addseller' ? `<i class="plusmini">${svg(ICON.plus, 18)}</i>` : svg(icon)}<span>${escapeHtml(label)}</span>` +
           (id === 'approve' && data.waiting.length ? `<i class="dot">${data.waiting.length}</i>` : '') +
           '</a>'
       )
@@ -242,7 +272,7 @@ btn.addEventListener('click', async () => {
     `<!doctype html><html lang="${escapeHtml(data.language)}"><head><meta charset="utf-8">` +
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<meta name="theme-color" content="#1f3c88">' +
-    `<title>${escapeHtml(W.adminTitle)}</title><style>${APP_STYLE}${ADMIN_STYLE}</style></head><body>` +
+    `<title>${escapeHtml(W.adminTitle)}</title><style>${APP_STYLE}${DASH_STYLE}${ADMIN_STYLE}</style></head><body>` +
     '<header class="appbar">' +
     `<div class="avatar">${svg(ICON.check, 24)}</div>` +
     `<div class="who"><b>${escapeHtml(W.adminTitle)}</b><span>Smart Village</span></div>` +
@@ -284,4 +314,22 @@ const ADMIN_STYLE = `
 .formhead .hint{margin:0}
 .formhead svg{flex:none}
 .tabbar a{font-size:.7rem}
+.bigimg{position:relative}
+.waitchip{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:4px;background:#f59e0b;color:#fff;border-radius:999px;padding:4px 10px;font-size:.75rem;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.check{border-left:4px solid #f59e0b;box-shadow:0 2px 10px rgba(16,24,40,.07)}
+.check .ohead b{font-size:1.05rem}
+.check .two .btn{padding:13px 10px}
+.decided-ok{border-left-color:var(--ok)}
+.decided-no{border-left-color:var(--warn)}
+.minis{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.minis::-webkit-scrollbar{display:none}
+.mini{flex:0 0 42%;scroll-snap-align:start;box-shadow:0 2px 10px rgba(16,24,40,.08)}
+.savatar.small{width:44px;height:44px;font-size:1.1rem}
+.orow .idchip{font-size:.75rem;padding:3px 9px}
+.seller{box-shadow:0 2px 10px rgba(16,24,40,.07)}
+.facts{display:flex;flex-direction:column;gap:5px;margin:12px 0 0;padding:10px 12px;background:#f8fafc;border-radius:10px}
+.facts span{display:flex;align-items:center;gap:8px;color:#374151;font-size:.85rem}
+.facts svg{color:var(--brand2);flex:none}
+.formhead i{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:#fff;flex:none;background:linear-gradient(135deg,#34d36b,#16a34a);box-shadow:0 4px 10px rgba(0,0,0,.12)}
+.plusmini{width:28px;height:28px;margin:-3px 0 -1px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#ff8a3d,var(--accent2));box-shadow:0 3px 8px rgba(240,90,14,.35)}
 `;

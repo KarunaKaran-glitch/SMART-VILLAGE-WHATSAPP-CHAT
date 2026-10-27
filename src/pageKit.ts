@@ -174,3 +174,54 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0 4px}
 .tabbar a.on svg{stroke-width:2.3}
 .tabbar .dot{position:absolute;top:4px;left:calc(50% + 6px);background:var(--accent);color:#fff;border-radius:999px;font-style:normal;font-size:.65rem;min-width:17px;height:17px;display:grid;place-items:center;padding:0 4px}
 `;
+
+// The dashboards' shared look (seller and admin): blue banner, stat cards over it, round quick
+// buttons, short lists and the tab bar line
+export const DASH_STYLE = `
+.appbar{box-shadow:none}
+.sec{display:flex;align-items:center;gap:8px}
+.sec svg{color:var(--brand2)}
+.count{background:var(--bluebg);color:var(--brand2);border-radius:999px;padding:1px 9px;font-size:.8rem}
+.sechead{display:flex;align-items:center;justify-content:space-between}
+.sechead a{display:flex;align-items:center;gap:2px;margin:18px 4px 8px;color:var(--brand2);font-weight:700;font-size:.88rem;text-decoration:none}
+/* Home: banner, earnings, stat cards over the banner */
+.hero{margin:-12px -12px 0;padding:14px 18px 62px;background:linear-gradient(160deg,var(--brand2) 0%,var(--brand) 70%);color:#fff;border-radius:0 0 26px 26px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-50px;top:-60px;width:190px;height:190px;border-radius:50%;background:rgba(255,255,255,.07)}
+.hero .hi{margin:0;font-size:1.25rem;font-weight:800}
+.hero .hisub{margin:2px 0 14px;opacity:.8;font-size:.9rem}
+.earn{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:12px 14px;position:relative;z-index:1}
+.earn span{display:block;font-size:.82rem;opacity:.85}
+.earn b{display:block;font-size:1.9rem;line-height:1.15;letter-spacing:-.01em}
+.earn em{font-style:normal;display:flex;align-items:center;gap:4px;font-size:.8rem;background:rgba(255,255,255,.18);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:-44px 0 12px;position:relative;z-index:1}
+.stat{background:#fff;border-radius:16px;padding:12px 10px;text-decoration:none;display:flex;flex-direction:column;gap:4px;box-shadow:0 6px 18px rgba(16,24,40,.10)}
+.stat i{width:36px;height:36px;border-radius:12px;display:grid;place-items:center}
+.stat b{font-size:1.45rem;line-height:1.1}
+.stat span{color:var(--muted);font-size:.74rem;font-weight:600;line-height:1.2}
+.stat.hot i{background:#ffedd5;color:var(--accent2)}
+.stat.hot b{color:var(--accent2)}
+.stat.blue i{background:var(--bluebg);color:var(--blue)}
+.stat.green i{background:var(--okbg);color:var(--ok)}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:14px 6px}
+.quick.three{grid-template-columns:repeat(3,1fr)}
+.qa{display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;text-align:center}
+.qa i{width:50px;height:50px;border-radius:16px;display:grid;place-items:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.12)}
+.qa span{font-size:.74rem;font-weight:600;line-height:1.2;color:var(--ink)}
+.qa.orange i{background:linear-gradient(135deg,#ff8a3d,var(--accent2))}
+.qa.green i{background:linear-gradient(135deg,#34d36b,#16a34a)}
+.qa.blue i{background:linear-gradient(135deg,#4f8cff,var(--brand2))}
+.qa.purple i{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
+.caught{display:flex;align-items:center;gap:12px;color:var(--ok);background:linear-gradient(135deg,#f0fdf4,#dcfce7)}
+.caught p{margin:0;color:#166534;font-weight:600}
+.card.list{padding:4px 14px}
+.orow{display:flex;align-items:center;gap:12px;padding:10px 0;text-decoration:none;border-bottom:1px solid var(--line)}
+.orow:last-child{border-bottom:0}
+.orow img,.orow .noimg{width:48px;height:48px;border-radius:12px;object-fit:cover;background:#eef2f7;flex:none}
+.omid{flex:1;min-width:0;display:flex;flex-direction:column}
+.omid b{font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.omid span{color:var(--muted);font-size:.78rem}
+.oright{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.oright .pill{font-size:.68rem;padding:2px 8px}
+.tabbar{border-top:0;box-shadow:0 -4px 16px rgba(16,24,40,.08)}
+.tabbar a.on::after{content:"";position:absolute;top:0;left:30%;right:30%;height:3px;border-radius:0 0 3px 3px;background:var(--brand2)}
+`;

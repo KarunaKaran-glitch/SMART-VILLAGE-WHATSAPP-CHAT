@@ -152,7 +152,7 @@ const en = {
   statOrders: 'Orders',
   statSales: 'Sales (delivered)',
   nextToApprove: 'Waiting for your check',
-  seeAllProducts: 'Check all products',
+  seeMore: 'See all',
   sendId: 'Send ID on WhatsApp',
   tellId: (shop: string, id: string, bot: string) =>
     `Hello! Your seller ID for ${shop} is ${id}. Send ${id} to ${bot || 'the Smart Village bot'} on WhatsApp to open your seller dashboard.`,
@@ -303,7 +303,7 @@ const hi: typeof en = {
   statOrders: 'ऑर्डर',
   statSales: 'बिक्री (पहुँचाई गई)',
   nextToApprove: 'आपकी जाँच बाकी',
-  seeAllProducts: 'सभी उत्पाद जाँचें',
+  seeMore: 'सभी देखें',
   sendId: 'WhatsApp पर आईडी भेजें',
   tellId: (shop: string, id: string, bot: string) =>
     `नमस्ते! ${shop} के लिए आपकी विक्रेता आईडी ${id} है। अपना डैशबोर्ड खोलने के लिए WhatsApp पर ${bot || 'Smart Village बॉट'} को ${id} भेजें।`,
@@ -454,7 +454,7 @@ const or: typeof en = {
   statOrders: 'ଅର୍ଡର',
   statSales: 'ବିକ୍ରି (ପହଞ୍ଚିଥିବା)',
   nextToApprove: 'ଆପଣଙ୍କ ଯାଞ୍ଚ ବାକି',
-  seeAllProducts: 'ସବୁ ଉତ୍ପାଦ ଯାଞ୍ଚ କରନ୍ତୁ',
+  seeMore: 'ସବୁ ଦେଖନ୍ତୁ',
   sendId: 'WhatsAppରେ ID ପଠାନ୍ତୁ',
   tellId: (shop: string, id: string, bot: string) =>
     `ନମସ୍କାର! ${shop} ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ID ${id}। ଆପଣଙ୍କ ଡ୍ୟାସବୋର୍ଡ ଖୋଲିବା ପାଇଁ WhatsAppରେ ${bot || 'Smart Village ବଟ୍'}କୁ ${id} ପଠାନ୍ତୁ।`,
@@ -605,7 +605,7 @@ const as: typeof en = {
   statOrders: 'অৰ্ডাৰ',
   statSales: 'বিক্ৰী (পহুঁচোৱা)',
   nextToApprove: 'আপোনাৰ পৰীক্ষা বাকী',
-  seeAllProducts: 'সকলো সামগ্ৰী পৰীক্ষা কৰক',
+  seeMore: 'সকলো চাওক',
   sendId: 'WhatsAppত ID পঠিয়াওক',
   tellId: (shop: string, id: string, bot: string) =>
     `নমস্কাৰ! ${shop}ৰ বাবে আপোনাৰ বিক্ৰেতা ID ${id}। আপোনাৰ ডেশ্বব’ৰ্ড খুলিবলৈ WhatsAppত ${bot || 'Smart Village বট'}লৈ ${id} পঠিয়াওক।`,
