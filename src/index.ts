@@ -919,11 +919,34 @@ async function updateOrderStatus(
       include: { customer: true },
     });
     if (order) {
+      const lang = order.customer.language;
+      // Delivered closes the customer's visit to this shop (unless another order from the same
+      // shop is still open): the bot forgets the shop, and to buy again they send "Hi <ID>".
+      let closed: { shopName: string; code: string } | null = null;
+      if (rule.to === 'DELIVERED' && order.customer.shopId === sellerId) {
+        const stillOpen = await prisma.order.count({
+          where: {
+            customerId: order.customerId,
+            id: { not: orderId },
+            status: { notIn: ['DELIVERED', 'CANCELLED'] },
+            items: { some: { sellerId } },
+          },
+        });
+        const seller = await prisma.user.findUnique({ where: { id: sellerId } });
+        if (stillOpen === 0 && seller?.shopCode) {
+          await prisma.user.update({
+            where: { id: order.customerId },
+            data: { shopId: null, webToken: null, webTokenAt: null },
+          });
+          closed = { shopName: seller.shopName ?? seller.shopCode, code: seller.shopCode };
+        }
+      }
       // Each step comes with its picture (confirmed, shipped, delivered)
       await sendReply(order.customer.phone, {
-        text: ot(order.customer.language).status(orderId, rule.to),
+        text:
+          ot(lang).status(orderId, rule.to) + (closed ? `\n\n${bt(lang).buyAgain(closed.shopName, closed.code)}` : ''),
         imageUrl: publicUrl(STATUS_PICTURE[rule.to]),
-        buttons: nextButtons(order.customer.language),
+        buttons: closed ? [{ id: 'MYORDERS', title: bt(lang).myOrders }] : nextButtons(lang),
       });
     }
   } catch (err) {

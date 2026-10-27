@@ -15,10 +15,11 @@ export const BUTTON_TEXT = {
     showQr: 'Show QR code',
     paid: 'I have paid',
     cancelOrder: 'Cancel order',
+    buyAgain: (shop: string, code: string) => `🛍️ To shop again at ${shop}, send: Hi ${code}`,
     noSuchShop: (code: string) =>
       `Sorry, there is no shop with the code ${code}. Please check the number with your seller and try again (for example: Hi 1234).`,
     noShop:
-      'Welcome! 😀\nTo shop, open the shop link your seller sent you, or send "Hi" and the shop code (for example: Hi KARNA).',
+      'Welcome! 😀\nTo shop, open the shop link your seller sent you, or send "Hi" and the shop code (for example: Hi 1234).',
     shopNow: 'Shop now 🛍️',
     moreOptions: 'More options',
     clickHere: 'Click here',
@@ -49,10 +50,11 @@ export const BUTTON_TEXT = {
     showQr: 'QR दिखाएँ',
     paid: 'मैंने भुगतान किया',
     cancelOrder: 'ऑर्डर रद्द करें',
+    buyAgain: (shop: string, code: string) => `🛍️ ${shop} से फिर से खरीदने के लिए भेजें: Hi ${code}`,
     noSuchShop: (code: string) =>
       `माफ़ करें, ${code} कोड की कोई दुकान नहीं है। अपने विक्रेता से नंबर जाँचकर फिर कोशिश करें (जैसे: Hi 1234)।`,
     noShop:
-      'स्वागत है! 😀\nखरीदारी के लिए अपने विक्रेता का भेजा हुआ दुकान लिंक खोलें, या "Hi" और दुकान कोड भेजें (जैसे: Hi KARNA)।',
+      'स्वागत है! 😀\nखरीदारी के लिए अपने विक्रेता का भेजा हुआ दुकान लिंक खोलें, या "Hi" और दुकान कोड भेजें (जैसे: Hi 1234)।',
     shopNow: 'अभी खरीदें 🛍️',
     moreOptions: 'और विकल्प',
     clickHere: 'यहाँ क्लिक करें',
@@ -84,10 +86,11 @@ export const BUTTON_TEXT = {
     showQr: 'QR ଦେଖାନ୍ତୁ',
     paid: 'ମୁଁ ପଇସା ଦେଲି',
     cancelOrder: 'ଅର୍ଡର ବାତିଲ',
+    buyAgain: (shop: string, code: string) => `🛍️ ${shop}ରୁ ପୁଣି କିଣିବା ପାଇଁ ପଠାନ୍ତୁ: Hi ${code}`,
     noSuchShop: (code: string) =>
       `ଦୁଃଖିତ, ${code} କୋଡ୍‌ର କୌଣସି ଦୋକାନ ନାହିଁ। ଆପଣଙ୍କ ବିକ୍ରେତାଙ୍କ ସହ ନମ୍ବର ମିଳାଇ ପୁଣି ଚେଷ୍ଟା କରନ୍ତୁ (ଯେପରି: Hi 1234)।`,
     noShop:
-      'ସ୍ୱାଗତ! 😀\nକିଣିବା ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ପଠାଇଥିବା ଦୋକାନ ଲିଙ୍କ ଖୋଲନ୍ତୁ, କିମ୍ବା "Hi" ଓ ଦୋକାନ କୋଡ୍ ପଠାନ୍ତୁ (ଯେପରି: Hi KARNA)।',
+      'ସ୍ୱାଗତ! 😀\nକିଣିବା ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ପଠାଇଥିବା ଦୋକାନ ଲିଙ୍କ ଖୋଲନ୍ତୁ, କିମ୍ବା "Hi" ଓ ଦୋକାନ କୋଡ୍ ପଠାନ୍ତୁ (ଯେପରି: Hi 1234)।',
     shopNow: 'ବର୍ତ୍ତମାନ କିଣନ୍ତୁ 🛍️',
     moreOptions: 'ଆହୁରି ବିକଳ୍ପ',
     clickHere: 'ଏଠାରେ କ୍ଲିକ୍ କରନ୍ତୁ',
@@ -119,10 +122,11 @@ export const BUTTON_TEXT = {
     showQr: 'QR দেখুৱাওক',
     paid: 'মই ধন দিলোঁ',
     cancelOrder: 'অৰ্ডাৰ বাতিল',
+    buyAgain: (shop: string, code: string) => `🛍️ ${shop}ৰ পৰা আকৌ কিনিবলৈ পঠিয়াওক: Hi ${code}`,
     noSuchShop: (code: string) =>
       `দুঃখিত, ${code} ক'ডৰ কোনো দোকান নাই। আপোনাৰ বিক্ৰেতাৰ পৰা নম্বৰটো মিলাই আকৌ চেষ্টা কৰক (যেনে: Hi 1234)।`,
     noShop:
-      'স্বাগতম! 😀\nকিনিবলৈ আপোনাৰ বিক্ৰেতাই পঠোৱা দোকানৰ লিংক খোলক, নহয় "Hi" আৰু দোকানৰ ক\'ড পঠিয়াওক (যেনে: Hi KARNA)।',
+      'স্বাগতম! 😀\nকিনিবলৈ আপোনাৰ বিক্ৰেতাই পঠোৱা দোকানৰ লিংক খোলক, নহয় "Hi" আৰু দোকানৰ ক\'ড পঠিয়াওক (যেনে: Hi 1234)।',
     shopNow: 'এতিয়াই কিনক 🛍️',
     moreOptions: 'আৰু বিকল্প',
     clickHere: 'ইয়াত ক্লিক কৰক',
