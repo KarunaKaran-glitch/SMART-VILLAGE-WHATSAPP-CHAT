@@ -18,6 +18,7 @@ import { currentLang, currentShop, inLang, setLang, setShop } from './lang';
 import { ACTIVE_PAYMENT_METHOD } from './paymentConfig';
 import {
   downloadWhatsAppMedia,
+  loadBotNumber,
   maskDigits,
   sendWhatsAppImage,
   sendWhatsAppInteractive,
@@ -3387,6 +3388,13 @@ app.listen(PORT, () => {
     sendingEnabled
       ? 'WhatsApp sending: ON'
       : 'WhatsApp sending: OFF (replies are only printed; set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID to turn it on)'
+  );
+  loadBotNumber().then((n) =>
+    console.log(
+      n
+        ? `Bot number: +${n} (used for "Back to WhatsApp" and shop links)`
+        : 'Bot number: unknown (set WHATSAPP_BOT_NUMBER in .env so "Back to WhatsApp" opens the bot chat)'
+    )
   );
   console.log(
     signatureCheckEnabled

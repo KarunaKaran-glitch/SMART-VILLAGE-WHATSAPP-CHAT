@@ -10,6 +10,27 @@ const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
 export const sendingEnabled = Boolean(TOKEN && PHONE_NUMBER_ID);
 export const signatureCheckEnabled = Boolean(APP_SECRET);
 
+// The bot's own WhatsApp number (for wa.me links: "Back to WhatsApp", the seller's shop link).
+// WHATSAPP_BOT_NUMBER in .env wins; otherwise it is asked from Meta once, when the server starts.
+export async function loadBotNumber(): Promise<string | null> {
+  const set = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
+  if (set) return set;
+  if (!sendingEnabled) return null;
+  try {
+    const res = await axios.get(`https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}`, {
+      params: { fields: 'display_phone_number' },
+      headers: { Authorization: `Bearer ${TOKEN}` },
+      timeout: 10000,
+    });
+    const number = String(res.data?.display_phone_number ?? '').replace(/\D/g, '');
+    if (!number) return null;
+    process.env.WHATSAPP_BOT_NUMBER = number;
+    return number;
+  } catch {
+    return null;
+  }
+}
+
 // Hides long digit runs (card, account or transaction numbers) in logs: 123456789012 -> 12********12
 export function maskDigits(text: string): string {
   return text.replace(/\d{8,}/g, (d) => d.slice(0, 2) + '*'.repeat(d.length - 4) + d.slice(-2));
