@@ -192,7 +192,8 @@ scripts/
   validate-cleanup.sh  Removes the validation test's data
 src/
   index.ts             Express server, webhook and chat handling, all web page routes
-  shopPage.ts          Shop page and payment page (HTML for phone screens)
+  shopPage.ts          Shop page (photo grid, cart bar) and payment page (QR, UPI, order progress)
+  pageKit.ts           Shared look of all pages (app style, icons) and small HTML helpers
   sellerPage.ts        Seller dashboard
   adminPage.ts         Admin dashboard
   whatsapp.ts          WhatsApp Cloud API: send text, photos, buttons and links; signature check

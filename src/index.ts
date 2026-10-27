@@ -28,7 +28,8 @@ import {
 } from './whatsapp';
 import { getImage, imageUrl, makeUpiQr, publicUrl, saveImage, upiLink, upiQrDataUrl } from './images';
 import crypto from 'crypto';
-import { PayPageState, renderPayPage, renderShopPage, rupees, simplePage } from './shopPage';
+import { PayPageState, renderPayPage, renderShopPage, simplePage } from './shopPage';
+import { rupees } from './pageKit';
 import { wt } from './webText';
 import { dt } from './dashText';
 import { renderAdminPage } from './adminPage';
@@ -2100,6 +2101,7 @@ app.get('/shop/:code/order/:id', async (req: Request, res: Response) => {
         amount: Number(i.unitPrice) * i.quantity,
       })),
       state,
+      orderStatus: order.status,
       qrSrc,
       qrFromSeller: Boolean(sellerQr),
       upiId: shop.upiId,

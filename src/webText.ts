@@ -43,6 +43,16 @@ const en = {
   received: (shop: string) => `${shop} has confirmed your payment and will now prepare your order.`,
   cancelledTitle: 'Order cancelled',
   cancelled: 'This order was cancelled. Nothing needs to be paid.',
+  // App look
+  handmadeBy: (shop: string) => `Handmade by ${shop}`,
+  payByUpi: 'Pay by UPI',
+  trackTitle: 'Order status',
+  confirmedTitle: 'Order confirmed',
+  confirmedText: (shop: string) => `${shop} has confirmed your order and is preparing it.`,
+  shippedTitle: 'On the way',
+  shippedText: (shop: string) => `Your order from ${shop} has been shipped. 🚚`,
+  deliveredTitle: 'Delivered',
+  deliveredText: (shop: string) => `Your order has been delivered. Thank you for shopping with ${shop}! 🙏`,
 };
 
 const hi: typeof en = {
@@ -88,6 +98,15 @@ const hi: typeof en = {
   received: (shop: string) => `${shop} ने आपके भुगतान की पुष्टि कर दी है और अब आपका ऑर्डर तैयार करेंगे।`,
   cancelledTitle: 'ऑर्डर रद्द',
   cancelled: 'यह ऑर्डर रद्द कर दिया गया है। कुछ भी भुगतान नहीं करना है।',
+  handmadeBy: (shop: string) => `${shop} द्वारा हाथ से बना`,
+  payByUpi: 'UPI से भुगतान',
+  trackTitle: 'ऑर्डर की स्थिति',
+  confirmedTitle: 'ऑर्डर पक्का',
+  confirmedText: (shop: string) => `${shop} ने आपका ऑर्डर पक्का कर दिया है और इसे तैयार कर रहे हैं।`,
+  shippedTitle: 'रास्ते में',
+  shippedText: (shop: string) => `${shop} से आपका ऑर्डर भेज दिया गया है। 🚚`,
+  deliveredTitle: 'पहुँचा दिया',
+  deliveredText: (shop: string) => `आपका ऑर्डर पहुँच गया है। ${shop} से खरीदारी के लिए धन्यवाद! 🙏`,
 };
 
 const or: typeof en = {
@@ -133,6 +152,15 @@ const or: typeof en = {
   received: (shop: string) => `${shop} ଆପଣଙ୍କ ପେମେଣ୍ଟ ନିଶ୍ଚିତ କରିଛନ୍ତି ଏବଂ ବର୍ତ୍ତମାନ ଆପଣଙ୍କ ଅର୍ଡର ପ୍ରସ୍ତୁତ କରିବେ।`,
   cancelledTitle: 'ଅର୍ଡର ବାତିଲ',
   cancelled: 'ଏହି ଅର୍ଡର ବାତିଲ ହୋଇଛି। କିଛି ପଇସା ଦେବାକୁ ନାହିଁ।',
+  handmadeBy: (shop: string) => `${shop} ଦ୍ୱାରା ହାତତିଆରି`,
+  payByUpi: 'UPI ରେ ପଇସା',
+  trackTitle: 'ଅର୍ଡର ସ୍ଥିତି',
+  confirmedTitle: 'ଅର୍ଡର ନିଶ୍ଚିତ',
+  confirmedText: (shop: string) => `${shop} ଆପଣଙ୍କ ଅର୍ଡର ନିଶ୍ଚିତ କରି ପ୍ରସ୍ତୁତ କରୁଛନ୍ତି।`,
+  shippedTitle: 'ରାସ୍ତାରେ',
+  shippedText: (shop: string) => `${shop}ରୁ ଆପଣଙ୍କ ଅର୍ଡର ପଠାଯାଇଛି। 🚚`,
+  deliveredTitle: 'ପହଞ୍ଚିଗଲା',
+  deliveredText: (shop: string) => `ଆପଣଙ୍କ ଅର୍ଡର ପହଞ୍ଚିଗଲା। ${shop}ରୁ କିଣିଥିବାରୁ ଧନ୍ୟବାଦ! 🙏`,
 };
 
 const as: typeof en = {
@@ -178,6 +206,15 @@ const as: typeof en = {
   received: (shop: string) => `${shop}এ আপোনাৰ পেমেণ্ট নিশ্চিত কৰিছে আৰু এতিয়া আপোনাৰ অৰ্ডাৰ সাজু কৰিব।`,
   cancelledTitle: 'অৰ্ডাৰ বাতিল',
   cancelled: 'এই অৰ্ডাৰ বাতিল কৰা হৈছে। একো ধন দিব নালাগে।',
+  handmadeBy: (shop: string) => `${shop}ৰ হাতে বনোৱা`,
+  payByUpi: 'UPIৰে ধন',
+  trackTitle: 'অৰ্ডাৰৰ অৱস্থা',
+  confirmedTitle: 'অৰ্ডাৰ নিশ্চিত',
+  confirmedText: (shop: string) => `${shop}এ আপোনাৰ অৰ্ডাৰ নিশ্চিত কৰি সাজু কৰি আছে।`,
+  shippedTitle: 'বাটত আছে',
+  shippedText: (shop: string) => `${shop}ৰ পৰা আপোনাৰ অৰ্ডাৰ পঠিওৱা হৈছে। 🚚`,
+  deliveredTitle: 'পহুঁচিল',
+  deliveredText: (shop: string) => `আপোনাৰ অৰ্ডাৰ পহুঁচিছে। ${shop}ৰ পৰা কিনাৰ বাবে ধন্যবাদ! 🙏`,
 };
 
 const WEB_TEXT: Record<string, typeof en> = { en, hi, or, as };

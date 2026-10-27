@@ -1,6 +1,5 @@
 import { dt } from './dashText';
-import { APP_STYLE, ICON, svg } from './sellerPage';
-import { escapeHtml, scriptJson } from './shopPage';
+import { APP_STYLE, ICON, escapeHtml, scriptJson, svg } from './pageKit';
 
 // The admin dashboard (opened from the admin's [Click here] button), in the same app style as the
 // seller dashboard: a top bar, a bottom tab bar, and four tabs: Home (tiles and the next products
