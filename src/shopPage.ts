@@ -56,7 +56,7 @@ export function renderShopPage(data: {
       const soldOut = p.maxQty <= 0;
       return (
         `<article class="pcard${soldOut ? ' out' : ''}">` +
-        '<div class="pimg">' +
+        `<div class="pimg" data-open="${p.id}">` +
         (p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">` : '') +
         (soldOut
           ? `<span class="badge rejected">${escapeHtml(W.soldOut)}</span>`
@@ -64,7 +64,7 @@ export function renderShopPage(data: {
             ? `<span class="badge waiting">${escapeHtml(W.onlyLeft(p.left))}</span>`
             : '') +
         '</div><div class="pbody">' +
-        `<p class="pname">${escapeHtml(p.name)}</p>` +
+        `<p class="pname" data-open="${p.id}">${escapeHtml(p.name)}</p>` +
         (p.description ? `<p class="pdesc">${escapeHtml(p.description)}</p>` : '') +
         `<p class="pprice">₹${rupees(p.price)}</p>` +
         (data.canOrder && !soldOut ? `<div class="qty" data-id="${p.id}"></div>` : '') +
@@ -73,11 +73,24 @@ export function renderShopPage(data: {
     })
     .join('');
 
-  // Only what the script needs: prices and limits for the - / + buttons, and the texts
+  // Only what the script needs: prices and limits for the - / + buttons, the details view and the texts
   const script = `
-const PRODUCTS = ${scriptJson(data.products.map((p) => ({ id: p.id, price: p.price, max: p.maxQty })))};
+const ORDERING = ${ordering};
+const PRODUCTS = ${scriptJson(
+    data.products.map((p) => ({
+      id: p.id,
+      price: p.price,
+      max: data.canOrder ? p.maxQty : 0,
+      name: p.name,
+      desc: p.description || '',
+      img: p.imageUrl,
+      left: p.left,
+    })),
+  )};
 const T = ${scriptJson({
     add: W.add,
+    soldOut: W.soldOut,
+    onlyLeft: W.onlyLeft(999),
     pickOne: W.pickOne,
     addressInvalid: W.addressInvalid,
     sending: W.sending,
@@ -86,19 +99,31 @@ const T = ${scriptJson({
     continue: W.continue,
   })};
 const ITEMS_TEXT = ${scriptJson(W.items(999))};
-const qty = {};
 const fmt = (n) => n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const byId = (id) => PRODUCTS.find((x) => x.id === id);
 
+// The chosen quantities, kept for this link while the page is open (a reload keeps them)
+const SAVE_KEY = 'cart:' + location.pathname + location.search;
+const qty = {};
+try {
+  const saved = JSON.parse(sessionStorage.getItem(SAVE_KEY) || '{}');
+  for (const p of PRODUCTS) { const n = Number(saved[p.id]) || 0; if (n > 0 && p.max > 0) qty[p.id] = Math.min(n, p.max); }
+} catch (e) {}
+function save() { try { sessionStorage.setItem(SAVE_KEY, JSON.stringify(qty)); } catch (e) {} }
+
+// ADD, or − n + ; drawn in the product card and in the details view alike
 function draw(id) {
-  const box = document.querySelector('.qty[data-id="' + id + '"]');
   const n = qty[id] || 0;
-  box.innerHTML = n === 0
-    ? '<button type="button" class="addbtn">' + T.add + '</button>'
-    : '<div class="stepper"><button type="button" data-d="-1" aria-label="-">−</button><span>' + n +
-      '</span><button type="button" data-d="1" aria-label="+">+</button></div>';
+  document.querySelectorAll('.qty[data-id="' + id + '"]').forEach((box) => {
+    box.innerHTML = n === 0
+      ? '<button type="button" class="addbtn">' + T.add + '</button>'
+      : '<div class="stepper"><button type="button" data-d="-1" aria-label="-">−</button><span>' + n +
+        '</span><button type="button" data-d="1" aria-label="+">+</button></div>';
+  });
 }
 
 function update() {
+  if (!ORDERING) return;
   let count = 0, total = 0;
   for (const p of PRODUCTS) { const n = qty[p.id] || 0; count += n; total += n * p.price; }
   document.getElementById('count').textContent = ITEMS_TEXT.replace('999', count);
@@ -107,23 +132,68 @@ function update() {
   document.getElementById('msg').textContent = '';
 }
 
-document.querySelectorAll('.qty').forEach((box) => {
-  const id = Number(box.dataset.id);
-  const p = PRODUCTS.find((x) => x.id === id);
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.qty button');
+  if (!b) return;
+  const id = Number(b.closest('.qty').dataset.id);
+  const p = byId(id);
+  const d = b.classList.contains('addbtn') ? 1 : Number(b.dataset.d);
+  qty[id] = Math.max(0, Math.min(p.max, (qty[id] || 0) + d));
+  if (!qty[id]) delete qty[id];
+  save();
   draw(id);
-  box.addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    const d = b.classList.contains('addbtn') ? 1 : Number(b.dataset.d);
-    qty[id] = Math.max(0, Math.min(p.max, (qty[id] || 0) + d));
-    draw(id);
-    update();
-  });
+  update();
 });
 
+// The details view: a big photo, the full description, the price and ADD / − + .
+// It opens as a page step, so the phone's Back button closes it.
+const sheet = document.getElementById('sheet');
+function showSheet(id) {
+  const p = byId(id);
+  if (!p) return;
+  const img = document.getElementById('simg');
+  img.hidden = !p.img;
+  if (p.img) img.src = p.img;
+  document.getElementById('sname').textContent = p.name;
+  document.getElementById('sprice').textContent = '₹' + fmt(p.price);
+  const left = document.getElementById('sleft');
+  const out = ORDERING && p.max <= 0;
+  left.textContent = out ? T.soldOut : p.left !== null ? T.onlyLeft.replace('999', p.left) : '';
+  left.hidden = !left.textContent;
+  document.getElementById('sdesc').textContent = p.desc;
+  const box = document.getElementById('sqty');
+  box.dataset.id = p.max > 0 ? id : '';
+  box.innerHTML = '';
+  if (p.max > 0) draw(id);
+  sheet.hidden = false;
+  document.body.classList.add('locked');
+}
+function hideSheet() {
+  sheet.hidden = true;
+  document.body.classList.remove('locked');
+}
+document.addEventListener('click', (e) => {
+  const o = e.target.closest('[data-open]');
+  if (o) {
+    history.pushState({ p: o.dataset.open }, '', '#p' + o.dataset.open);
+    showSheet(Number(o.dataset.open));
+  } else if (e.target.closest('[data-close]') && !sheet.hidden) {
+    history.back();
+  }
+});
+addEventListener('popstate', () => {
+  const m = /^#p(\\d+)$/.exec(location.hash);
+  if (m) showSheet(Number(m[1])); else hideSheet();
+});
+PRODUCTS.forEach((p) => { if (p.max > 0) draw(p.id); });
+// After a reload the details view stays open
+const opened = /^#p(\\d+)$/.exec(location.hash);
+if (opened) showSheet(Number(opened[1]));
+if (ORDERING) {
 const go = document.getElementById('go');
 const msg = document.getElementById('msg');
 go.addEventListener('click', async () => {
+  if (!sheet.hidden) history.back();
   const items = PRODUCTS.filter((p) => qty[p.id] > 0).map((p) => ({ id: p.id, qty: qty[p.id] }));
   const address = document.getElementById('address').value.trim();
   if (items.length === 0) { msg.textContent = T.pickOne; return; }
@@ -143,7 +213,8 @@ go.addEventListener('click', async () => {
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.ok) {
-      // On to the payment page of the new order (same secret)
+      // On to the payment page of the new order (same secret); the cart starts empty next time
+      try { sessionStorage.removeItem(SAVE_KEY); } catch (e) {}
       location.href = location.pathname + '/order/' + out.orderId + location.search;
       return;
     }
@@ -154,8 +225,16 @@ go.addEventListener('click', async () => {
   go.disabled = false;
   go.textContent = T.continue + ' ›';
 });
+}
 update();
 `;
+
+  const sheet =
+    '<div class="sheet" id="sheet" hidden><div class="sheetbg" data-close></div><div class="sheetbox">' +
+    '<button type="button" class="sheetx" data-close aria-label="Close">×</button>' +
+    '<div class="sheetimg"><img id="simg" alt=""></div><div class="sheetbody">' +
+    '<p class="sname" id="sname"></p><p class="sprice" id="sprice"></p><p class="sleft" id="sleft"></p>' +
+    `<p class="sdesc" id="sdesc"></p><div class="qty" id="sqty"></div></div></div></div>`;
 
   const body = !data.products.length
     ? `<div class="card empty">${escapeHtml(W.noProducts)}</div>`
@@ -175,9 +254,9 @@ update();
     (ordering
       ? '<div class="cartbar empty"><p class="msg" id="msg"></p><div class="cartrow">' +
         `<div class="sum"><span id="count"></span><b id="total">₹0</b></div>` +
-        `<button type="button" class="btn primary" id="go">${escapeHtml(W.continue)} ›</button></div></div>` +
-        `<script>${script}</script>`
+        `<button type="button" class="btn primary" id="go">${escapeHtml(W.continue)} ›</button></div></div>`
       : '') +
+    (data.products.length ? `${sheet}<script>${script}</script>` : '') +
     '</body></html>'
   );
 }
@@ -346,6 +425,27 @@ main.shop{padding-bottom:150px}
 .cartrow .sum b{font-size:1.25rem}
 .cartrow .btn{flex:1.3;padding:14px 10px;font-size:1.02rem}
 .cartbar.empty .btn{opacity:.55}
+[data-open]{cursor:pointer}
+body.locked{overflow:hidden}
+.sheet{position:fixed;inset:0;z-index:5;display:flex;align-items:flex-end;justify-content:center}
+.sheet[hidden]{display:none}
+.sheetbg{position:absolute;inset:0;background:rgba(15,23,42,.55)}
+.sheetbox{position:relative;background:#fff;width:100%;max-width:640px;max-height:94vh;overflow:auto;border-radius:18px 18px 0 0;padding-bottom:110px;animation:sheetup .22s ease-out}
+@keyframes sheetup{from{transform:translateY(60px)}}
+.sheetx{position:sticky;top:10px;float:right;margin:10px 10px -46px 0;z-index:2;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.95);font-size:1.5rem;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.sheetimg{background:#eef2f7;border-radius:18px 18px 0 0;overflow:hidden}
+.sheetimg img{display:block;width:100%;max-height:62vh;object-fit:contain}
+.sheetimg img[hidden]{display:none}
+.sheetbody{padding:14px 16px}
+.sname{margin:0;font-weight:700;font-size:1.1rem}
+.sprice{margin:6px 0 0;font-weight:800;font-size:1.45rem}
+.sleft{margin:4px 0 0;color:var(--accent2);font-weight:700;font-size:.85rem}
+.sleft[hidden]{display:none}
+.sdesc{margin:10px 0 0;color:#374151;white-space:pre-line;line-height:1.5}
+.sdesc:empty{display:none}
+.sheet .qty{margin-top:16px}
+.sheet .addbtn{padding:12px 0;font-size:1rem}
+.sheet .stepper button{height:46px;width:56px}
 .amountcard{text-align:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}
 .amountcard span{opacity:.85;font-size:.9rem}
 .amountcard b{display:block;font-size:2.2rem;margin:4px 0}
