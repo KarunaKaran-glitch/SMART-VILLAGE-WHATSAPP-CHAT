@@ -24,7 +24,7 @@ export type SellerOrderRow = {
   customerName: string;
   customerPhone: string; // digits with country code, for the call link
   address: string;
-  lines: string[]; // "Red Jute Bag × 2 = ₹900"
+  lines: { name: string; qty: number; amount: number; imageUrl: string | null }[]; // each product, with its photo
   total: number;
   status: 'PENDING' | 'PAID' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
   payment: 'notYet' | 'check' | 'paid' | 'cancelled';
@@ -117,7 +117,15 @@ export function renderSellerPage(data: {
     `<div class="ohead"><div><b>#${o.id}</b><span class="date">${escapeHtml(o.date)}</span></div>` +
     `<span class="pill st-${o.status}">${escapeHtml(statusLabel[o.status])}</span></div>` +
     tracker(o) +
-    `<ul class="lines">${o.lines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>` +
+    // Each product with its photo, so the seller sees at a glance what to pack
+    `<ul class="items">${o.lines
+      .map(
+        (l) =>
+          '<li>' +
+          (l.imageUrl ? `<img src="${escapeHtml(l.imageUrl)}" alt="" loading="lazy">` : '<span class="noimg"></span>') +
+          `<div><p>${escapeHtml(l.name)}</p><span>× ${l.qty}</span></div><b>₹${rupees(l.amount)}</b></li>`
+      )
+      .join('')}</ul>` +
     `<div class="total"><span>${escapeHtml(wt(data.language).total)}</span><b>₹${rupees(o.total)}</b></div>` +
     '<div class="cust">' +
     `<div class="who"><b>${escapeHtml(o.customerName)}</b><span>${svg(ICON.pin, 15)} ${escapeHtml(o.address)}</span></div>` +

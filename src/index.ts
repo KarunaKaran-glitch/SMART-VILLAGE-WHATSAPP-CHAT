@@ -1783,9 +1783,12 @@ async function sellerOrderRows(sellerId: number, language: string, onlyOrderId?:
       customerName: order.customer.name ?? '-',
       customerPhone: order.customer.phone,
       address: order.deliveryAddress ?? '-',
-      lines: list.map(
-        (i) => `${localName(i.product, language)} × ${i.quantity} = ₹${rupees(Number(i.unitPrice) * i.quantity)}`
-      ),
+      lines: list.map((i) => ({
+        name: localName(i.product, language),
+        qty: i.quantity,
+        amount: Number(i.unitPrice) * i.quantity,
+        imageUrl: i.product.imageKey ? `/images/${i.product.imageKey}` : null,
+      })),
       total: list.reduce((sum, i) => sum + Number(i.unitPrice) * i.quantity, 0),
       status,
       payment:
