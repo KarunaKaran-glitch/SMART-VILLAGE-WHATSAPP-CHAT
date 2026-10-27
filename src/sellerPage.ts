@@ -194,10 +194,6 @@ export function renderSellerPage(data: {
   const orders =
     '<section class="tab" id="tab-orders">' +
     `<h3 class="sec">${escapeHtml(W.ordersTitle)} (${data.orders.length})</h3>` +
-    '<div class="chips">' +
-    `<button type="button" class="chip on" data-filter="all">${escapeHtml(W.filterAll)}</button>` +
-    `<button type="button" class="chip" data-filter="todo">${escapeHtml(W.filterTodo)}</button>` +
-    `<button type="button" class="chip" data-filter="closed">${escapeHtml(W.filterDone)}</button></div>` +
     (data.orders.length ? data.orders.map(orderCard).join('') : `<div class="card empty">${escapeHtml(W.noOrders)}</div>`) +
     '</section>';
 
@@ -302,14 +298,6 @@ function showTab() {
 }
 window.addEventListener('hashchange', showTab);
 showTab();
-
-// Order filters: All / To do / Completed
-document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => {
-  document.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === c));
-  document.querySelectorAll('#tab-orders .order').forEach((o) => {
-    o.hidden = c.dataset.filter !== 'all' && !o.classList.contains(c.dataset.filter);
-  });
-}));
 
 async function post(url, body, msgEl, notice) {
   try {

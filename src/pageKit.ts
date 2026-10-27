@@ -67,7 +67,6 @@ main{max-width:640px;margin:0 auto;padding:12px 12px 96px}
 .sec{font-size:1rem;margin:18px 4px 8px}
 .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
 .card.empty{color:var(--muted);text-align:center;padding:22px 14px}
-.order[hidden]{display:none}
 .ohead{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .ohead b{font-size:1.05rem}
 .ohead .date{color:var(--muted);font-size:.8rem;margin-left:8px}
@@ -109,9 +108,6 @@ main{max-width:640px;margin:0 auto;padding:12px 12px 96px}
 .btn.whatsapp{background:#25d366;color:#fff}
 .btn.small{padding:7px 12px;font-size:.85rem;border-radius:8px}
 .btn:disabled{opacity:.5}
-.chips{display:flex;gap:8px;margin:0 0 10px;overflow-x:auto}
-.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;font:inherit;font-weight:600;color:var(--muted);white-space:nowrap}
-.chip.on{background:var(--brand2);border-color:var(--brand2);color:#fff}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 @media (min-width:560px){.grid{grid-template-columns:repeat(3,1fr)}}
 .pcard{background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06);display:flex;flex-direction:column}
