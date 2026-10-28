@@ -79,6 +79,7 @@ export function renderShopPage(data: {
         `<div class="pimg" data-open="${p.id}">` +
         (p.thumbUrl ? `<img src="${escapeHtml(p.thumbUrl)}" alt="" loading="lazy" decoding="async">` : '') +
         (soldOut ? `<span class="badge rejected">${escapeHtml(W.soldOut)}</span>` : '') +
+        `<span class="peek">${svg(ICON.eye, 20)}</span>` +
         '</div><div class="pbody">' +
         `<p class="pname" data-open="${p.id}">${escapeHtml(p.name)}</p>` +
         (p.description ? `<p class="pdesc">${escapeHtml(p.description)}</p>` : '') +
@@ -158,6 +159,20 @@ function update() {
   document.getElementById('total').textContent = '₹' + fmt(total);
   document.querySelector('.cartbar').classList.toggle('empty', count === 0);
   document.getElementById('msg').textContent = '';
+  // The "Your order" panel beside the products (shown on wide screens only)
+  document.getElementById('bag').innerHTML = chosenRows().join('');
+  document.getElementById('bagcount').textContent = count;
+  document.getElementById('bagtotal').textContent = '₹' + fmt(total);
+  document.querySelector('.bag').classList.toggle('none', count === 0);
+  PRODUCTS.forEach((p) => { if (qty[p.id] > 0) draw(p.id); });
+}
+// One row per chosen product: photo, name, amount and − n +
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+function chosenRows() {
+  return PRODUCTS.filter((p) => qty[p.id] > 0).map((p) =>
+    '<li>' + (p.thumb ? '<img src="' + esc(p.thumb) + '" alt="">' : '<span class="noimg"></span>') +
+    '<div><p>' + esc(p.name) + '</p><b>₹' + fmt(qty[p.id] * p.price) + '</b></div>' +
+    '<div class="qty small" data-id="' + p.id + '"></div></li>');
 }
 
 document.addEventListener('click', (e) => {
@@ -201,17 +216,11 @@ function showSheet(id) {
 // "Review your order": every chosen product (− n + still works), free delivery, the total and
 // the address with Change; the order is sent only with [Place order]
 const review = document.getElementById('review');
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 function fillReview() {
   let count = 0, total = 0;
-  const rows = PRODUCTS.filter((p) => qty[p.id] > 0).map((p) => {
-    const n = qty[p.id]; count += n; total += n * p.price;
-    return '<li>' + (p.thumb ? '<img src="' + esc(p.thumb) + '" alt="">' : '<span class="noimg"></span>') +
-      '<div><p>' + esc(p.name) + '</p><b>₹' + fmt(n * p.price) + '</b></div>' +
-      '<div class="qty small" data-id="' + p.id + '"></div></li>';
-  });
+  for (const p of PRODUCTS) { const n = qty[p.id] || 0; count += n; total += n * p.price; }
   if (count === 0) { history.back(); return; }
-  document.getElementById('ritems').innerHTML = rows.join('');
+  document.getElementById('ritems').innerHTML = chosenRows().join('');
   PRODUCTS.forEach((p) => { if (qty[p.id] > 0) draw(p.id); });
   document.getElementById('rtotal').textContent = '₹' + fmt(total);
   document.getElementById('rtotal2').textContent = '₹' + fmt(total);
@@ -339,9 +348,21 @@ update();
       `<h3 class="sec">${escapeHtml(W.chooseProducts)} <span class="count">${data.products.length}</span></h3>` +
       `<div class="grid">${cards}</div>` +
       (data.canOrder
-        ? '<div class="card addr">' +
+        ? // Phones: the address card under the products and the cart bar floating at the bottom.
+          // Wide screens: all three in a column beside the products, with the chosen products listed.
+          '<aside class="side">' +
+          `<div class="card bag none"><h3 class="baghead">${svg(ICON.orders, 20)} ${escapeHtml(W.yourOrder)} <span class="count" id="bagcount">0</span></h3>` +
+          `<p class="bagnone">${escapeHtml(W.pickOne)}</p><ul class="items" id="bag"></ul>` +
+          `<div class="deliv"><span>${svg(ICON.truck, 16)} ${escapeHtml(W.freeDelivery)}</span><b>₹0</b></div>` +
+          `<div class="total"><span>${escapeHtml(W.amount)}</span><b id="bagtotal">₹0</b></div></div>` +
+          '<div class="card addr">' +
           `<label class="addrhead" for="address"><i>${svg(ICON.pin, 20)}</i><b>${escapeHtml(W.address)}</b></label>` +
-          `<textarea id="address" maxlength="200" placeholder="${escapeHtml(W.addressHint)}">${escapeHtml(data.address)}</textarea></div>`
+          `<textarea id="address" maxlength="200" placeholder="${escapeHtml(W.addressHint)}">${escapeHtml(data.address)}</textarea></div>` +
+          '<div class="cartbar empty"><p class="msg" id="msg"></p>' +
+          '<button type="button" class="cartrow" id="go">' +
+          `<span class="sum"><span id="count"></span><b id="total">₹0</b></span>` +
+          `<span class="gotext" id="gotext">${escapeHtml(W.continue)} ›</span></button></div>` +
+          '</aside>'
         : '');
 
   // The shop's banner: round logo, name, "Handmade by ..." and three trust labels
@@ -353,18 +374,18 @@ update();
     `<span>${svg(ICON.truck, 16)} ${escapeHtml(W.freeDelivery)}</span>` +
     `<span>${svg(ICON.wallet, 16)} ${escapeHtml(W.payByUpi)}</span>` +
     `<span>${svg(ICON.heart, 16)} ${escapeHtml(W.handmade)}</span>` +
-    '</div></header>';
+    '</div>' +
+    // Wide screens: up to three product photos fanned out on the right of the banner
+    `<div class="fan" aria-hidden="true">${data.products
+      .filter((p) => p.thumbUrl)
+      .slice(0, 3)
+      .map((p) => `<img src="${escapeHtml(p.thumbUrl!)}" alt="" loading="lazy">`)
+      .join('')}</div></header>`;
 
   return (
     head(data.language, data.shopName, CUSTOMER_STYLE) +
     hero +
-    `<main class="shop">${body}</main>` +
-    (ordering
-      ? '<div class="cartbar empty"><p class="msg" id="msg"></p>' +
-        '<button type="button" class="cartrow" id="go">' +
-        `<span class="sum"><span id="count"></span><b id="total">₹0</b></span>` +
-        `<span class="gotext" id="gotext">${escapeHtml(W.continue)} ›</span></button></div>`
-      : '') +
+    `<main class="shop${ordering ? ' withside' : ''}">${body}</main>` +
     (data.products.length ? `${sheet}${ordering ? review : ''}<script>${script}</script>` : '') +
     '</body></html>'
   );
@@ -468,8 +489,9 @@ export function renderPayPage(data: {
   const D = dt(data.language);
   const total = rupees(data.total);
 
+  // The order summary: last on phones, a column on the right on wide screens
   const summary =
-    `<h3 class="sec">${escapeHtml(W.yourOrder)}</h3><div class="card">` +
+    `<div class="paysum"><h3 class="sec">${escapeHtml(W.yourOrder)}</h3><div class="card">` +
     `<ul class="items">${data.lines
       .map(
         (l) =>
@@ -479,7 +501,7 @@ export function renderPayPage(data: {
       )
       .join('')}</ul>` +
     `<div class="deliv"><span>${svg(ICON.truck, 16)} ${escapeHtml(W.freeDelivery)}</span><b>₹0</b></div>` +
-    `<div class="total"><span>${escapeHtml(W.amount)}</span><b>₹${total}</b></div></div>`;
+    `<div class="total"><span>${escapeHtml(W.amount)}</span><b>₹${total}</b></div></div></div>`;
   const step = (n: number, text: string) => `<h3 class="sec step"><i>${n}</i>${escapeHtml(text)}</h3>`;
 
   let body: string;
@@ -588,8 +610,8 @@ btn.addEventListener('click', async () => {
   return (
     head(data.language, W.payTitle(data.orderId), CUSTOMER_STYLE) +
     appbar(data.shopName, `#${data.orderId} · ₹${total}`) +
-    `<main>${body}</main>` +
-    (script ? `<script>${script}</script>` : '') +
+    `<main class="paymain">${body}</main>` +
+    (script ?`<script>${script}</script>` : '') +
     (data.whatsAppLink ? `<script>${WA_OPEN_SCRIPT}</script>` : '') +
     '</body></html>'
   );
@@ -701,32 +723,92 @@ main.gone{padding-top:60px}
 .again li{display:flex;align-items:center;gap:10px;font-size:.92rem}
 .again i{font-style:normal;width:26px;height:26px;border-radius:50%;background:var(--brand2);color:#fff;display:grid;place-items:center;font-size:.8rem;font-weight:800;flex:none}
 .btn.big{padding:15px 16px;font-size:1.05rem;margin-top:16px;box-shadow:0 8px 20px rgba(37,211,102,.35)}
-/* Desktop (wide screens only; phones keep the layout above): a wider shop with more products
-   per row, and the product details / order review as a window in the middle of the screen */
+/* Parts used on wide screens only */
+.side{display:contents}
+.bag,.peek,.fan{display:none}
+/* Desktop (wide screens only; phones keep the layout above): a big banner with product photos,
+   the products on the left and "Your order" (address, total, [Continue]) on the right; the
+   product details / order review open as a window in the middle of the screen */
 @media (min-width:1024px){
-.shophero{padding:36px 40px 30px}
-.shopid,.trust{max-width:1064px}
-.bigav{width:78px;height:78px;font-size:2.2rem}
-.shopid h1{font-size:1.9rem}
-.shopid p{font-size:1rem}
-main.shop{max-width:1120px;padding:24px 28px 150px}
-main.shop .grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:18px}
-.pcard{transition:box-shadow .15s,transform .15s}
-.pcard:hover{box-shadow:0 12px 28px rgba(16,24,40,.14);transform:translateY(-3px)}
-.addr{max-width:640px}
-.cartbar{max-width:560px}
+body{background:#f4f6fb}
+.shophero{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:40px;padding:38px max(40px,calc((100vw - 1240px)/2 + 40px)) 36px;border-radius:0 0 36px 36px;background:radial-gradient(circle at 80% 30%,rgba(255,255,255,.16),transparent 45%),linear-gradient(135deg,#172f70 0%,var(--brand2) 62%,#4d7bef 100%)}
+.shophero::before{width:380px;height:380px;right:-110px;top:-170px}
+.shophero::after{width:240px;height:240px;left:-70px;bottom:-140px}
+.shopid,.trust{max-width:none;margin:0;grid-column:1}
+.shopid{gap:22px}
+.bigav{width:92px;height:92px;font-size:2.6rem;border-width:4px}
+.shopid h1{font-size:2.4rem;letter-spacing:-.02em}
+.shopid p{font-size:1.08rem;margin-top:6px}
+.trust{margin-top:26px;gap:10px}
+.trust span{padding:9px 16px;font-size:.9rem;background:rgba(255,255,255,.15)}
+.trust svg{width:18px;height:18px}
+.fan{display:block;grid-column:2;grid-row:1/span 2;position:relative;width:340px;height:200px}
+.fan img{position:absolute;top:16px;left:95px;width:150px;height:170px;object-fit:cover;border-radius:18px;border:5px solid #fff;background:#fff;box-shadow:0 16px 34px rgba(0,0,0,.3);transition:transform .3s}
+.fan img:nth-child(1){left:0;transform:rotate(-9deg)}
+.fan img:nth-child(2){top:0;z-index:2;transform:rotate(2deg)}
+.fan img:nth-child(3){left:190px;transform:rotate(10deg)}
+.fan img:only-child{left:95px}
+.fan:hover img:nth-child(1){transform:rotate(-13deg) translateX(-10px)}
+.fan:hover img:nth-child(3){transform:rotate(14deg) translateX(10px)}
+main.shop{max-width:1240px;padding:34px 40px 60px}
+main.shop.withside{display:grid;grid-template-columns:minmax(0,1fr) 360px;column-gap:32px;align-items:start}
+main.shop.withside>*{grid-column:1}
+main.shop.withside>.side{grid-column:2;grid-row:1/span 2;display:flex;flex-direction:column;gap:14px;position:sticky;top:20px;max-height:calc(100vh - 40px)}
+main.shop>.sec{font-size:1.35rem;margin:0 2px 18px}
+main.shop>.sec .count{font-size:.85rem;padding:2px 10px}
+main.shop .grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:22px}
+.pcard{border-radius:18px;overflow:hidden;box-shadow:0 2px 10px rgba(16,24,40,.06);transition:box-shadow .2s,transform .2s}
+.pcard:hover{box-shadow:0 18px 38px rgba(16,24,40,.16);transform:translateY(-4px)}
+.pcard:active{transform:translateY(-2px)}
+.pimg{overflow:hidden}
+.pimg img{transition:transform .5s}
+.pcard:hover .pimg img{transform:scale(1.07)}
+.peek{display:grid;place-items:center;position:absolute;right:12px;top:12px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.95);color:var(--brand2);box-shadow:0 4px 14px rgba(0,0,0,.18);opacity:0;transform:translateY(-6px);transition:opacity .2s,transform .2s;pointer-events:none}
+.pcard:hover .peek{opacity:1;transform:none}
+.pbody{padding:14px 16px 16px}
+.pname{font-size:1rem}
+.pname:hover{color:var(--brand2)}
+.pprice{font-size:1.3rem}
+.addbtn{padding:11px 0;cursor:pointer;transition:background .15s}
+.addbtn:hover{background:#ffe4d3}
+.stepper button{cursor:pointer}
+.stepper button:hover{background:rgba(255,255,255,.15)}
+.bag{display:block;margin:0;padding:18px;border-radius:18px;box-shadow:0 10px 30px rgba(16,24,40,.08)}
+.baghead{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:1.12rem}
+.baghead svg{color:var(--accent2)}
+.baghead .count{margin-left:auto}
+#bag{max-height:max(110px,calc(100vh - 470px));overflow:auto}
+#bag img,#bag .noimg{width:50px;height:50px}
+.bag.none #bag{display:none}
+.bagnone{display:none}
+.bag.none .bagnone{display:block;margin:0 0 6px;padding:24px 14px;text-align:center;color:var(--muted);background:#f8fafc;border:1.5px dashed #d6dce5;border-radius:12px}
+.side .addr{margin:0;border-radius:18px;padding:16px 18px;box-shadow:0 10px 30px rgba(16,24,40,.06)}
+.side .addr textarea{min-height:70px}
+.cartbar,.cartbar.empty{position:static;transform:none;opacity:1;pointer-events:auto;max-width:none;margin:0}
+.cartbar .msg{box-shadow:none;background:var(--warnbg);margin:0 0 10px}
+.cartrow{padding:15px 18px;transition:transform .15s,box-shadow .15s}
+.cartrow:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(21,128,61,.45)}
+.cartbar.empty .cartrow{background:#94a3b8;box-shadow:none;transform:none}
+#toast{bottom:32px}
 .sheet{align-items:center;padding:24px}
-.sheetbox{border-radius:20px;max-width:900px;max-height:88vh;display:grid;grid-template-columns:1.1fr 1fr;padding-bottom:0;animation:sheetpop .2s ease-out}
-.sheetbox .sheetx{position:absolute;top:14px;right:14px;margin:0;float:none}
-.sheetimg{border-radius:20px 0 0 20px;display:flex;align-items:center;justify-content:center;min-height:420px}
+.sheetbox{border-radius:22px;max-width:920px;max-height:88vh;display:grid;grid-template-columns:1.1fr 1fr;padding-bottom:0;animation:sheetpop .2s ease-out;box-shadow:0 30px 70px rgba(0,0,0,.35)}
+.sheetbox .sheetx{position:absolute;top:14px;right:14px;margin:0;float:none;cursor:pointer}
+.sheetimg{border-radius:22px 0 0 22px;display:flex;align-items:center;justify-content:center;min-height:440px}
 .sheetimg img{max-height:88vh}
-.sheetbody{padding:56px 28px 28px;align-self:center}
-.sname{font-size:1.35rem}
-.sprice{font-size:1.8rem}
-.reviewbox{display:flex;max-width:600px}
+.sheetbody{padding:56px 30px 30px;align-self:center}
+.sname{font-size:1.45rem}
+.sprice{font-size:1.9rem;color:var(--accent2)}
+.reviewbox{display:flex;max-width:620px}
 .reviewbox .sheetx{position:sticky;align-self:flex-end;margin:12px 12px -48px 0}
-.reviewbox .sheetbody{padding:16px 22px;align-self:auto}
-.rfoot{border-radius:0 0 20px 20px}
+.reviewbox .sheetbody{padding:18px 24px;align-self:auto}
+.rfoot{border-radius:0 0 22px 22px;padding:12px 18px 16px}
 @keyframes sheetpop{from{transform:scale(.96);opacity:.6}}
+.appbar{padding:14px max(40px,calc((100vw - 1100px)/2 + 40px))}
+main.paymain{max-width:1100px;padding:30px 40px 60px;display:grid;grid-template-columns:minmax(0,1fr) 380px;column-gap:32px;align-items:start}
+main.paymain>*{grid-column:1}
+main.paymain>.paysum{grid-column:2;grid-row:1/span 12;position:sticky;top:96px}
+.paysum>.sec{margin-top:0}
+.paymain .card{border-radius:18px}
+.paymain .btn{cursor:pointer}
 }
 `;
