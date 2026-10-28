@@ -13,7 +13,7 @@ export type AdminSellerRow = {
   name: string;
   shopName: string;
   phone: string;
-  state: string; // shown text, for example "Odisha (English + ଓଡ଼ିଆ)"
+  state: string; // shown text, for example "Odisha (ଓଡ଼ିଆ + हिन्दी + English)"
   category: string;
   products: number;
   waiting: number;
@@ -34,7 +34,7 @@ export function renderAdminPage(data: {
   token: string;
   waiting: AdminWaitingProduct[];
   stats: { sellers: number; orders: number; sales: string };
-  states: { value: string; label: string }[];
+  states: { value: string; label: string; languages: string }[]; // languages: "অসমীয়া + हिन्दी + English"
   categories: { id: number; name: string }[];
   sellers: AdminSellerRow[];
   orders: SellerOrderRow[]; // every shop's orders, newest open ones first
@@ -159,10 +159,22 @@ export function renderAdminPage(data: {
     `<label for="name">${escapeHtml(W.sellerName)}</label><input id="name" maxlength="60" autocomplete="off">` +
     `<label for="phone">${escapeHtml(W.phone)}</label><input id="phone" inputmode="numeric" maxlength="16" autocomplete="off" placeholder="9876543210">` +
     `<label for="shop">${escapeHtml(W.shopName)}</label><input id="shop" maxlength="40" autocomplete="off">` +
-    `<label for="state">${escapeHtml(W.state)}</label><select id="state">${options(data.states)}</select>` +
+    // State (A to Z), then the languages its customers get: the state's own first, Hindi, English
+    `<label for="state">${escapeHtml(W.state)}</label><select id="state">` +
+    `<option value="" selected disabled>${escapeHtml(W.chooseState)}</option>` +
+    data.states
+      .map((o) => `<option value="${escapeHtml(o.value)}" data-langs="${escapeHtml(o.languages)}">${escapeHtml(o.label)}</option>`)
+      .join('') +
+    '</select>' +
+    `<label>${escapeHtml(W.customerLanguages)}</label><div class="langbox"><div class="langs" id="langs"></div>` +
+    `<p class="hint">${svg(ICON.globe, 14)} ${escapeHtml(W.languagesHint)}</p></div>` +
+    // What they make: the list, or "Others" with a box to type a new product type
     `<label for="category">${escapeHtml(W.category)}</label><select id="category">` +
+    `<option value="" selected disabled>${escapeHtml(W.chooseCategory)}</option>` +
     options(data.categories.map((c) => ({ value: String(c.id), label: c.name }))) +
-    '</select><p class="msg" id="msg"></p>' +
+    `<option value="other">${escapeHtml(W.otherCategory)}</option></select>` +
+    `<input id="newcat" maxlength="24" autocomplete="off" placeholder="${escapeHtml(W.otherHint)}" hidden>` +
+    '<p class="msg" id="msg"></p>' +
     `<button type="button" class="btn primary block" id="save">${escapeHtml(W.save)}</button></div>` +
     '</section>';
 
@@ -246,6 +258,24 @@ document.querySelectorAll('.check').forEach((card) => {
 });
 
 // Add a seller, then show the Sellers tab with the new seller's ID
+// The state shows its customer languages as numbered chips (1 = the state's language)
+const state = document.getElementById('state');
+const langs = document.getElementById('langs');
+function showLangs() {
+  const opt = state.selectedOptions[0];
+  const list = opt && opt.dataset.langs ? opt.dataset.langs.split(' + ') : [];
+  langs.innerHTML = list.map((l, i) => '<span' + (i === 0 && list.length > 2 ? ' class="local"' : '') + '><i>' + (i + 1) + '</i>' + l + '</span>').join('');
+  langs.hidden = !list.length;
+}
+state.addEventListener('change', showLangs);
+showLangs();
+// "Others": a box to type the product type
+const category = document.getElementById('category');
+const newcat = document.getElementById('newcat');
+category.addEventListener('change', () => {
+  newcat.hidden = category.value !== 'other';
+  if (!newcat.hidden) newcat.focus();
+});
 const btn = document.getElementById('save');
 const msg = document.getElementById('msg');
 btn.addEventListener('click', async () => {
@@ -254,8 +284,9 @@ btn.addEventListener('click', async () => {
     name: document.getElementById('name').value.trim(),
     phone: document.getElementById('phone').value.replace(/\\D/g, ''),
     shopName: document.getElementById('shop').value.trim(),
-    shopLanguage: document.getElementById('state').value,
-    categoryId: Number(document.getElementById('category').value),
+    sellerState: state.value,
+    categoryId: category.value === 'other' ? null : Number(category.value) || null,
+    newCategory: category.value === 'other' ? newcat.value.trim() : '',
   };
   msg.textContent = '';
   btn.disabled = true;
@@ -296,6 +327,16 @@ btn.addEventListener('click', async () => {
 }
 
 const ADMIN_STYLE = `
+.langbox{background:#f8fafc;border:1.5px dashed #d6dce5;border-radius:12px;padding:10px 12px}
+.langs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.langs[hidden]{display:none}
+.langs span{display:flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:5px 12px 5px 5px;font-weight:700;font-size:.9rem}
+.langs span.local{border-color:var(--brand2);background:var(--bluebg);color:var(--brand2)}
+.langs i{font-style:normal;width:22px;height:22px;border-radius:50%;background:var(--brand2);color:#fff;display:grid;place-items:center;font-size:.75rem}
+.langbox .hint{margin:0;display:flex;gap:6px;align-items:flex-start}
+.langbox .hint svg{flex:none;margin-top:2px}
+#newcat{margin-top:8px}
+#newcat[hidden]{display:none}
 .bigimg{margin:-14px -14px 12px;background:#eef2f7;aspect-ratio:4/3;overflow:hidden;border-radius:14px 14px 0 0}
 .bigimg img{width:100%;height:100%;object-fit:contain;display:block}
 .pprice{font-weight:800;font-size:1.1rem;white-space:nowrap}

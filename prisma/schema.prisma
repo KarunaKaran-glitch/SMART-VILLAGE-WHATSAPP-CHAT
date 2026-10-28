@@ -104,8 +104,11 @@ model User {
   category           Category?    @relation(fields: [categoryId], references: [id])
   // Seller's own link: customers send "Hi <shopCode>" and see only this seller's shop
   shopCode           String?      @unique
-  // Local language of the seller's state (hi, or, as; en = English only), offered next to English
+  // Local language of the seller's state (hi, or, as), offered first, then Hindi and English
+  // (en = English only, an older choice)
   shopLanguage       String?
+  // The seller's state (Assam, Himachal Pradesh, Madhya Pradesh, Odisha, Rajasthan), set by the admin
+  sellerState        String?
   // Customer: the seller whose link they came from
   shopId             Int?
   shop               User?        @relation("ShopCustomers", fields: [shopId], references: [id])

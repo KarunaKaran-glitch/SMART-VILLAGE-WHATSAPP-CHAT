@@ -115,11 +115,11 @@ export function renderSellerPage(data: {
   stats: SellerStats;
   notice: string | null; // shown at the top after a change ("Product added", "Saved")
   shopLink: string | null; // wa.me link customers open (null when the bot number is not set)
-  languages: string; // "English + हिन्दी"
+  languages: string; // "অসমীয়া + हिन्दी + English"
   upiId: string | null;
   qrUrl: string | null;
-  shopLanguage: string | null;
-  states: { value: string; label: string }[];
+  sellerState: string | null; // "Assam" (null for an older seller who never chose one)
+  states: { value: string; label: string; languages: string }[];
 }): string {
   const W = dt(data.language);
   const initial = firstLetter(data.shopName);
@@ -266,12 +266,16 @@ export function renderSellerPage(data: {
     `<button type="button" class="btn primary block" id="addbtn">${escapeHtml(W.addBtn)}</button></div>` +
     '</section>';
 
-  const stateOptions = data.states
-    .map(
-      (s) =>
-        `<option value="${escapeHtml(s.value)}"${s.value === data.shopLanguage ? ' selected' : ''}>${escapeHtml(s.label)}</option>`
-    )
-    .join('');
+  // "Assam (অসমীয়া + हिन्दी + English)"; a seller with no state yet sees "Choose the state" first
+  const stateOptions =
+    (data.sellerState ? '' : `<option value="" selected disabled>${escapeHtml(W.chooseState)}</option>`) +
+    data.states
+      .map(
+        (s) =>
+          `<option value="${escapeHtml(s.value)}"${s.value === data.sellerState ? ' selected' : ''}>` +
+          `${escapeHtml(`${s.label} (${s.languages})`)}</option>`
+      )
+      .join('');
   const account =
     '<section class="tab" id="tab-account">' +
     '<div class="card pcover"><div class="cover"></div>' +
@@ -502,8 +506,8 @@ if (rm) rm.addEventListener('click', async () => {
 // State
 document.getElementById('savestate').addEventListener('click', async (e) => {
   e.target.disabled = true;
-  const shopLanguage = document.getElementById('state').value;
-  if (!(await post('/seller/settings', { shopLanguage }, document.getElementById('statemsg'), 'saved'))) e.target.disabled = false;
+  const sellerState = document.getElementById('state').value;
+  if (!(await post('/seller/settings', { sellerState }, document.getElementById('statemsg'), 'saved'))) e.target.disabled = false;
 });
 
 // The "Saved" note disappears after a few seconds

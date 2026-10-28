@@ -231,20 +231,15 @@ async function categoryRows(language: string, idPrefix: string): Promise<Row[]> 
 
 // ---- Tap screens (buttons and lists) ----
 
-// The language question. A customer who came through a seller's link sees only English
-// and the language of that seller's state (as buttons); everyone else sees the full list.
+// The language question. A customer who came through a seller's link sees the language of
+// that seller's state first, then Hindi and English (as buttons); everyone else sees the full list.
 function languageReply(shopLanguage?: string | null): RichReply {
-  if (shopLanguage === 'en') {
-    return { text: 'Please choose your language 👇', buttons: [{ id: '1', title: LANGUAGES['1'].label }] };
-  }
-  const local = Object.entries(LANGUAGES).find(([, l]) => l.code === shopLanguage && l.code !== 'en');
-  if (local) {
+  const codes = shopLanguageCodes(shopLanguage);
+  if (codes) {
+    const choices = codes.map((code) => Object.entries(LANGUAGES).find(([, l]) => l.code === code)!);
     return {
-      text: `Please choose your language 👇\n${CHOOSE_LANGUAGE[local[1].code]}`,
-      buttons: [
-        { id: '1', title: LANGUAGES['1'].label },
-        { id: local[0], title: local[1].label },
-      ],
+      text: ['Please choose your language 👇', ...codes.filter((c) => c !== 'en').map((c) => CHOOSE_LANGUAGE[c])].join('\n'),
+      buttons: choices.map(([num, l]) => ({ id: num, title: l.label })),
     };
   }
   return {
@@ -1630,13 +1625,39 @@ function backToWhatsApp(shopCode?: string) {
 }
 
 // The state choices for a shop (the state decides the customers' second language)
-function stateChoices(language: string) {
-  return inLang(language, () => [
-    { value: 'or', label: `${SHOP_TEXT.stateOdisha} (${SHOP_TEXT.withEnglish(LANGUAGES['3'].label)})` },
-    { value: 'as', label: `${SHOP_TEXT.stateAssam} (${SHOP_TEXT.withEnglish(LANGUAGES['4'].label)})` },
-    { value: 'hi', label: `${SHOP_TEXT.stateHindi} (${SHOP_TEXT.withEnglish(LANGUAGES['2'].label)})` },
-    { value: 'en', label: `${SHOP_TEXT.stateOther} (English)` },
-  ]);
+// The states sellers come from (A to Z) and the local language their customers see first
+const SELLER_STATES: { name: string; language: 'as' | 'hi' | 'or' }[] = [
+  { name: 'Assam', language: 'as' },
+  { name: 'Himachal Pradesh', language: 'hi' },
+  { name: 'Madhya Pradesh', language: 'hi' },
+  { name: 'Odisha', language: 'or' },
+  { name: 'Rajasthan', language: 'hi' },
+];
+
+// A shop's languages: the state's language first, then Hindi and English (both always offered).
+// en is an older "English only" choice; null means the shop has none set (null is returned).
+function shopLanguageCodes(shopLanguage?: string | null): string[] | null {
+  if (shopLanguage === 'en') return ['en'];
+  if (shopLanguage !== 'hi' && shopLanguage !== 'or' && shopLanguage !== 'as') return null;
+  return [...new Set([shopLanguage, 'hi', 'en'])];
+}
+
+// "অসমীয়া + हिन्दी + English"
+function shopLanguagesText(shopLanguage?: string | null): string {
+  return (shopLanguageCodes(shopLanguage) ?? ['en'])
+    .map((code) => Object.values(LANGUAGES).find((l) => l.code === code)!.label)
+    .join(' + ');
+}
+
+// The seller's state: the one the admin chose, or for older sellers the state their language belongs to
+function sellerStateName(seller: { sellerState: string | null; shopLanguage: string | null }): string | null {
+  if (seller.sellerState) return seller.sellerState;
+  return seller.shopLanguage === 'as' ? 'Assam' : seller.shopLanguage === 'or' ? 'Odisha' : null;
+}
+
+// The state choices on the admin and seller pages, each with its customer languages
+function stateChoices() {
+  return SELLER_STATES.map((s) => ({ value: s.name, label: s.name, languages: shopLanguagesText(s.language) }));
 }
 
 // Admin dashboard: add a seller, list all sellers
@@ -1651,7 +1672,7 @@ app.get('/admin', async (req: Request, res: Response) => {
     return;
   }
   const lang = admin.language;
-  const states = stateChoices(lang);
+  const states = stateChoices();
   const categories = await prisma.category.findMany({ orderBy: { id: 'asc' } });
   const sellers = await prisma.user.findMany({
     where: { role: 'SELLER' },
@@ -1698,7 +1719,7 @@ app.get('/admin', async (req: Request, res: Response) => {
         name: s.name ?? '-',
         shopName: s.shopName ?? '-',
         phone: s.phone,
-        state: states.find((x) => x.value === s.shopLanguage)?.label ?? '-',
+        state: `${sellerStateName(s) ?? '-'} (${shopLanguagesText(s.shopLanguage)})`,
         category: s.category ? categoryName(s.category, lang) : '-',
         products: s.products.length,
         waiting: s.products.filter((p) => p.approval === 'PENDING').length,
@@ -1735,7 +1756,7 @@ app.post('/admin/products/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Admin adds a seller: { t, name, phone, shopName, shopLanguage, categoryId }.
+// Admin adds a seller: { t, name, phone, shopName, sellerState, categoryId or newCategory }.
 // The seller gets a unique ID and a WhatsApp message with it.
 app.post('/admin/sellers', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
@@ -1754,14 +1775,22 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
     // a 0 in front (09876543210) is how many people write a mobile number
     const local = digits.length === 11 && digits.startsWith('0') ? digits.slice(1) : digits;
     const phone = local.length === 10 ? `91${local}` : local;
-    const shopLanguage = ['en', 'hi', 'or', 'as'].includes(req.body.shopLanguage) ? req.body.shopLanguage : 'en';
-    const category = await prisma.category.findUnique({ where: { id: Number(req.body.categoryId) || 0 } });
+    const homeState = SELLER_STATES.find((s) => s.name === req.body.sellerState);
+    // What they make: one of the list, or a new product type typed under "Others"
+    const newCategory =
+      typeof req.body.newCategory === 'string' ? req.body.newCategory.replace(/\s+/g, ' ').trim() : '';
+    let category = req.body.categoryId
+      ? await prisma.category.findUnique({ where: { id: Number(req.body.categoryId) || 0 } })
+      : newCategory.length >= 2 && newCategory.length <= 24
+        ? await prisma.category.findFirst({ where: { name: { equals: newCategory, mode: 'insensitive' } } })
+        : null;
 
     let error: string | null = null;
     if (name.length < 2 || name.length > 60) error = W.nameInvalid;
     else if (!/^91[6-9]\d{9}$/.test(phone)) error = W.phoneInvalid;
     else if (shopName.length < 2 || shopName.length > 40) error = W.shopInvalid;
-    else if (!category) error = W.failed;
+    else if (!homeState) error = W.stateInvalid;
+    else if (!category && (req.body.categoryId || newCategory.length < 2 || newCategory.length > 24)) error = W.categoryInvalid;
     const existing = error ? null : await prisma.user.findUnique({ where: { phone } });
     if (!error && existing?.role === 'ADMIN') error = W.isAdmin;
     if (!error && existing?.role === 'SELLER') error = W.alreadySeller(existing.shopCode ?? '-');
@@ -1770,6 +1799,12 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
       return;
     }
 
+    // A product type typed under "Others" becomes a new category for everyone to use
+    if (!category) {
+      category = await prisma.category.create({ data: { name: newCategory } });
+      console.log(`Admin added category ${newCategory}`);
+    }
+    const shopLanguage = homeState!.language;
     const id = await newSellerId();
     const sellerData = {
       name,
@@ -1778,7 +1813,8 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
       shopName,
       shopCode: id,
       shopLanguage,
-      categoryId: category!.id,
+      sellerState: homeState!.name,
+      categoryId: category.id,
       state: 'BROWSING' as const,
       pendingProductId: null,
       pendingProductName: null,
@@ -1931,7 +1967,6 @@ app.get('/seller', async (req: Request, res: Response) => {
     where: { sellerId: seller.id, status: 'DELIVERED' },
     select: { orderId: true, unitPrice: true, quantity: true },
   });
-  const local = Object.values(LANGUAGES).find((l) => l.code === seller.shopLanguage && l.code !== 'en');
   res.send(
     renderSellerPage({
       language: seller.language,
@@ -1947,7 +1982,7 @@ app.get('/seller', async (req: Request, res: Response) => {
         onSale: products.filter((p) => p.approval === 'APPROVED' && p.isActive && p.imageKey).length,
         earned: delivered.reduce((sum, i) => sum + Number(i.unitPrice) * i.quantity, 0),
       },
-      languages: local ? `English + ${local.label}` : 'English',
+      languages: shopLanguagesText(seller.shopLanguage),
       notice:
         req.query.done === 'added'
           ? dt(seller.language).productAdded
@@ -1957,8 +1992,8 @@ app.get('/seller', async (req: Request, res: Response) => {
       shopLink: bot && seller.shopCode ? `https://wa.me/${bot}?text=${encodeURIComponent(`Hi ${seller.shopCode}`)}` : null,
       upiId: seller.upiId,
       qrUrl: seller.upiQrKey ? `/images/${seller.upiQrKey}` : null,
-      shopLanguage: seller.shopLanguage,
-      states: stateChoices(seller.language),
+      sellerState: sellerStateName(seller),
+      states: stateChoices(),
       products: products.map((p) => ({
         id: p.id,
         name: localName(p, seller.language),
@@ -2110,7 +2145,7 @@ app.post('/seller/products/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Seller's settings: { t, upi } or { t, qr } (a photo) or { t, removeQr: true } or { t, shopLanguage }
+// Seller's settings: { t, upi } or { t, qr } (a photo) or { t, removeQr: true } or { t, sellerState }
 app.post('/seller/settings', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
   try {
@@ -2139,10 +2174,14 @@ app.post('/seller/settings', async (req: Request, res: Response) => {
       await prisma.user.update({ where: { id: seller.id }, data: { upiQrKey: key } });
     } else if (req.body.removeQr === true) {
       await prisma.user.update({ where: { id: seller.id }, data: { upiQrKey: null } });
-    } else if (['en', 'hi', 'or', 'as'].includes(req.body.shopLanguage)) {
-      await prisma.user.update({ where: { id: seller.id }, data: { shopLanguage: req.body.shopLanguage } });
+    } else if (SELLER_STATES.some((s) => s.name === req.body.sellerState)) {
+      const homeState = SELLER_STATES.find((s) => s.name === req.body.sellerState)!;
+      await prisma.user.update({
+        where: { id: seller.id },
+        data: { sellerState: homeState.name, shopLanguage: homeState.language },
+      });
     } else {
-      res.status(400).json({ ok: false, error: W.failed });
+      res.status(400).json({ ok: false, error: 'sellerState' in req.body ? W.stateInvalid : W.failed });
       return;
     }
     res.json({ ok: true });
@@ -2786,9 +2825,7 @@ async function handleWebhook(body: any) {
         if (shopLangMatch) {
           const code = shopLangMatch[1].toLowerCase();
           await prisma.user.update({ where: { id: user.id }, data: { shopLanguage: code } });
-          const local = Object.values(LANGUAGES).find((l) => l.code === code && code !== 'en');
-          const choice = local ? `English + ${local.label}` : 'English';
-          await staffSend(await shopLinkReply(user, SHOP_TEXT.stateSaved(choice)));
+          await staffSend(await shopLinkReply(user, SHOP_TEXT.stateSaved(shopLanguagesText(code))));
           return;
         }
         if (command === 'MYPRODUCTS') {
@@ -3146,9 +3183,8 @@ async function handleWebhook(body: any) {
 
     // ---- State: choosing a language ----
     if (user.state === 'CHOOSING_LANGUAGE') {
-      // Through a shop link only the offered languages count (English + the shop's state language)
-      const offered =
-        myShop?.role === 'SELLER' && myShop.shopLanguage ? ['en', myShop.shopLanguage] : null;
+      // Through a shop link only the offered languages count (the state's language, Hindi, English)
+      const offered = myShop?.role === 'SELLER' ? shopLanguageCodes(myShop.shopLanguage) : null;
       const chosen = LANGUAGES[text];
       if (!chosen || (offered && !offered.includes(chosen.code))) {
         await sendReply(phone, await languageReplyFor(user));

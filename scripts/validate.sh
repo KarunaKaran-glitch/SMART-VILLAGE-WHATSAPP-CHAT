@@ -50,15 +50,17 @@ ADM=919000000000; SA=919500000071; SB=919500000072; C=919500000073; D=9195000000
 
 echo "== Setup: admin page, two fake sellers"
 msg $ADM DASHBOARD; AT=$(tok 'localhost:3001/admin?t=[^ ]*')
-r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"  Test   Maker\\nA \",\"phone\":\"09500000071\",\"shopName\":\"Shop  A\",\"shopLanguage\":\"hi\",\"categoryId\":2}")
+r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"  Test   Maker\\nA \",\"phone\":\"09500000071\",\"shopName\":\"Shop  A\",\"sellerState\":\"Rajasthan\",\"categoryId\":2}")
 ok $(has "$r" '"ok":true') "admin: number with 0 in front (09500000071) accepted"
 IDA=$(sql "select \"shopCode\" from \"User\" where phone='$SA'")
 ok $([ "$(sql "select name from \"User\" where phone='$SA'")" = "Test Maker A" ] && echo 1 || echo 0) "admin: extra spaces and line break in the name tidied"
-r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"<b>Bad</b>\",\"phone\":\"+91 95000 00072\",\"shopName\":\"Shop B\",\"shopLanguage\":\"en\",\"categoryId\":2}")
+r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"<b>Bad</b>\",\"phone\":\"+91 95000 00072\",\"shopName\":\"Shop B\",\"sellerState\":\"Assam\",\"categoryId\":2}")
 ok $(has "$r" '"ok":true') "admin: number written +91 95000 00072 accepted"
 IDB=$(sql "select \"shopCode\" from \"User\" where phone='$SB'")
-ok $(has "$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"X Y\",\"phone\":\"12345\",\"shopName\":\"Shop X\",\"shopLanguage\":\"en\",\"categoryId\":2}")" ' 400') "admin: short number refused"
-ok $(has "$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"X Y\",\"phone\":\"9500000071\",\"shopName\":\"Shop X\",\"shopLanguage\":\"en\",\"categoryId\":2}")" 'already a seller') "admin: same number twice refused"
+ok $(has "$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"X Y\",\"phone\":\"12345\",\"shopName\":\"Shop X\",\"sellerState\":\"Assam\",\"categoryId\":2}")" ' 400') "admin: short number refused"
+ok $(has "$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"X Y\",\"phone\":\"9500000073\",\"shopName\":\"Shop X\",\"categoryId\":2}")" 'choose the state') "admin: seller without a state refused"
+ok $(has "$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"X Y\",\"phone\":\"9500000073\",\"shopName\":\"Shop X\",\"sellerState\":\"Odisha\",\"newCategory\":\"P\"}")" 'type the product type') "admin: 'Others' with a 1-letter product type refused"
+ok $(has "$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"X Y\",\"phone\":\"9500000071\",\"shopName\":\"Shop X\",\"sellerState\":\"Assam\",\"categoryId\":2}")" 'already a seller') "admin: same number twice refused"
 page=$(curl -s "$B/admin?t=$AT")
 ok $(has "$page" '&lt;b&gt;Bad&lt;/b&gt;') "admin page: HTML in a name is shown as text, not run"
 
@@ -75,10 +77,10 @@ printf '{"t":"%s","name":"Bag","price":"100001","photo":"data:%s;base64,%s"}' "$
 ok $(has "$(post /seller/products "@$SP/vp2.json")" ' 400') "seller: price above 1,00,000 refused"
 printf '{"t":"%s","name":"Bag","price":"100","description":"%s","photo":"data:%s;base64,%s"}' "$ST" "$(printf 'x%.0s' $(seq 1 301))" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp3.json"
 ok $(has "$(post /seller/products "@$SP/vp3.json")" '300') "seller: description over 300 letters refused"
-ok $(has "$(post /seller/settings "{\"t\":\"$ST\",\"shopLanguage\":\"ta\"}")" ' 400') "seller: unknown state language refused"
+ok $(has "$(post /seller/settings "{\"t\":\"$ST\",\"sellerState\":\"Tamil Nadu\"}")" ' 400') "seller: state not in the list refused"
 ok $(has "$(post /seller/settings "{\"t\":\"$ST\",\"qr\":\"data:image/png;base64,aGVsbG8=\"}")" ' 400') "seller: fake QR photo refused"
 ok $(has "$(post /seller/products/26 "{\"t\":\"$ST\",\"price\":1,\"stock\":null}")" ' 404') "seller: cannot change another seller's product"
-ok $(has "$(post /admin/sellers "{\"t\":\"$ST\",\"name\":\"X Y\",\"phone\":\"9500000079\",\"shopName\":\"S\",\"shopLanguage\":\"en\",\"categoryId\":2}")" ' 403') "seller link cannot be used on the admin page"
+ok $(has "$(post /admin/sellers "{\"t\":\"$ST\",\"name\":\"X Y\",\"phone\":\"9500000079\",\"shopName\":\"S\",\"sellerState\":\"Assam\",\"categoryId\":2}")" ' 403') "seller link cannot be used on the admin page"
 sql "update \"Product\" set approval='APPROVED', stock=2 where id=$PID" >/dev/null
 page=$(curl -s "$B/seller?t=$ST")
 ok $(has "$page" '&lt;i&gt;Red&lt;/i&gt; Bag') "seller page: HTML in a product name is shown as text"
@@ -135,9 +137,9 @@ msg $C "$IDA"; ok $(has "$(last)" 'हिन्दी') "chat: shop ID typed wit
 msg $C 3; ok $(has "$(last)" 'हिन्दी') "chat: a language the shop does not offer (3 = Odia) is refused"
 msg $C 2; ok $(has "$(last)" 'Shop A') "chat: an offered language (2 = Hindi) is accepted"
 msg $C 5917; ok $(has "$(last)" '5917') "chat: unknown 4-digit number alone -> 'no shop'"
-msg $D "Hi $IDB"; msg $D LANG; ok $([ "$(last | grep -c -- '->')" = "1" ] && echo 1 || echo 0) "chat: English-only shop -> LANG shows only English"
+msg $D "Hi $IDB"; msg $D LANG; ok $([ "$(last | grep -F -c '[অসমীয়া] -> 4   [हिन्दी] -> 2   [English] -> 1')" = "1" ] && echo 1 || echo 0) "chat: Assam shop -> LANG shows Assamese first, then Hindi and English"
 msg $SB ADD; msg $SB "Blue Wallet"; msg $SB "$IDA"
-ok $(has "$(last)" 'description') "chat: seller typing a price equal to a shop ID is taken as the price"
+ok $(has "$(last)" 'SKIP') "chat: seller typing a price equal to a shop ID is taken as the price (next: the description)"
 msg $SB CANCEL
 
 echo "== Old links"
