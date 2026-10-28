@@ -21,6 +21,7 @@ export type SellerProductRow = {
 export type SellerOrderRow = {
   id: number;
   date: string;
+  stepTimes: ({ day: string; time: string } | null)[]; // Ordered … Delivered: "28 Oct" + "11:27 am"
   shop: string; // "Malathy Shop (ID 2494)", shown on the admin's Orders tab
   customerName: string;
   customerPhone: string; // digits with country code, for the call link
@@ -69,16 +70,25 @@ export function orderView(o: SellerOrderRow, language: string, withShop: boolean
         : o.payment === 'cancelled'
           ? W.payCancelled
           : W.payNotYet;
-  // Progress tracker: Ordered → Paid → Confirmed → Shipped → Delivered
+  // Progress timeline: Ordered → Paid → Confirmed → Shipped → Delivered, each with its date and
+  // time; the steps take turns above and below the line so the dates have room
   const steps = [W.stepOrdered, W.stPaid, W.stConfirmed, W.stShipped, W.stDelivered];
   const at =
     o.status === 'DELIVERED' ? 4 : o.status === 'SHIPPED' ? 3 : o.status === 'CONFIRMED' ? 2 : o.payment === 'paid' ? 1 : 0;
   const tracker =
     o.status === 'CANCELLED'
       ? `<div class="cancelled">✖ ${escapeHtml(W.stCancelled)}</div>`
-      : '<ol class="track">' +
+      : '<ol class="track timed">' +
         steps
-          .map((s, i) => `<li class="${i < at ? 'done' : i === at ? 'now' : ''}"><span></span>${escapeHtml(s)}</li>`)
+          .map((s, i) => {
+            const t = i <= at ? o.stepTimes[i] : null;
+            return (
+              `<li class="${i < at ? 'done' : i === at ? 'now' : ''} ${i % 2 ? 'down' : 'up'}"><span></span>` +
+              `<div class="tl"><b>${escapeHtml(s)}</b>` +
+              (t ? `<small>${escapeHtml(t.day)}</small><small>${escapeHtml(t.time)}</small>` : '') +
+              '</div></li>'
+            );
+          })
           .join('') +
         '</ol>';
   return (

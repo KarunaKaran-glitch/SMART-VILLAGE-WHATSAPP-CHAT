@@ -653,6 +653,7 @@ async function decidePayment(
         where: { id: orderId, status: 'PENDING' },
         data: { status: 'PAID' },
       }),
+      prisma.order.update({ where: { id: orderId }, data: { paidAt: new Date() } }),
       prisma.orderItem.updateMany({
         where: { orderId, status: 'PENDING' },
         data: { status: 'PAID' },
@@ -856,6 +857,9 @@ async function createOrders(
 }
 
 // Seller moves an order forward: CONFIRM, then SHIP, then DELIVER
+// The time each step is saved under, for the order's timeline
+const STEP_TIME = { CONFIRMED: 'confirmedAt', SHIPPED: 'shippedAt', DELIVERED: 'deliveredAt' } as const;
+
 const STATUS_FLOW: Record<string, { to: 'CONFIRMED' | 'SHIPPED' | 'DELIVERED'; from: string[] }> = {
   CONFIRM: { to: 'CONFIRMED', from: ['PENDING', 'PAID'] },
   SHIP: { to: 'SHIPPED', from: ['CONFIRMED'] },
@@ -899,15 +903,16 @@ async function updateOrderStatus(
   if (all.every((i) => i.status === rule.to)) {
     await prisma.order.update({
       where: { id: orderId },
-      data: { status: rule.to, ...(rule.to === 'DELIVERED' ? { deliveredAt: new Date() } : {}) },
+      data: { status: rule.to, [STEP_TIME[rule.to]]: new Date() },
     });
 
     // Cash on delivery: delivery means the cash was collected
     if (rule.to === 'DELIVERED') {
-      await prisma.payment.updateMany({
+      const cash = await prisma.payment.updateMany({
         where: { orderId, method: 'COD', status: 'INITIATED' },
         data: { status: 'SUCCESS' },
       });
+      if (cash.count > 0) await prisma.order.update({ where: { id: orderId }, data: { paidAt: new Date() } });
     }
   }
 
@@ -1884,6 +1889,15 @@ async function sellerOrderRows(sellerId: number | null, language: string, onlyOr
         hour: '2-digit',
         minute: '2-digit',
       }),
+      // Ordered, Paid, Confirmed, Shipped, Delivered: when each happened (null = not yet, or not known)
+      stepTimes: [order.createdAt, order.paidAt, order.confirmedAt, order.shippedAt, order.deliveredAt].map((d) =>
+        d
+          ? {
+              day: d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' }),
+              time: d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' }),
+            }
+          : null
+      ),
       shop: dt(language).fromShop(list[0].seller.shopName ?? list[0].seller.phone, list[0].seller.shopCode ?? '-'),
       customerName: order.customer.name ?? '-',
       customerPhone: order.customer.phone,
