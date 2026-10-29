@@ -1,6 +1,7 @@
 import { dt } from './dashText';
 import { APP_STYLE, ICON, WA_OPEN_SCRIPT, escapeHtml, rupees, scriptJson, svg } from './pageKit';
 import { wt } from './webText';
+import type { StepTime } from './sellerPage';
 
 // The customer's pages, in the same app look as the dashboards:
 // - the shop page (opened from the [Click here] button): the seller's products as a photo grid
@@ -479,6 +480,7 @@ export function renderPayPage(data: {
   lines: { name: string; qty: number; amount: number; imageUrl: string | null }[];
   state: PayPageState;
   orderStatus: string; // PENDING, PAID, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
+  stepTimes: StepTime[]; // when Ordered, Paid, Confirmed, Shipped, Delivered happened
   qrSrc: string | null; // the seller's QR photo, or one made with the amount filled in
   qrFromSeller: boolean;
   upiId: string | null;
@@ -583,11 +585,18 @@ btn.addEventListener('click', async () => {
     const tracker =
       view.at < 0
         ? ''
-        : '<ol class="track">' +
+        : // The same timeline as the seller's: names above and below the line in turns, each
+          // with the date and time the step happened
+          '<ol class="track timed">' +
           steps
             .map((label, i) => {
               const cls = i < view.at ? 'done' : i === Math.ceil(view.at) ? 'now' : '';
-              return `<li class="${cls}"><span></span>${escapeHtml(label)}</li>`;
+              const t = data.stepTimes[i];
+              return (
+                `<li class="${cls} ${i % 2 ? 'down' : 'up'}"><span></span><div class="tl"><b>${escapeHtml(label)}</b>` +
+                (t ? `<small>${escapeHtml(t.day)}</small><small>${escapeHtml(t.time)}</small>` : '') +
+                '</div></li>'
+              );
             })
             .join('') +
           '</ol>';

@@ -18,10 +18,13 @@ export type SellerProductRow = {
 };
 
 // One order as the seller sees it, with the one next step as buttons
+// When one order step happened (null: not done yet)
+export type StepTime = { day: string; time: string } | null;
+
 export type SellerOrderRow = {
   id: number;
   date: string;
-  stepTimes: ({ day: string; time: string } | null)[]; // Ordered … Delivered: "28 Oct" + "11:27 am"
+  stepTimes: StepTime[]; // Ordered … Delivered: "28 Oct" + "11:27 am"
   shop: string; // "Malathy Shop (ID 2494)", shown on the admin's Orders tab
   customerName: string;
   customerPhone: string; // digits with country code, for the call link

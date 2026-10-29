@@ -34,7 +34,7 @@ import { rupees } from './pageKit';
 import { wt } from './webText';
 import { dt } from './dashText';
 import { renderAdminPage } from './adminPage';
-import { SellerOrderRow, renderSellerPage } from './sellerPage';
+import { SellerOrderRow, StepTime, renderSellerPage } from './sellerPage';
 
 const app = express();
 // Keep the raw request body: the Meta signature is calculated over the exact bytes.
@@ -1879,6 +1879,26 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
 // Money received / Not received when the customer reported a payment, then Confirm, Ship, Deliver.
 // The same rules as RECEIVED / CONFIRM / SHIP / DELIVER in the chat.
 // One seller's orders (sellerId), or every shop's orders for the admin (sellerId null)
+// When each step of an order happened (Ordered, Paid, Confirmed, Shipped, Delivered), in India
+// time: { day: "28 Oct", time: "11:27 am" }, or null for a step not done yet. The seller's,
+// the admin's and the customer's order timelines all show these.
+function stepTimes(order: {
+  createdAt: Date;
+  paidAt: Date | null;
+  confirmedAt: Date | null;
+  shippedAt: Date | null;
+  deliveredAt: Date | null;
+}): StepTime[] {
+  return [order.createdAt, order.paidAt, order.confirmedAt, order.shippedAt, order.deliveredAt].map((d) =>
+    d
+      ? {
+          day: d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' }),
+          time: d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' }),
+        }
+      : null
+  );
+}
+
 async function sellerOrderRows(sellerId: number | null, language: string, onlyOrderId?: number): Promise<SellerOrderRow[]> {
   const items = await prisma.orderItem.findMany({
     where: { ...(sellerId !== null ? { sellerId } : {}), ...(onlyOrderId ? { orderId: onlyOrderId } : {}) },
@@ -1917,14 +1937,7 @@ async function sellerOrderRows(sellerId: number | null, language: string, onlyOr
         minute: '2-digit',
       }),
       // Ordered, Paid, Confirmed, Shipped, Delivered: when each happened (null = not yet, or not known)
-      stepTimes: [order.createdAt, order.paidAt, order.confirmedAt, order.shippedAt, order.deliveredAt].map((d) =>
-        d
-          ? {
-              day: d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' }),
-              time: d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' }),
-            }
-          : null
-      ),
+      stepTimes: stepTimes(order),
       shop: dt(language).fromShop(list[0].seller.shopName ?? list[0].seller.phone, list[0].seller.shopCode ?? '-'),
       customerName: order.customer.name ?? '-',
       customerPhone: order.customer.phone,
@@ -2305,6 +2318,7 @@ app.get('/shop/:code/order/:id', async (req: Request, res: Response) => {
       })),
       state,
       orderStatus: order.status,
+      stepTimes: stepTimes(order),
       qrSrc,
       qrFromSeller: Boolean(sellerQr),
       upiId: shop.upiId,

@@ -97,6 +97,19 @@ main{max-width:640px;margin:0 auto;padding:12px 12px 96px}
 .track li.done::before,.track li.now::before{background:var(--ok)}
 .track li.now{color:var(--ink);font-weight:700}
 .track li.now span{box-shadow:0 0 0 4px var(--okbg)}
+/* The timeline with dates: names above and below the line in turns (seller, admin, customer) */
+.track.timed{margin:12px 0 6px}
+.track.timed li{height:112px;padding:0}
+.track.timed li span{top:45px}
+.track.timed li::before{top:51px}
+.track.timed .tl{position:absolute;left:-6px;right:-6px;display:flex;flex-direction:column;align-items:center;line-height:1.25}
+.track.timed li.up .tl{bottom:66px}
+.track.timed li.down .tl{top:66px}
+.track.timed .tl b{font-weight:600;font-size:.7rem}
+.track.timed li.now .tl b{font-weight:800;color:var(--ok)}
+.track.timed .tl small{font-size:.66rem;color:var(--ink);white-space:nowrap;font-weight:500}
+.track.timed .tl small+small{color:var(--muted)}
+.track.timed li:not(.done):not(.now) .tl b{color:#94a3b8;font-weight:500}
 .cancelled{margin:12px 0;color:var(--warn);font-weight:700}
 .lines{list-style:none;margin:0;padding:10px 0;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line)}
 .lines li{padding:2px 0}
@@ -186,18 +199,6 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0 4px}
 // buttons, short lists and the tab bar line
 export const DASH_STYLE = `
 /* Order timeline: dots on a line, each step's name, date and time above or below it (in turns) */
-.track.timed{margin:12px 0 6px}
-.track.timed li{height:112px;padding:0}
-.track.timed li span{top:45px}
-.track.timed li::before{top:51px}
-.track.timed .tl{position:absolute;left:-6px;right:-6px;display:flex;flex-direction:column;align-items:center;line-height:1.25}
-.track.timed li.up .tl{bottom:66px}
-.track.timed li.down .tl{top:66px}
-.track.timed .tl b{font-weight:600;font-size:.7rem}
-.track.timed li.now .tl b{font-weight:800;color:var(--ok)}
-.track.timed .tl small{font-size:.66rem;color:var(--ink);white-space:nowrap;font-weight:500}
-.track.timed .tl small+small{color:var(--muted)}
-.track.timed li:not(.done):not(.now) .tl b{color:#94a3b8;font-weight:500}
 .appbar{box-shadow:none}
 .sec{display:flex;align-items:center;gap:8px}
 .sec svg{color:var(--brand2)}
