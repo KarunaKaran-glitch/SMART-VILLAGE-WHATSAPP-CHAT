@@ -866,6 +866,23 @@ const STATUS_FLOW: Record<string, { to: 'CONFIRMED' | 'SHIPPED' | 'DELIVERED'; f
   DELIVER: { to: 'DELIVERED', from: ['SHIPPED'] },
 };
 
+// Each order goes step by step: Money received -> Confirmed -> Shipped -> Delivered, and the
+// customer is told about each step before the seller can do the next one. While a step's
+// message to the customer is still going out (slow network: up to about 35 seconds with the
+// retry), the order is in this list: the dashboard shows "Telling the customer…" instead of
+// the next button, and a next step (dashboard or chat) is refused with W.waitCustomer.
+const notifyingOrders = new Set<number>();
+
+async function oneStepAtATime<T>(orderId: number, step: () => Promise<T>): Promise<{ busy: true } | { busy: false; result: T }> {
+  if (notifyingOrders.has(orderId)) return { busy: true };
+  notifyingOrders.add(orderId);
+  try {
+    return { busy: false, result: await step() };
+  } finally {
+    notifyingOrders.delete(orderId);
+  }
+}
+
 async function updateOrderStatus(
   sellerId: number,
   orderId: number,
@@ -1874,7 +1891,8 @@ async function sellerOrderRows(sellerId: number | null, language: string, onlyOr
     const status = order.status === 'CANCELLED' ? 'CANCELLED' : list[0].status;
     const upi = payment?.method === 'UPI_DIRECT';
     const actions: SellerOrderRow['actions'] = [];
-    if (status !== 'CANCELLED') {
+    const sending = notifyingOrders.has(order.id);
+    if (status !== 'CANCELLED' && !sending) {
       if (upi && payment.status === 'AWAITING_CONFIRMATION') actions.push('RECEIVED', 'NOTRECEIVED');
       else if ((status === 'PENDING' || status === 'PAID') && (!upi || payment.status === 'SUCCESS')) actions.push('CONFIRM');
       else if (status === 'CONFIRMED') actions.push('SHIP');
@@ -1920,6 +1938,7 @@ async function sellerOrderRows(sellerId: number | null, language: string, onlyOr
               : 'notYet',
       reference: payment?.reference ?? null,
       actions,
+      sending,
     });
   }
   // Orders that still need something first, then the finished ones; at most 30
@@ -1945,11 +1964,17 @@ app.post('/seller/orders/:id', async (req: Request, res: Response) => {
       res.status(409).json({ ok: false, error: dt(seller.language).orderChanged });
       return;
     }
-    await inLang(seller.language, () =>
-      action === 'RECEIVED' || action === 'NOTRECEIVED'
-        ? decidePayment(seller.id, orderId, action === 'RECEIVED')
-        : updateOrderStatus(seller.id, orderId, action)
+    const step = await oneStepAtATime(orderId, () =>
+      inLang(seller.language, () =>
+        action === 'RECEIVED' || action === 'NOTRECEIVED'
+          ? decidePayment(seller.id, orderId, action === 'RECEIVED')
+          : updateOrderStatus(seller.id, orderId, action)
+      )
     );
+    if (step.busy) {
+      res.status(409).json({ ok: false, error: dt(seller.language).waitCustomer });
+      return;
+    }
     console.log(`Seller ${seller.shopCode} dashboard: ${action} order #${orderId}`);
     res.json({ ok: true });
   } catch (err) {
@@ -3012,17 +3037,19 @@ async function handleWebhook(body: any) {
 
         const paymentMatch = command.match(/^(RECEIVED|NOTRECEIVED)\s+#?(\d+)$/);
         if (paymentMatch) {
-          await staffSend(
-            await decidePayment(user.id, Number(paymentMatch[2]), paymentMatch[1] === 'RECEIVED')
+          const step = await oneStepAtATime(Number(paymentMatch[2]), () =>
+            decidePayment(user.id, Number(paymentMatch[2]), paymentMatch[1] === 'RECEIVED')
           );
+          await staffSend(step.busy ? dt(user.language).waitCustomer : step.result);
           return;
         }
 
         const statusMatch = command.match(/^(CONFIRM|SHIP|DELIVER)\s+#?(\d+)$/);
         if (statusMatch) {
-          await staffSend(
-            await updateOrderStatus(user.id, Number(statusMatch[2]), statusMatch[1])
+          const step = await oneStepAtATime(Number(statusMatch[2]), () =>
+            updateOrderStatus(user.id, Number(statusMatch[2]), statusMatch[1])
           );
+          await staffSend(step.busy ? dt(user.language).waitCustomer : step.result);
           return;
         }
         // HELP: the full list of typed commands (also the last row of the seller menu)

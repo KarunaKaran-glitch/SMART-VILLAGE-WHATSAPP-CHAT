@@ -36,12 +36,27 @@ export function maskDigits(text: string): string {
   return text.replace(/\d{8,}/g, (d) => d.slice(0, 2) + '*'.repeat(d.length - 4) + d.slice(-2));
 }
 
+// Messages to one phone go out one after another, in the order they were sent: each waits until
+// the one before it to that phone has finished (retry included). Without this, on a slow network
+// a later message ("delivered") could reach Meta before an earlier one ("payment received").
+// Messages to different phones still go out side by side.
+const queues = new Map<string, Promise<void>>();
+
+function postMessage(to: string, kind: string, message: object): Promise<void> {
+  if (!sendingEnabled) return Promise.resolve();
+  const next = (queues.get(to) ?? Promise.resolve()).then(() => postNow(to, kind, message));
+  queues.set(to, next);
+  next.finally(() => {
+    if (queues.get(to) === next) queues.delete(to);
+  });
+  return next;
+}
+
 // Posts one message to the WhatsApp Cloud API. When Meta does not answer at all (a slow or
 // dropped internet connection, "timeout of 15000ms exceeded"), it tries once more after 2 seconds.
 // A message Meta refused (an error in its answer) is not sent again. Never throws: a failed
-// reply must not undo the work already saved.
-async function postMessage(to: string, kind: string, message: object): Promise<void> {
-  if (!sendingEnabled) return;
+// reply must not undo the work already saved (and must not stop the queue).
+async function postNow(to: string, kind: string, message: object): Promise<void> {
   for (let attempt = 1; ; attempt++) {
     try {
       await axios.post(

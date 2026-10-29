@@ -32,6 +32,7 @@ export type SellerOrderRow = {
   payment: 'notYet' | 'check' | 'paid' | 'cancelled';
   reference: string | null;
   actions: ('RECEIVED' | 'NOTRECEIVED' | 'CONFIRM' | 'SHIP' | 'DELIVER')[];
+  sending: boolean; // the customer is still being told about the last step: no next button yet
 };
 
 export type SellerStats = {
@@ -160,7 +161,9 @@ export function renderSellerPage(data: {
           )
           .join('') +
         '</div>'
-      : '') +
+      : o.sending
+        ? `<p class="sending">${escapeHtml(W.sendingCustomer)}</p>`
+        : '') +
     '<p class="msg"></p></article>';
 
   const needYou = data.orders.filter((o) => o.actions.includes('RECEIVED') || o.actions.includes('CONFIRM'));
@@ -347,6 +350,7 @@ const T = ${scriptJson({
     priceInvalid: W.priceInvalid,
     stockInvalid: W.stockInvalid,
     upiInvalid: W.upiInvalid,
+    sendingCustomer: W.sendingCustomer,
   })};
 
 // Tabs: the part after # in the address (#orders ...), so a reload stays on the same tab
@@ -453,12 +457,17 @@ addBtn.addEventListener('click', async () => {
   }
 });
 
+// An order whose last step's message is still going to the customer has no next button yet:
+// look again every 4 seconds until the message has gone
+if (document.querySelector('.order .sending')) setTimeout(() => location.reload(), 4000);
+
 // Orders: Money received / Not received, Confirm, Ship, Deliver
 document.querySelectorAll('.order').forEach((card) => {
   card.addEventListener('click', async (e) => {
     const b = e.target.closest('button');
     if (!b) return;
     card.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+    card.querySelector('.msg').textContent = T.sendingCustomer;
     if (!(await post('/seller/orders/' + card.dataset.id, { action: b.dataset.action }, card.querySelector('.msg'), 'saved'))) {
       card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
     }
