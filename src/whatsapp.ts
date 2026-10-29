@@ -36,62 +36,48 @@ export function maskDigits(text: string): string {
   return text.replace(/\d{8,}/g, (d) => d.slice(0, 2) + '*'.repeat(d.length - 4) + d.slice(-2));
 }
 
-// Sends a text message through the WhatsApp Cloud API.
-// Never throws: a failed reply must not undo the work already saved.
-export async function sendWhatsAppText(to: string, text: string): Promise<void> {
+// Posts one message to the WhatsApp Cloud API. When Meta does not answer at all (a slow or
+// dropped internet connection, "timeout of 15000ms exceeded"), it tries once more after 2 seconds.
+// A message Meta refused (an error in its answer) is not sent again. Never throws: a failed
+// reply must not undo the work already saved.
+async function postMessage(to: string, kind: string, message: object): Promise<void> {
   if (!sendingEnabled) return;
-  try {
-    await axios.post(
-      `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
-      {
-        messaging_product: 'whatsapp',
-        to,
-        type: 'text',
-        text: { body: text, preview_url: false },
-      },
-      { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 10000 }
-    );
-  } catch (err: any) {
-    // Meta explains the problem in the response body (for example error 131047: outside the 24-hour window)
-    const detail = err?.response?.data?.error ?? err?.message ?? err;
-    console.error(`WhatsApp send to ${to} failed:`, JSON.stringify(detail));
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await axios.post(
+        `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
+        { messaging_product: 'whatsapp', to, ...message },
+        { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 15000 }
+      );
+      if (attempt > 1) console.log(`WhatsApp ${kind} to ${to} sent on try ${attempt}`);
+      return;
+    } catch (err: any) {
+      if (!err?.response && attempt < 2) {
+        console.error(`WhatsApp ${kind} to ${to}: no answer from Meta (${err?.message}), trying again`);
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      // Meta explains the problem in the response body (for example error 131047: outside the 24-hour window)
+      const detail = err?.response?.data?.error ?? err?.message ?? err;
+      console.error(`WhatsApp ${kind} to ${to} failed:`, JSON.stringify(detail));
+      return;
+    }
   }
+}
+
+// Sends a text message.
+export async function sendWhatsAppText(to: string, text: string): Promise<void> {
+  await postMessage(to, 'send', { type: 'text', text: { body: text, preview_url: false } });
 }
 
 // Sends a photo by link (the link must be reachable by Meta, so PUBLIC_BASE_URL must be set when live).
-// Never throws, like sendWhatsAppText.
 export async function sendWhatsAppImage(to: string, link: string, caption: string): Promise<void> {
-  if (!sendingEnabled) return;
-  try {
-    await axios.post(
-      `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
-      {
-        messaging_product: 'whatsapp',
-        to,
-        type: 'image',
-        image: { link, caption },
-      },
-      { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 10000 }
-    );
-  } catch (err: any) {
-    const detail = err?.response?.data?.error ?? err?.message ?? err;
-    console.error(`WhatsApp image to ${to} failed:`, JSON.stringify(detail));
-  }
+  await postMessage(to, 'image', { type: 'image', image: { link, caption } });
 }
 
-// Sends a tap message (reply buttons or a list). Never throws, like sendWhatsAppText.
+// Sends a tap message (reply buttons or a list).
 export async function sendWhatsAppInteractive(to: string, interactive: object): Promise<void> {
-  if (!sendingEnabled) return;
-  try {
-    await axios.post(
-      `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
-      { messaging_product: 'whatsapp', to, type: 'interactive', interactive },
-      { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 10000 }
-    );
-  } catch (err: any) {
-    const detail = err?.response?.data?.error ?? err?.message ?? err;
-    console.error(`WhatsApp interactive to ${to} failed:`, JSON.stringify(detail));
-  }
+  await postMessage(to, 'interactive', { type: 'interactive', interactive });
 }
 
 // Downloads a photo a user sent (WhatsApp only gives us a media ID). Returns null on failure.
