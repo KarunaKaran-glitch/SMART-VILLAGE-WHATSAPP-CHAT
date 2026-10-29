@@ -103,7 +103,7 @@ main{max-width:640px;margin:0 auto;padding:12px 12px 96px}
 .track.timed li span{top:45px}
 .track.timed li::before{top:51px}
 .track.timed .tl{position:absolute;left:-6px;right:-6px;display:flex;flex-direction:column;align-items:center;line-height:1.25}
-.track.timed li.up .tl{bottom:66px}
+.track.timed li.up .tl{bottom:71px}
 .track.timed li.down .tl{top:66px}
 .track.timed .tl b{font-weight:600;font-size:.7rem}
 .track.timed li.now .tl b{font-weight:800;color:var(--ok)}

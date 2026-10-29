@@ -12,24 +12,32 @@ export const sendingEnabled = Boolean(TOKEN && PHONE_NUMBER_ID);
 export const signatureCheckEnabled = Boolean(APP_SECRET);
 
 // The bot's own WhatsApp number (for wa.me links: "Back to WhatsApp", the seller's shop link).
-// WHATSAPP_BOT_NUMBER in .env wins; otherwise it is asked from Meta once, when the server starts.
+// WHATSAPP_BOT_NUMBER in .env wins; otherwise it is asked from Meta when the server starts.
+// On a slow network that question can go unanswered, and without the number the pages have no
+// Back to WhatsApp button, so it is asked again (up to 10 times, 5 seconds apart) until known.
 export async function loadBotNumber(): Promise<string | null> {
   const set = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
   if (set) return set;
   if (!sendingEnabled) return null;
-  try {
-    const res = await axios.get(`https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}`, {
-      params: { fields: 'display_phone_number' },
-      headers: { Authorization: `Bearer ${TOKEN}` },
-      timeout: 10000,
-    });
-    const number = String(res.data?.display_phone_number ?? '').replace(/\D/g, '');
-    if (!number) return null;
-    process.env.WHATSAPP_BOT_NUMBER = number;
-    return number;
-  } catch {
-    return null;
+  for (let attempt = 1; attempt <= 10; attempt++) {
+    try {
+      const res = await axios.get(`https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}`, {
+        params: { fields: 'display_phone_number' },
+        headers: { Authorization: `Bearer ${TOKEN}` },
+        timeout: 10000,
+        httpsAgent: metaConnection,
+      });
+      const number = String(res.data?.display_phone_number ?? '').replace(/\D/g, '');
+      if (!number) return null;
+      process.env.WHATSAPP_BOT_NUMBER = number;
+      return number;
+    } catch (err: any) {
+      // Meta answered with an error (wrong token ...): asking again will not help
+      if (err?.response) return null;
+      await new Promise((r) => setTimeout(r, 5000));
+    }
   }
+  return null;
 }
 
 // Hides long digit runs (card, account or transaction numbers) in logs: 123456789012 -> 12********12
