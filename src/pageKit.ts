@@ -173,7 +173,6 @@ textarea{min-height:80px;resize:vertical}
 .dropin{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--brand2);padding:16px;text-align:center}
 .hint{color:var(--muted);font-size:.85rem;margin:8px 0 0}
 .msg{color:var(--warn);font-size:.88rem;margin:8px 0 0;min-height:0}
-.sending{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#fef3c7;color:#92400e;font-weight:600;font-size:.88rem}
 .msg:empty{display:none}
 hr{border:0;border-top:1px solid var(--line);margin:18px 0 4px}
 .qrnow{display:block;width:180px;max-width:100%;border-radius:10px;border:1px solid var(--line);margin:10px 0}
