@@ -23,11 +23,19 @@ stop_server() {
   if [ -n "$SERVER_PID" ]; then kill "$SERVER_PID" 2>/dev/null; fi
   powershell -NoProfile -Command '$p=(Get-NetTCPConnection -LocalPort 3001 -State Listen -EA SilentlyContinue).OwningProcess; if($p){Stop-Process -Id $p -Force}' 2>/dev/null
 }
-trap 'stop_server; cleanup; rm -rf "$SP"' EXIT
+# The test logs in as the fake admin, which makes a new admin link and so ends the one you are
+# using in your browser. Its link is saved here and put back at the end, so your admin page keeps working.
+ADMIN_TOKEN=""
+restore_admin() {
+  [ -n "$ADMIN_TOKEN" ] || return 0
+  "$PSQL" "$DB" -qtAc "update \"User\" set \"dashToken\" = nullif(split_part('$ADMIN_TOKEN','|',1),''), \"dashTokenAt\" = nullif(split_part('$ADMIN_TOKEN','|',2),'')::timestamp where phone='919000000000'" >/dev/null
+}
+trap 'stop_server; cleanup; restore_admin; rm -rf "$SP"' EXIT
 
 if [ "$("$PSQL" "$DB" -tAc "select role from \"User\" where phone='919000000000'")" != "ADMIN" ]; then
   echo "The fake admin 919000000000 is missing or not an ADMIN. Make it an admin first."; exit 1
 fi
+ADMIN_TOKEN=$("$PSQL" "$DB" -tAc "select coalesce(\"dashToken\",'') || '|' || coalesce(\"dashTokenAt\"::text,'') from \"User\" where phone='919000000000'")
 cleanup
 echo "Starting a test server on port 3001 (sending off) ..."
 PORT=3001 WHATSAPP_TOKEN= WHATSAPP_PHONE_NUMBER_ID= WHATSAPP_APP_SECRET= WHATSAPP_BOT_NUMBER=15556478208 \

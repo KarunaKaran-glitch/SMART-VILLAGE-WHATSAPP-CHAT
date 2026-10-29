@@ -1958,6 +1958,10 @@ app.post('/seller/orders/:id', async (req: Request, res: Response) => {
     }
     const orderId = Number(req.params.id);
     const action = String(req.body.action);
+    if (notifyingOrders.has(orderId)) {
+      res.status(409).json({ ok: false, error: dt(seller.language).waitCustomer });
+      return;
+    }
     const [row] = Number.isInteger(orderId) ? await sellerOrderRows(seller.id, seller.language, orderId) : [];
     // Only the step the order is waiting for (it may have been answered in the chat meanwhile)
     if (!row || !row.actions.includes(action as SellerOrderRow['actions'][number])) {
@@ -3461,13 +3465,15 @@ app.post('/webhook', async (req: Request, res: Response) => {
     return;
   }
 
+  // Answer Meta at once, then do the work. Meta sends a message again when the answer is slow,
+  // and replies can take a while on a slow network (see whatsapp.ts), so waiting for them made
+  // Meta send the same message twice. Repeats are still skipped (ProcessedMessage).
+  res.sendStatus(200);
   try {
     // Each webhook call gets its own language setting (handleWebhook sets the sender's)
     await inLang('en', () => handleWebhook(req.body));
-    res.sendStatus(200);
   } catch (err) {
     console.error('Webhook error:', err);
-    res.sendStatus(500);
   }
 });
 
