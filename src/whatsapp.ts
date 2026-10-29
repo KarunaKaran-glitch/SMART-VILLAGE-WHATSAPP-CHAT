@@ -53,29 +53,49 @@ function postMessage(to: string, kind: string, message: object): Promise<void> {
   return next;
 }
 
-// Posts one message to the WhatsApp Cloud API. On this network about 1 request in 12 hangs
-// (Meta never answers), while the rest answer in about 0.3 seconds. So each try waits at most
-// 8 seconds, uses a new connection (an old reused one is the one most likely to hang), and a
-// message with no answer is tried up to 3 times, 1 second apart. A message Meta refused (an
-// error in its answer) is not sent again. Never throws: a failed reply must not undo the work
-// already saved (and must not stop the queue).
-const TRIES = 3;
-const freshConnection = new https.Agent({ keepAlive: false });
+// Posts one message to the WhatsApp Cloud API. Measured on this network: opening a new
+// connection to Meta often gets no answer at all (about 4 tries in 10), while a good one opens
+// in about 0.02 seconds and Meta answers in about 0.3 seconds. So:
+// - a connection that works is kept and used again for the next messages (keep-alive), and
+//   dropped after 20 seconds unused, before the network quietly closes it;
+// - a new connection that has not opened within 1.5 seconds is given up and tried again at once.
+//   Nothing was sent on it, so this can never send a message twice;
+// - once connected, Meta has 10 seconds to answer. Without an answer the message is tried again
+//   too (rare; then the customer may get it twice, which is better than not at all).
+// Up to 6 tries in all. A message Meta refused (an error in its answer) is not sent again.
+// Never throws: a failed reply must not undo the work already saved (and must not stop the queue).
+const TRIES = 6;
+const CONNECT_WAIT = 1500;
+
+class QuickConnectAgent extends https.Agent {
+  createConnection(options: any, callback?: any): any {
+    const socket = (https.Agent.prototype as any).createConnection.call(this, options, callback);
+    const timer = setTimeout(() => socket.destroy(Object.assign(new Error('could not connect'), { code: 'ECONNECT' })), CONNECT_WAIT);
+    socket.once('secureConnect', () => clearTimeout(timer));
+    socket.once('close', () => clearTimeout(timer));
+    return socket;
+  }
+}
+const metaConnection = new QuickConnectAgent({ keepAlive: true, timeout: 20000 });
 
 async function postNow(to: string, kind: string, message: object): Promise<void> {
+  const started = Date.now();
   for (let attempt = 1; ; attempt++) {
     try {
       await axios.post(
         `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
         { messaging_product: 'whatsapp', to, ...message },
-        { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 8000, httpsAgent: freshConnection }
+        { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 10000, httpsAgent: metaConnection }
       );
-      if (attempt > 1) console.log(`WhatsApp ${kind} to ${to} sent on try ${attempt}`);
+      if (attempt > 1) console.log(`WhatsApp ${kind} to ${to} sent on try ${attempt} (${((Date.now() - started) / 1000).toFixed(1)} s)`);
       return;
     } catch (err: any) {
       if (!err?.response && attempt < TRIES) {
-        console.error(`WhatsApp ${kind} to ${to}: no answer from Meta (${err?.message}), trying again`);
-        await new Promise((r) => setTimeout(r, 1000));
+        // Could not connect: try again at once. Connected but no answer: wait a moment first.
+        if (err?.code !== 'ECONNECT') {
+          console.error(`WhatsApp ${kind} to ${to}: no answer from Meta (${err?.message}), trying again`);
+          await new Promise((r) => setTimeout(r, 500));
+        }
         continue;
       }
       // Meta explains the problem in the response body (for example error 131047: outside the 24-hour window)
