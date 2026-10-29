@@ -151,6 +151,8 @@ msg $C "Hi 5918"; ok $([ "$(last | grep -c '>> Reply to')" = "1" ] && [ "$(last 
 msg $C SHOPNOW; ok $([ "$(last | grep -c '/shop/')" = "0" ] && echo 1 || echo 0) "chat: after a wrong code, Shop now does not open the old shop"
 msg $C "$IDA"; ok $(has "$(last)" 'हिन्दी') "chat: shop ID typed without Hi opens that shop (language question)"
 msg $C 3; ok $(has "$(last)" 'हिन्दी') "chat: a language the shop does not offer (3 = Odia) is refused"
+msg $C 1; msg $C "Hi$IDA"; ok $(has "$(last)" 'हिन्दी') "chat: Hi and the shop ID without a space (Hi$IDA) -> language question"
+msg $C "hi, $IDA"; ok $(has "$(last)" 'हिन्दी') "chat: 'hi, $IDA' with a comma -> language question"
 msg $C 2; ok $(has "$(last)" 'Shop A') "chat: an offered language (2 = Hindi) is accepted"
 msg $C 5917; ok $(has "$(last)" '5917') "chat: unknown 4-digit number alone -> 'no shop'"
 msg $D "Hi $IDB"; msg $D LANG; ok $([ "$(last | grep -F -c '[অসমীয়া] -> 4   [हिन्दी] -> 2   [English] -> 1')" = "1" ] && echo 1 || echo 0) "chat: Assam shop -> LANG shows Assamese first, then Hindi and English"

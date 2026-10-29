@@ -2471,7 +2471,10 @@ async function handleWebhook(body: any) {
     // A bare 4-digit number is also a shop ID (people often send just the number), but only
     // while the person is not typing something else (a price, an address) and not when a seller
     // sends their own ID (that opens their dashboard, below)
-    const hiCode = command.match(/^(?:HI|HELLO|HAI)\s+([A-Z0-9]{2,12})$/)?.[1];
+    // People also type it without a space or with a mark: "Hi4285", "Hi, 4285", "Hii-4285"
+    const hiCode =
+      command.match(/^(?:HI+|HELLO|HAI)[\s,.:!-]*(\d{3,6})$/)?.[1] ??
+      command.match(/^(?:HI|HELLO|HAI)\s+([A-Z0-9]{2,12})$/)?.[1];
     const bareCode =
       /^\d{4}$/.test(command) &&
       (!user || user.state === 'BROWSING' || user.state === 'CHOOSING_LANGUAGE') &&
