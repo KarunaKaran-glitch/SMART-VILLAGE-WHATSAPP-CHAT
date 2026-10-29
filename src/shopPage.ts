@@ -467,7 +467,7 @@ main.thanks{padding-top:70px}
 `;
 
 // The payment page of one order: the seller's QR code, UPI ID (Copy), [Pay with UPI app] and
-// "I have paid" with the transaction number. After that it shows the order's progress.
+// "I have paid" (no number to type). After that it shows the order's progress.
 export type PayPageState = 'pay' | 'waiting' | 'received' | 'cancelled';
 
 export function renderPayPage(data: {
@@ -528,14 +528,12 @@ export function renderPayPage(data: {
       '</div>' +
       step(2, W.afterPay) +
       '<div class="card form">' +
-      `<label for="ref">${escapeHtml(W.refLabel)}</label>` +
-      '<input id="ref" inputmode="text" autocomplete="off" maxlength="24" placeholder="123456789012">' +
-      `<p class="hint">${escapeHtml(W.refHint)}</p>` +
+      `<p class="paidhint">${escapeHtml(W.paidHint)}</p>` +
       '<p class="msg" id="msg"></p>' +
       `<button type="button" class="btn approve block" id="paid">✓ ${escapeHtml(W.paid)}</button></div>` +
       summary;
     script = `
-const T = ${scriptJson({ copied: W.copied, copy: W.copy, refInvalid: W.refInvalid, failed: W.failed, expired: W.expired })};
+const T = ${scriptJson({ copied: W.copied, copy: W.copy, failed: W.failed, expired: W.expired })};
 const copy = document.getElementById('copy');
 if (copy) copy.addEventListener('click', async () => {
   const text = document.getElementById('upi').textContent;
@@ -550,14 +548,12 @@ if (copy) copy.addEventListener('click', async () => {
 const btn = document.getElementById('paid');
 const msg = document.getElementById('msg');
 btn.addEventListener('click', async () => {
-  const ref = document.getElementById('ref').value.replace(/\\s+/g, '').toUpperCase();
-  if (ref && !/^[A-Z0-9]{8,24}$/.test(ref)) { msg.textContent = T.refInvalid; return; }
   btn.disabled = true;
   try {
     const res = await fetch(location.pathname + '/paid', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ t: ${scriptJson(data.token)}, ref }),
+      body: JSON.stringify({ t: ${scriptJson(data.token)} }),
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.ok) { location.reload(); return; }
@@ -605,6 +601,11 @@ btn.addEventListener('click', async () => {
         : '') +
       '</div>' +
       summary;
+    // Like a shop app's order page: while the order is still on its way, the page looks again
+    // every 20 seconds (only while it is on screen), so each new step shows up by itself
+    if (data.state !== 'cancelled' && s !== 'DELIVERED') {
+      script = `setInterval(() => { if (document.visibilityState === 'visible') location.reload(); }, 20000);`;
+    }
   }
 
   return (
@@ -708,6 +709,7 @@ body.reviewing .cartbar{display:none}
 .upirow b{overflow-wrap:anywhere}
 .btn.approve{background:var(--ok);color:#fff}
 .lines li{display:flex;justify-content:space-between;gap:10px}
+.paidhint{margin:0 0 12px;color:var(--ink);font-size:.92rem;line-height:1.45}
 .statuscard{text-align:center}
 .statuscard h2{margin:10px 0 4px;font-size:1.3rem}
 .statuscard p{margin:0;color:var(--muted)}

@@ -123,9 +123,12 @@ echo "== Seller notices open the dashboard"
 newo=$(grep -A6 ">> Link button to $SA" "$LOG" | grep -A5 "#$OID!")
 ok $(has "$newo" '/seller?t=') "new order notice to the seller has a dashboard link"
 echo "== Payment inputs"
-ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\",\"ref\":\"12-34\"}")" ' 409') "paid: wrong transaction number refused"
-ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\",\"ref\":\"555566667777\"}")" '"ok":true') "paid: good transaction number accepted"
-sleep 0.5; paidn=$(grep -A6 ">> Link button to $SA" "$LOG" | grep -A5 "#$OID ")
+ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\",\"ref\":\"12-34\"}")" ' 409') "paid: wrong transaction number refused (chat PAID n number still checks it)"
+ok $([ "$(curl -s "$B/shop/$IDA/order/$OID?t=$CT" | grep -c 'id="ref"')" = "0" ] && echo 1 || echo 0) "pay page: no transaction number box"
+ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\"}")" '"ok":true') "paid: 'I have paid' with no number accepted"
+ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\"}")" '"ok":true') "paid: tapped again -> still fine"
+sleep 0.5; ok $([ "$(grep -c "\"Order $OID\"" "$LOG")" = "1" ] && echo 1 || echo 0) "paid twice -> the seller is asked only once"
+paidn=$(grep -A6 ">> Link button to $SA" "$LOG" | grep -A5 "#$OID ")
 ok $(has "$paidn" '/seller?t=') "paid notice to the seller has a dashboard link"
 ok $([ "$(echo "$paidn" | grep -c 'RECEIVED')" = "0" ] && echo 1 || echo 0) "paid notice has no Received / Not received buttons in WhatsApp"
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/seller?t=$ST")" = "200" ] && echo 1 || echo 0) "the seller's open dashboard page still works after the notices"
@@ -136,7 +139,12 @@ ok $([ "$(last | grep -c '>> Reply to')" = "1" ] && [ "$(last | grep -c -- '->')
 msg $D "Hi $IDA"; msg $D 1; msg $D SHOPNOW; DT=$(tok "localhost:3001/shop/$IDA?t=[^ ]*")
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/shop/$IDA/order/$OID?t=$DT")" = "403" ] && echo 1 || echo 0) "pay page: another customer cannot open this order"
 ok $(has "$(post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"SHIP\"}")" ' 409') "seller: Ship before the money is received refused"
-ok $(has "$(post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}")" '"ok":true') "seller: Money received"
+post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}" > "$SP/r1" & post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}" > "$SP/r2"; wait $!; sleep 0.3
+ok $([ "$(cat "$SP/r1" "$SP/r2" | grep -c '"ok":true')" = "1" ] && echo 1 || echo 0) "seller: Money received tapped twice at the same moment -> done once"
+ok $([ "$(sql "select o.status || ' ' || p.status || ' ' || (o.\"paidAt\" is not null) from \"Order\" o join \"Payment\" p on p.\"orderId\" = o.id where o.id = $OID")" = "PAID SUCCESS true" ] && echo 1 || echo 0) "money received: order PAID, payment SUCCESS and paid time saved together"
+for a in CONFIRM SHIP DELIVER; do post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"$a\"}" >/dev/null; done
+ok $([ "$(sql "select o.status || ' ' || bool_and(i.status = 'DELIVERED') || ' ' || (o.\"confirmedAt\" is not null and o.\"shippedAt\" is not null and o.\"deliveredAt\" is not null) from \"Order\" o join \"OrderItem\" i on i.\"orderId\" = o.id where o.id = $OID group by o.id")" = "DELIVERED true true" ] && echo 1 || echo 0) "confirm, ship, deliver: order and items move together, each step time saved"
+ok $(has "$(post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"DELIVER\"}")" ' 409') "seller: Deliver again refused"
 
 echo "== Chat: shop codes and languages"
 msg $C "Hi 5918"; ok $([ "$(last | grep -c '>> Reply to')" = "1" ] && [ "$(last | grep -c -- '->')" = "0" ] && echo 1 || echo 0) "chat: Hi + unknown number -> 'no shop' message, no buttons"

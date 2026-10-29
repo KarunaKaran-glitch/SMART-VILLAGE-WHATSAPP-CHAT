@@ -603,11 +603,14 @@ async function reportPaid(
   const repeat = payment.status === 'AWAITING_CONFIRMATION' && (!ref || ref === payment.reference);
   if (repeat) return { text: U.paidThanks(orderId), buttons: nextButtons(language) };
 
+  // Only if the payment is still as it was read above: two taps on "I have paid" at the same
+  // moment (page and chat) change it once, and the seller is asked only once
   try {
-    await prisma.payment.update({
-      where: { id: payment.id },
+    const reported = await prisma.payment.updateMany({
+      where: { id: payment.id, status: payment.status, reference: payment.reference },
       data: { status: 'AWAITING_CONFIRMATION', reference: ref ?? payment.reference },
     });
+    if (reported.count === 0) return { text: U.paidThanks(orderId), buttons: nextButtons(language) };
   } catch (err: any) {
     // Another message saved the same number at the same moment
     if (err?.code === 'P2002') return U.refUsed;
@@ -646,26 +649,24 @@ async function decidePayment(
     return SELLER_TEXT.noPaymentWaiting(orderId);
   }
 
-  if (received) {
-    await prisma.$transaction([
-      prisma.payment.update({ where: { id: payment.id }, data: { status: 'SUCCESS' } }),
-      prisma.order.updateMany({
-        where: { id: orderId, status: 'PENDING' },
-        data: { status: 'PAID' },
-      }),
-      prisma.order.update({ where: { id: orderId }, data: { paidAt: new Date() } }),
-      prisma.orderItem.updateMany({
-        where: { orderId, status: 'PENDING' },
-        data: { status: 'PAID' },
-      }),
-    ]);
-  } else {
-    // Back to waiting; the customer can send PAID again with the right number
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: { status: 'INITIATED', reference: null },
+  // One transaction (ACID): the payment, the order and its items change together or not at all.
+  // The payment only changes while it is still waiting for this answer, so if the seller answers
+  // twice at the same moment (dashboard and chat), the second answer finds nothing to change.
+  const decided = await prisma.$transaction(async (tx) => {
+    const answer = await tx.payment.updateMany({
+      where: { id: payment.id, status: 'AWAITING_CONFIRMATION' },
+      // Not received: back to waiting; the customer can pay and tap "I have paid" again
+      data: received ? { status: 'SUCCESS' } : { status: 'INITIATED', reference: null },
     });
-  }
+    if (answer.count === 0) return false;
+    if (received) {
+      await tx.order.updateMany({ where: { id: orderId, status: 'PENDING' }, data: { status: 'PAID' } });
+      await tx.order.update({ where: { id: orderId }, data: { paidAt: new Date() } });
+      await tx.orderItem.updateMany({ where: { orderId, status: 'PENDING' }, data: { status: 'PAID' } });
+    }
+    return true;
+  });
+  if (!decided) return SELLER_TEXT.noPaymentWaiting(orderId);
 
   // Tell the customer. A failure here must not undo the decision.
   try {
@@ -860,7 +861,7 @@ async function createOrders(
 // The time each step is saved under, for the order's timeline
 const STEP_TIME = { CONFIRMED: 'confirmedAt', SHIPPED: 'shippedAt', DELIVERED: 'deliveredAt' } as const;
 
-const STATUS_FLOW: Record<string, { to: 'CONFIRMED' | 'SHIPPED' | 'DELIVERED'; from: string[] }> = {
+const STATUS_FLOW: Record<string, { to: 'CONFIRMED' | 'SHIPPED' | 'DELIVERED'; from: ('PENDING' | 'PAID' | 'CONFIRMED' | 'SHIPPED')[] }> = {
   CONFIRM: { to: 'CONFIRMED', from: ['PENDING', 'PAID'] },
   SHIP: { to: 'SHIPPED', from: ['CONFIRMED'] },
   DELIVER: { to: 'DELIVERED', from: ['SHIPPED'] },
@@ -905,33 +906,41 @@ async function updateOrderStatus(
     }
   }
 
-  const allowed = items.filter((i) => rule.from.includes(i.status));
+  const allowed = items.filter((i) => (rule.from as string[]).includes(i.status));
   if (allowed.length === 0) {
     return SELLER_TEXT.cannotChange(orderId, items[0].status, rule.to);
   }
 
-  await prisma.orderItem.updateMany({
-    where: { id: { in: allowed.map((i) => i.id) } },
-    data: { status: rule.to },
-  });
-
-  // If every item in the order now has this status, update the order itself too
-  const all = await prisma.orderItem.findMany({ where: { orderId } });
-  if (all.every((i) => i.status === rule.to)) {
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { status: rule.to, [STEP_TIME[rule.to]]: new Date() },
+  // One transaction (ACID): the items, the order and a cash payment change together or not at
+  // all. Each change only applies to rows still in the expected state, so a second tap at the
+  // same moment (dashboard and chat) finds nothing left to change and the step happens once.
+  const moved = await prisma.$transaction(async (tx) => {
+    const step = await tx.orderItem.updateMany({
+      where: { id: { in: allowed.map((i) => i.id) }, status: { in: rule.from } },
+      data: { status: rule.to },
     });
+    if (step.count === 0) return false;
 
-    // Cash on delivery: delivery means the cash was collected
-    if (rule.to === 'DELIVERED') {
-      const cash = await prisma.payment.updateMany({
-        where: { orderId, method: 'COD', status: 'INITIATED' },
-        data: { status: 'SUCCESS' },
+    // If every item in the order now has this status, update the order itself too
+    const all = await tx.orderItem.findMany({ where: { orderId } });
+    if (all.every((i) => i.status === rule.to)) {
+      await tx.order.update({
+        where: { id: orderId },
+        data: { status: rule.to, [STEP_TIME[rule.to]]: new Date() },
       });
-      if (cash.count > 0) await prisma.order.update({ where: { id: orderId }, data: { paidAt: new Date() } });
+
+      // Cash on delivery: delivery means the cash was collected
+      if (rule.to === 'DELIVERED') {
+        const cash = await tx.payment.updateMany({
+          where: { orderId, method: 'COD', status: 'INITIATED' },
+          data: { status: 'SUCCESS' },
+        });
+        if (cash.count > 0) await tx.order.update({ where: { id: orderId }, data: { paidAt: new Date() } });
+      }
     }
-  }
+    return true;
+  });
+  if (!moved) return SELLER_TEXT.cannotChange(orderId, items[0].status, rule.to);
 
   // Tell the customer. A failure here must not break the update.
   try {
