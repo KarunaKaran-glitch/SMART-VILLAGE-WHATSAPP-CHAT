@@ -256,11 +256,16 @@ function languageReply(shopLanguage?: string | null): RichReply {
 }
 
 // The language list for this person: limited to their seller's languages if they came by a link
-async function languageReplyFor(user: { shopId: number | null }): Promise<RichReply> {
+async function languageReplyFor(user: {
+  shopId: number | null;
+  role?: string;
+  shopLanguage?: string | null;
+}): Promise<RichReply> {
   const shop = user.shopId
     ? await prisma.user.findUnique({ where: { id: user.shopId }, select: { shopLanguage: true } })
     : null;
-  return languageReply(shop?.shopLanguage);
+  // A seller outside a shop visit chooses from their own state's languages
+  return languageReply(shop?.shopLanguage ?? (user.role === 'SELLER' ? user.shopLanguage : undefined));
 }
 
 // ---- Seller's own shop link ----
@@ -1846,7 +1851,10 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
       shopLanguage,
       sellerState: homeState!.name,
       categoryId: category.id,
-      state: 'BROWSING' as const,
+      // The seller first chooses their language (their state's language, Hindi or English); the
+      // welcome with their ID and the dashboard then come in that language
+      state: 'CHOOSING_LANGUAGE' as const,
+      shopId: null,
       pendingProductId: null,
       pendingProductName: null,
     };
@@ -1856,14 +1864,17 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
       : await prisma.user.create({ data: { ...sellerData, phone, language: shopLanguage } });
     console.log(`Admin added seller ${maskDigits(phone)} with ID ${id}`);
 
-    // Tell the seller (WhatsApp only delivers this if they wrote to the bot in the last 24 hours)
+    // Tell the seller (WhatsApp only delivers this if they wrote to the bot in the last 24 hours):
+    // first the language question; after their choice comes the welcome (see CHOOSING_LANGUAGE)
     try {
       await sendReply(
         seller.phone,
-        inLang(seller.language, () => ({
-          text: dt(seller.language).sellerWelcome(name, shopName, id),
-          buttons: [{ id, title: dt(seller.language).btnMyDashboard }],
-        }))
+        (() => {
+          const ask = languageReply(shopLanguage);
+          return { ...ask, text: `🎉 ${name} · Smart Village · ID ${id}
+
+${ask.text}` };
+        })()
       );
     } catch (err) {
       console.error('Seller welcome message failed:', err);
@@ -1874,6 +1885,16 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
     res.status(500).json({ ok: false });
   }
 });
+
+// The welcome for a new seller, in their language: their name, shop and ID, and [My dashboard]
+function sellerWelcomeReply(seller: { language: string; name: string | null; shopName: string | null; shopCode: string | null }): RichReply {
+  const D = dt(seller.language);
+  const id = seller.shopCode ?? '';
+  return inLang(seller.language, () => ({
+    text: D.sellerWelcome(seller.name ?? '', seller.shopName ?? '', id),
+    buttons: [{ id: id || 'DASHBOARD', title: D.btnMyDashboard }],
+  }));
+}
 
 // The seller's orders for the dashboard (open ones first), each with its one next step:
 // Money received / Not received when the customer reported a payment, then Confirm, Ship, Deliver.
@@ -3279,7 +3300,12 @@ async function handleWebhook(body: any) {
     // ---- State: choosing a language ----
     if (user.state === 'CHOOSING_LANGUAGE') {
       // Through a shop link only the offered languages count (the state's language, Hindi, English)
-      const offered = myShop?.role === 'SELLER' ? shopLanguageCodes(myShop.shopLanguage) : null;
+      const offered =
+        myShop?.role === 'SELLER'
+          ? shopLanguageCodes(myShop.shopLanguage)
+          : user.role === 'SELLER'
+            ? shopLanguageCodes(user.shopLanguage)
+            : null;
       const chosen = LANGUAGES[text];
       if (!chosen || (offered && !offered.includes(chosen.code))) {
         await sendReply(phone, await languageReplyFor(user));
@@ -3290,10 +3316,15 @@ async function handleWebhook(body: any) {
         data: { language: chosen.code, state: 'BROWSING' },
       });
       setLang(chosen.code);
-      // Someone who came through a shop link lands in that shop, even a seller or admin
+      // Someone who came through a shop link lands in that shop, even a seller or admin.
+      // A seller gets their welcome (name, shop, ID and [My dashboard]) in the chosen language.
       await sendReply(
         phone,
-        currentShop() ? welcomeReply(chosen.code) : homeReply({ ...user, language: chosen.code })
+        currentShop()
+          ? welcomeReply(chosen.code)
+          : user.role === 'SELLER'
+            ? sellerWelcomeReply({ ...user, language: chosen.code })
+            : homeReply({ ...user, language: chosen.code })
       );
       return;
     }

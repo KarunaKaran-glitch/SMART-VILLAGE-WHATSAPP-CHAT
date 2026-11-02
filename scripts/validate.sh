@@ -30,7 +30,8 @@ restore_admin() {
   [ -n "$ADMIN_TOKEN" ] || return 0
   "$PSQL" "$DB" -qtAc "update \"User\" set \"dashToken\" = nullif(split_part('$ADMIN_TOKEN','|',1),''), \"dashTokenAt\" = nullif(split_part('$ADMIN_TOKEN','|',2),'')::timestamp where phone='919000000000'" >/dev/null
 }
-trap 'stop_server; cleanup; restore_admin; rm -rf "$SP"' EXIT
+# KEEP_LOG=<file> keeps the test server's log there (to see what the bot answered)
+trap 'stop_server; cleanup; restore_admin; [ -n "$KEEP_LOG" ] && cp "$LOG" "$KEEP_LOG"; rm -rf "$SP"' EXIT
 
 if [ "$("$PSQL" "$DB" -tAc "select role from \"User\" where phone='919000000000'")" != "ADMIN" ]; then
   echo "The fake admin 919000000000 is missing or not an ADMIN. Make it an admin first."; exit 1
@@ -73,6 +74,10 @@ page=$(curl -s "$B/admin?t=$AT")
 ok $(has "$page" '&lt;b&gt;Bad&lt;/b&gt;') "admin page: HTML in a name is shown as text, not run"
 
 echo "== Seller A dashboard"
+ok $(grep -A6 ">> Buttons to $SA" "$LOG" | grep -F -q '[हिन्दी] -> 2   [English] -> 1' && echo 1 || echo 0) "new seller (Rajasthan) is first asked the language: Hindi or English"
+msg $SA 4; ok $(last | grep -F -q '[English] -> 1' && echo 1 || echo 0) "new seller: a language their state does not offer (4 = Assamese) asks again"
+msg $SA 1; ok $(has "$(last)" "$IDA") "new seller: after choosing English, the welcome with their ID comes"
+ok $([ "$(sql "select language || ' ' || state from \"User\" where phone='$SA'")" = "en BROWSING" ] && echo 1 || echo 0) "new seller: the chosen language (English) is saved"
 msg $SA "$IDA"; ST=$(tok 'localhost:3001/seller?t=[^ ]*')
 ok $([ -n "$ST" ] && echo 1 || echo 0) "seller: own ID without Hi opens the dashboard"
 # The test photo: one of the app's own pictures, so it also works on an empty database
@@ -128,7 +133,7 @@ ok $([ "$(curl -s "$B/shop/$IDA/order/$OID?t=$CT" | grep -c 'id="ref"')" = "0" ]
 ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\"}")" '"ok":true') "paid: 'I have paid' with no number accepted"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\"}")" '"ok":true') "paid: tapped again -> still fine"
 sleep 0.5; ok $([ "$(grep -c "\"Order $OID\"" "$LOG")" = "1" ] && echo 1 || echo 0) "paid twice -> the seller is asked only once"
-paidn=$(grep -A6 ">> Link button to $SA" "$LOG" | grep -A5 "#$OID ")
+paidn=$(grep -A6 ">> Link button to $SA" "$LOG" | grep -A5 "#$OID[ .]")
 ok $(has "$paidn" '/seller?t=') "paid notice to the seller has a dashboard link"
 ok $([ "$(echo "$paidn" | grep -c 'RECEIVED')" = "0" ] && echo 1 || echo 0) "paid notice has no Received / Not received buttons in WhatsApp"
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/seller?t=$ST")" = "200" ] && echo 1 || echo 0) "the seller's open dashboard page still works after the notices"
@@ -156,7 +161,7 @@ msg $C "hi, $IDA"; ok $(has "$(last)" 'हिन्दी') "chat: 'hi, $IDA' wi
 msg $C 2; ok $(has "$(last)" 'Shop A') "chat: an offered language (2 = Hindi) is accepted"
 msg $C 5917; ok $(has "$(last)" '5917') "chat: unknown 4-digit number alone -> 'no shop'"
 msg $D "Hi $IDB"; msg $D LANG; ok $([ "$(last | grep -F -c '[অসমীয়া] -> 4   [हिन्दी] -> 2   [English] -> 1')" = "1" ] && echo 1 || echo 0) "chat: Assam shop -> LANG shows Assamese first, then Hindi and English"
-msg $SB ADD; msg $SB "Blue Wallet"; msg $SB "$IDA"
+msg $SB 2; msg $SB ADD; msg $SB "Blue Wallet"; msg $SB "$IDA"
 ok $(has "$(last)" 'SKIP') "chat: seller typing a price equal to a shop ID is taken as the price (next: the description)"
 msg $SB CANCEL
 
