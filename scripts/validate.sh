@@ -75,8 +75,8 @@ ok $(has "$page" '&lt;b&gt;Bad&lt;/b&gt;') "admin page: HTML in a name is shown 
 echo "== Seller A dashboard"
 msg $SA "$IDA"; ST=$(tok 'localhost:3001/seller?t=[^ ]*')
 ok $([ -n "$ST" ] && echo 1 || echo 0) "seller: own ID without Hi opens the dashboard"
-KEY=$(sql "select \"imageKey\" from \"Product\" where \"imageKey\" is not null order by id limit 1")
-curl -s "$B/images/$KEY" -o "$SP/v.img"; MIME=$(curl -s -o /dev/null -w "%{content_type}" "$B/images/$KEY")
+# The test photo: one of the app's own pictures, so it also works on an empty database
+cp assets/status/order-confirmed.jpg "$SP/v.img"; MIME=image/jpeg
 printf '{"t":"%s","name":"<i>Red</i> Bag","price":"450","photo":"data:%s;base64,%s"}' "$ST" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp.json"
 r=$(post /seller/products "@$SP/vp.json"); PID=$(echo "$r" | grep -o '"id":[0-9]*' | cut -d: -f2)
 ok $(has "$r" '"ok":true') "seller: product with photo added"
@@ -159,6 +159,10 @@ msg $D "Hi $IDB"; msg $D LANG; ok $([ "$(last | grep -F -c '[অসমীয়�
 msg $SB ADD; msg $SB "Blue Wallet"; msg $SB "$IDA"
 ok $(has "$(last)" 'SKIP') "chat: seller typing a price equal to a shop ID is taken as the price (next: the description)"
 msg $SB CANCEL
+
+echo "== Delivery failures from Meta"
+curl -s -o /dev/null -X POST $B/webhook -H 'Content-Type: application/json' -d '{"entry":[{"changes":[{"value":{"statuses":[{"id":"wamid.x","status":"failed","recipient_id":"919500000074","errors":[{"code":131047,"title":"Re-engagement message"}]}]}}]}]}'; sleep 0.5
+ok $(grep -q 'Delivery failed to 91\*\*\*\*\*\*\*\*74: the 24-hour window is closed' "$LOG" && echo 1 || echo 0) "Meta's later 'failed' notice is printed, with the number hidden and the reason in plain words"
 
 echo "== Old links"
 sql "update \"User\" set \"webTokenAt\" = (now() at time zone 'utc') - interval '25 hours' where phone='$D'" >/dev/null

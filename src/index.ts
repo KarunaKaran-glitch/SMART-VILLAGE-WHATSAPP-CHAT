@@ -2444,11 +2444,35 @@ app.get('/webhook', (req: Request, res: Response) => {
 });
 
 // Handles one incoming webhook call
+// Meta first accepts a message and only reports a few seconds later, in a separate webhook call,
+// that it could not be delivered. Those failures are printed here, so they do not go unnoticed:
+// "Delivery failed to 91******86: the 24-hour window is closed ... (131047)"
+const DELIVERY_FAILURE: Record<number, string> = {
+  131047:
+    'the 24-hour window is closed (this person has not messaged the bot for over 24 hours; ask them to send Hi first)',
+  131026: 'this number cannot receive the message (not on WhatsApp, old WhatsApp app, or terms not accepted)',
+  131049: 'Meta held it back to protect the person from too many business messages',
+  131051: 'this kind of message is not supported',
+  131053: 'the photo could not be fetched or sent (check that the photo link opens from the internet)',
+  130472: "the person's number is part of a Meta experiment and gets no business messages",
+};
+
+function logDeliveryFailure(status: any) {
+  if (status?.status !== 'failed') return;
+  const to = maskDigits(String(status.recipient_id ?? '?'));
+  for (const err of status.errors ?? [{}]) {
+    const code = Number(err.code);
+    const why = DELIVERY_FAILURE[code] ?? err.error_data?.details ?? err.title ?? err.message ?? 'unknown reason';
+    console.error(`Delivery failed to ${to}: ${why} (${Number.isFinite(code) ? code : '?'})`);
+  }
+}
+
 async function handleWebhook(body: any) {
   let messageId: string | undefined;
 
   try {
     const value = body?.entry?.[0]?.changes?.[0]?.value;
+    for (const status of value?.statuses ?? []) logDeliveryFailure(status);
     const message = value?.messages?.[0];
     if (!message) return; // not a message (for example a delivery status)
 
