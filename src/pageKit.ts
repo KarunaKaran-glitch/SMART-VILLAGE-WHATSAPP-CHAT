@@ -153,8 +153,6 @@ main{max-width:640px;margin:0 auto;padding:12px 12px 96px}
 .badge.hidden{background:#475569;color:#fff}
 .pbody{padding:10px;display:flex;flex-direction:column;gap:2px;flex:1}
 .pname{margin:0;font-weight:600;font-size:.9rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.4em}
-.pnew{margin:4px 0 0;display:flex;gap:4px;align-items:flex-start;font-size:.74rem;font-weight:600;color:#4f46e5;background:#eef2ff;border-radius:8px;padding:4px 6px}
-.pnew svg{flex:none;margin-top:1px}
 .pprice{margin:2px 0 0;font-weight:800;font-size:1.05rem}
 .pstock{margin:0;color:var(--muted);font-size:.78rem}
 .pacts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}

@@ -11,7 +11,6 @@ import { wt } from './webText';
 export type SellerProductRow = {
   id: number;
   name: string;
-  pendingName: string | null; // a new name waiting for the admin (customers still see the old one)
   price: number;
   stock: number | null;
   imageUrl: string | null;
@@ -188,7 +187,6 @@ export function renderSellerPage(data: {
       (p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">` : '') +
       `<span class="badge ${p.status}">${escapeHtml(statusText[p.status])}</span></div>` +
       `<div class="pbody"><p class="pname">${escapeHtml(p.name)}</p>` +
-      (p.pendingName ? `<p class="pnew">${svg(ICON.clock, 13)} ${escapeHtml(W.nameWaiting(p.pendingName))}</p>` : '') +
       `<p class="pprice">₹${rupees(p.price)}</p>` +
       `<p class="pstock${p.stock === 0 ? ' none' : p.stock !== null && p.stock <= 3 ? ' low' : ''}">` +
       `${escapeHtml(W.stockLabel(p.stock))}</p>` +
@@ -200,7 +198,7 @@ export function renderSellerPage(data: {
         : '') +
       '</div>' +
       '<div class="editbox" hidden>' +
-      `<label>${escapeHtml(W.nameLabel)}</label><input class="ename" maxlength="60" autocomplete="off" value="${escapeHtml(p.pendingName ?? p.name)}">` +
+      `<label>${escapeHtml(W.nameLabel)}</label><input class="ename" maxlength="60" autocomplete="off" value="${escapeHtml(p.name)}">` +
       `<label>${escapeHtml(W.priceLabel)}</label><input class="eprice" inputmode="decimal" value="${p.price}">` +
       `<label>${escapeHtml(W.stockLabelEdit)}</label><input class="estock" inputmode="numeric" value="${p.stock ?? ''}">` +
       `<button type="button" class="btn primary small" data-act="save">${escapeHtml(W.saveChange)}</button></div>` +
@@ -397,7 +395,7 @@ async function post(url, body, msgEl, notice) {
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.ok) {
-      location.href = '/seller?t=' + encodeURIComponent(TOKEN) + '&done=' + (out.notice || notice) + (location.hash || '');
+      location.href = '/seller?t=' + encodeURIComponent(TOKEN) + '&done=' + notice + (location.hash || '');
       return true;
     }
     msgEl.textContent = res.status === 403 ? T.expired : (out.error || T.failed);

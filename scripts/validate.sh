@@ -103,26 +103,25 @@ ok $(has "$page" '&lt;i&gt;Red&lt;/i&gt; Bag') "seller page: HTML in a product n
 echo "== Product name changes"
 printf '{"t":"%s","name":"Blu Pouch","price":"120","photo":"data:%s;base64,%s"}' "$ST" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp4.json"
 P2=$(post /seller/products "@$SP/vp4.json" | grep -o '"id":[0-9]*' | cut -d: -f2)
-pname() { sql "select p.name || '|' || coalesce(p.\"pendingName\",'-') || '|' || coalesce((select string_agg(t.name, ',') from \"ProductTranslation\" t where t.\"productId\" = p.id),'') from \"Product\" p where p.id = $P2"; }
-ok $(has "$(post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"X\",\"price\":120,\"stock\":null}")" ' 400') "rename: a 1-letter name refused"
-post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Blue  Pouch \",\"price\":120,\"stock\":null}" >/dev/null
-ok $([ "$(pname)" = "Blue Pouch|-|Blue Pouch" ] && echo 1 || echo 0) "rename while waiting for approval: the name changes at once (spaces tidied)"
+pname() { sql "select p.name || '|' || coalesce(p.\"renamedFrom\",'-') || '|' || coalesce((select string_agg(t.name, ',') from \"ProductTranslation\" t where t.\"productId\" = p.id),'') from \"Product\" p where p.id = $P2"; }
+ren() { post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"$1\",\"price\":120,\"stock\":null}"; }
+ok $(has "$(ren X)" ' 400') "rename: a 1-letter name refused"
+ren "Blue  Pouch " >/dev/null
+ok $([ "$(pname)" = "Blue Pouch|-|Blue Pouch" ] && echo 1 || echo 0) "rename before approval: the name changes, nothing extra for the admin (spaces tidied)"
 sql "update \"Product\" set approval='APPROVED' where id=$P2" >/dev/null
-r=$(post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Blue Cotton Pouch\",\"price\":120,\"stock\":null}")
-ok $([ "$(pname)" = "Blue Pouch|Blue Cotton Pouch|Blue Pouch" ] && has "$r" 'renamed' >/dev/null && echo 1 || echo 0) "rename an approved product: customers keep the old name, the new one waits for the admin"
-ok $(has "$(curl -s "$B/seller?t=$ST")" 'Blue Cotton Pouch') "seller page shows the new name waiting"
-ok $(has "$(curl -s "$B/admin?t=$AT")" 'class="card rename" data-id="'$P2'"') "admin page shows the name change (old -> new)"
-post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Blue Pouch\",\"price\":120,\"stock\":null}" >/dev/null
-ok $([ "$(pname)" = "Blue Pouch|-|Blue Pouch" ] && echo 1 || echo 0) "rename: typing the old name again takes the change back"
-post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Blue Cotton Pouch\",\"price\":120,\"stock\":null}" >/dev/null
-ok $(has "$(post /admin/products/$P2/name "{\"t\":\"$ST\",\"approve\":true}")" ' 403') "rename: a seller link cannot approve a name"
-ok $(has "$(post /admin/products/$P2/name "{\"t\":\"$AT\",\"approve\":true}")" '"ok":true') "admin approves the new name"
-ok $([ "$(pname)" = "Blue Cotton Pouch|-|Blue Cotton Pouch" ] && echo 1 || echo 0) "after approval the product (and its translation) has the new name"
-ok $(has "$(post /admin/products/$P2/name "{\"t\":\"$AT\",\"approve\":true}")" ' 409') "rename: approving twice refused"
-ok $(grep -q 'is now "Blue Cotton Pouch"' "$LOG" && echo 1 || echo 0) "seller is told on WhatsApp that the new name was approved"
-post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Bad Name\",\"price\":120,\"stock\":null}" >/dev/null
-post /admin/products/$P2/name "{\"t\":\"$AT\",\"approve\":false}" >/dev/null
-ok $([ "$(pname)" = "Blue Cotton Pouch|-|Blue Cotton Pouch" ] && echo 1 || echo 0) "admin rejects a new name: the old name stays"
+ren "Blue Cotton Pouch" >/dev/null
+ok $([ "$(pname)" = "Blue Cotton Pouch|Blue Pouch|Blue Cotton Pouch" ] && echo 1 || echo 0) "rename an approved product: the new name is used at once, no new approval"
+ok $([ "$(sql "select approval from \"Product\" where id=$P2")" = "APPROVED" ] && echo 1 || echo 0) "rename: the product stays approved (approved only once)"
+ren "Blue Cotton Pouch Large" >/dev/null
+ok $([ "$(pname)" = "Blue Cotton Pouch Large|Blue Pouch|Blue Cotton Pouch Large" ] && echo 1 || echo 0) "rename twice before the admin looks: the admin still sees the first old name"
+a=$(curl -s "$B/admin?t=$AT")
+ok $(echo "$a" | grep -q 'class="card rename" data-id="'$P2'"' && echo "$a" | grep -q '<s>Blue Pouch</s>' && [ "$(echo "$a" | grep -c 'card rename.*data-ok="0"')" = "0" ] && echo 1 || echo 0) "admin page shows the name change (old -> new) with only 'OK, seen', no Reject"
+ok $(has "$(post /admin/products/$P2/name "{\"t\":\"$ST\"}")" ' 403') "rename: a seller link cannot mark it seen"
+ok $(has "$(post /admin/products/$P2/name "{\"t\":\"$AT\"}")" '"ok":true') "admin taps OK, seen"
+ok $([ "$(curl -s "$B/admin?t=$AT" | grep -c 'card rename')" = "0" ] && echo 1 || echo 0) "after OK, seen the name change is not shown again (once only)"
+ok $(has "$(post /admin/products/$P2/name "{\"t\":\"$AT\"}")" ' 409') "rename: OK, seen twice refused"
+ren "Blue Pouch Small" >/dev/null; ren "Blue Cotton Pouch Large" >/dev/null
+ok $([ "$(pname)" = "Blue Cotton Pouch Large|-|Blue Cotton Pouch Large" ] && echo 1 || echo 0) "rename and back to the name the admin saw: nothing to show"
 sql "update \"Product\" set \"isActive\"=false where id=$P2" >/dev/null
 
 echo "== Customer C: shop without UPI ID"
@@ -171,6 +170,9 @@ ok $([ "$(last | grep -c '>> Reply to')" = "1" ] && [ "$(last | grep -c -- '->')
 msg $D "Hi $IDA"; msg $D 1; msg $D SHOPNOW; DT=$(tok "localhost:3001/shop/$IDA?t=[^ ]*")
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/shop/$IDA/order/$OID?t=$DT")" = "403" ] && echo 1 || echo 0) "pay page: another customer cannot open this order"
 ok $(has "$(post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"SHIP\"}")" ' 409') "seller: Ship before the money is received refused"
+ok $(has "$(curl -s "$B/shop/$IDA/order/$OID/state?t=$CT")" '"v":"PENDING AWAITING_CONFIRMATION"') "order page step check: answers where the order is now"
+ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/shop/$IDA/order/$OID/state?t=$DT")" = "403" ] && echo 1 || echo 0) "order page step check: another customer gets nothing"
+ok $(has "$(curl -s "$B/shop/$IDA/order/$OID?t=$CT")" "/state?t=") "order page (payment reported) checks for the next step by itself"
 post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}" > "$SP/r1" & post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}" > "$SP/r2"; wait $!; sleep 0.3
 ok $([ "$(cat "$SP/r1" "$SP/r2" | grep -c '"ok":true')" = "1" ] && echo 1 || echo 0) "seller: Money received tapped twice at the same moment -> done once"
 ok $([ "$(sql "select o.status || ' ' || p.status || ' ' || (o.\"paidAt\" is not null) from \"Order\" o join \"Payment\" p on p.\"orderId\" = o.id where o.id = $OID")" = "PAID SUCCESS true" ] && echo 1 || echo 0) "money received: order PAID, payment SUCCESS and paid time saved together"

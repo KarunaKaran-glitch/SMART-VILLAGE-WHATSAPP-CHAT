@@ -29,11 +29,11 @@ export type AdminWaitingProduct = {
   shop: string; // "Malathy Bags (ID 5915)"
 };
 
-// A seller's new name for an approved product, waiting for the admin
+// A seller changed the name of an approved product: shown to the admin once, until "OK, seen"
 export type AdminRename = {
   id: number;
-  oldName: string; // what customers see now
-  newName: string;
+  oldName: string; // the name the admin saw before
+  newName: string; // the name customers see now
   price: string;
   imageUrl: string | null;
   shop: string;
@@ -68,7 +68,7 @@ export function renderAdminPage(data: {
     `<div class="acts two"><button type="button" class="btn approve" data-ok="1">✓ ${escapeHtml(W.approve)}</button>` +
     `<button type="button" class="btn ghost-red" data-ok="0">✕ ${escapeHtml(W.reject)}</button></div></article>`;
 
-  // A name change: the product's photo, the old name crossed out, the new name, Approve / Reject
+  // A name change: the product's photo, the old name crossed out, the new name, [OK, seen]
   const renameCard = (p: AdminRename) =>
     `<article class="card rename" data-id="${p.id}">` +
     '<div class="rnrow">' +
@@ -78,8 +78,7 @@ export function renderAdminPage(data: {
     `<small>${escapeHtml(W.newName)}</small><b>${escapeHtml(p.newName)}</b></div></div>` +
     `<p class="shopline">${svg(ICON.store, 16)} ${escapeHtml(p.shop)} · #${p.id} · ₹${escapeHtml(p.price)}</p>` +
     '<p class="msg"></p>' +
-    `<div class="acts two"><button type="button" class="btn approve" data-ok="1">✓ ${escapeHtml(W.approve)}</button>` +
-    `<button type="button" class="btn ghost-red" data-ok="0">✕ ${escapeHtml(W.reject)}</button></div></article>`;
+    `<div class="acts"><button type="button" class="btn primary block" data-ok="1">✓ ${escapeHtml(W.seenBtn)}</button></div></article>`;
   const toCheck = data.waiting.length + data.renames.length;
 
   // ---- Sellers ----
@@ -244,8 +243,7 @@ const T = ${scriptJson({
     expired: W.expired,
     approvedNote: W.approvedNote,
     rejectedNote: W.rejectedNote,
-    renameApprovedNote: W.renameApprovedNote,
-    renameRejectedNote: W.renameRejectedNote,
+    seenNote: W.seenNote,
   })};
 
 // Tabs: the part after # in the address, so a reload stays on the same tab
@@ -259,7 +257,7 @@ function showTab() {
 window.addEventListener('hashchange', showTab);
 showTab();
 
-// Approve / Reject a waiting product or a new product name; the card then shows the decision
+// Approve / Reject a waiting product, or "OK, seen" on a name change; the card then shows it
 document.querySelectorAll('.check, .rename').forEach((card) => {
   const rename = card.classList.contains('rename');
   card.addEventListener('click', async (e) => {
@@ -278,8 +276,8 @@ document.querySelectorAll('.check, .rename').forEach((card) => {
       if (res.ok && out.ok) {
         card.querySelector('.acts').remove();
         card.classList.add(approve ? 'decided-ok' : 'decided-no');
-        note.textContent = (approve ? '✅ ' : '✖️ ') +
-          (rename ? (approve ? T.renameApprovedNote : T.renameRejectedNote) : (approve ? T.approvedNote : T.rejectedNote));
+        if (rename) { card.classList.add('decided-ok'); note.textContent = '✅ ' + T.seenNote; return; }
+        note.textContent = (approve ? '✅ ' : '✖️ ') + (approve ? T.approvedNote : T.rejectedNote);
         return;
       }
       note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);

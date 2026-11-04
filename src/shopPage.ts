@@ -481,6 +481,7 @@ export function renderPayPage(data: {
   state: PayPageState;
   orderStatus: string; // PENDING, PAID, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
   stepTimes: StepTime[]; // when Ordered, Paid, Confirmed, Shipped, Delivered happened
+  stateKey: string; // where the order is now, in short (see /state): the page checks it for a new step
   qrSrc: string | null; // the seller's QR photo, or one made with the amount filled in
   qrFromSeller: boolean;
   upiId: string | null;
@@ -610,10 +611,31 @@ btn.addEventListener('click', async () => {
         : '') +
       '</div>' +
       summary;
-    // Like a shop app's order page: while the order is still on its way, the page looks again
-    // every 20 seconds (only while it is on screen), so each new step shows up by itself
+    // Like a shop app's order page: while the order is still on its way, the page asks the
+    // server every 5 seconds whether the order moved on (a phone slows this down by itself while
+    // the page is in the background), and at once when the customer comes back from WhatsApp. Only a new step loads the page
+    // again, so every step up to Delivered shows up by itself, without refreshing by hand.
     if (data.state !== 'cancelled' && s !== 'DELIVERED') {
-      script = `setInterval(() => { if (document.visibilityState === 'visible') location.reload(); }, 20000);`;
+      script = `
+const NOW = ${scriptJson(data.stateKey)};
+const STATE_URL = location.pathname + '/state?t=' + encodeURIComponent(${scriptJson(data.token)});
+let checking = false;
+async function checkStep() {
+  if (checking) return;
+  checking = true;
+  try {
+    const res = await fetch(STATE_URL, { cache: 'no-store' });
+    const out = await res.json().catch(() => ({}));
+    // A new step, or the visit closed after delivery (403): load the page again
+    if (res.status === 403 || (res.ok && out.v && out.v !== NOW)) { location.reload(); return; }
+  } catch (e) {}
+  checking = false;
+}
+setInterval(checkStep, 5000);
+document.addEventListener('visibilitychange', checkStep);
+window.addEventListener('focus', checkStep);
+window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+`;
     }
   }
 
