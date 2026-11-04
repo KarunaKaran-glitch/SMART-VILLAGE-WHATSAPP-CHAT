@@ -118,6 +118,7 @@ const en = {
   payNotYet: 'Payment: not paid yet',
   payCheck: (ref: string | null) =>
     `Payment: the customer says they paid${ref ? ` (transaction no. ${ref})` : ''}. Check your bank or UPI app, then answer.`,
+  payCheckAdmin: 'Payment: the customer says they paid. Waiting for the seller to check it and confirm.',
   payPaid: 'Payment: received ✅',
   payCancelled: 'Payment: cancelled',
   stPending: 'New',
@@ -287,6 +288,7 @@ const hi: typeof en = {
   payNotYet: 'भुगतान: अभी नहीं हुआ',
   payCheck: (ref: string | null) =>
     `भुगतान: ग्राहक कहते हैं कि उन्होंने भुगतान किया${ref ? ` (ट्रांज़ैक्शन नंबर ${ref})` : ''}। अपना बैंक या UPI ऐप देखें, फिर जवाब दें।`,
+  payCheckAdmin: 'भुगतान: ग्राहक कहता है कि उसने भुगतान किया। विक्रेता के जाँचकर पुष्टि करने का इंतज़ार है।',
   payPaid: 'भुगतान: मिल गया ✅',
   payCancelled: 'भुगतान: रद्द',
   stPending: 'नया',
@@ -454,6 +456,7 @@ const or: typeof en = {
   payNotYet: 'ପେମେଣ୍ଟ: ଏପର୍ଯ୍ୟନ୍ତ ହୋଇନି',
   payCheck: (ref: string | null) =>
     `ପେମେଣ୍ଟ: ଗ୍ରାହକ କହୁଛନ୍ତି ସେ ପଇସା ଦେଇଛନ୍ତି${ref ? ` (ଟ୍ରାଞ୍ଜାକ୍ସନ୍ ନମ୍ବର ${ref})` : ''}। ଆପଣଙ୍କ ବ୍ୟାଙ୍କ ବା UPI ଆପ୍ ଦେଖି ଉତ୍ତର ଦିଅନ୍ତୁ।`,
+  payCheckAdmin: 'ପେମେଣ୍ଟ: ଗ୍ରାହକ କହୁଛନ୍ତି ସେ ପଇସା ଦେଇଛନ୍ତି। ବିକ୍ରେତା ଯାଞ୍ଚ କରି ନିଶ୍ଚିତ କରିବା ଅପେକ୍ଷାରେ।',
   payPaid: 'ପେମେଣ୍ଟ: ମିଳିଗଲା ✅',
   payCancelled: 'ପେମେଣ୍ଟ: ବାତିଲ',
   stPending: 'ନୂଆ',
@@ -621,6 +624,7 @@ const as: typeof en = {
   payNotYet: 'পেমেণ্ট: এতিয়াও হোৱা নাই',
   payCheck: (ref: string | null) =>
     `পেমেণ্ট: গ্ৰাহকে কৈছে তেওঁ ধন দিছে${ref ? ` (লেনদেন নম্বৰ ${ref})` : ''}। আপোনাৰ বেংক বা UPI এপ চাই উত্তৰ দিয়ক।`,
+  payCheckAdmin: 'পেমেণ্ট: গ্ৰাহকে কৈছে তেওঁ ধন দিছে। বিক্ৰেতাই পৰীক্ষা কৰি নিশ্চিত কৰাৰ অপেক্ষাত।',
   payPaid: 'পেমেণ্ট: পোৱা গ’ল ✅',
   payCancelled: 'পেমেণ্ট: বাতিল',
   stPending: 'নতুন',

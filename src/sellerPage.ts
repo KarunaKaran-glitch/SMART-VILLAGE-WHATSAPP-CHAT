@@ -68,7 +68,10 @@ export function orderView(o: SellerOrderRow, language: string, withShop: boolean
   const W = dt(language);
   const paymentText =
     o.payment === 'check'
-      ? W.payCheck(o.reference)
+      ? // Only the seller is asked to check their bank; the admin just sees that it is waiting
+        withShop
+        ? W.payCheckAdmin
+        : W.payCheck(o.reference)
       : o.payment === 'paid'
         ? W.payPaid
         : o.payment === 'cancelled'

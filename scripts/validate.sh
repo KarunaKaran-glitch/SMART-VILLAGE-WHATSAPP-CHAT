@@ -159,6 +159,8 @@ ok $([ "$(curl -s "$B/shop/$IDA/order/$OID?t=$CT" | grep -c 'id="ref"')" = "0" ]
 ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\"}")" '"ok":true') "paid: 'I have paid' with no number accepted"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\"}")" '"ok":true') "paid: tapped again -> still fine"
 sleep 0.5; ok $([ "$(grep -c "\"Order $OID\"" "$LOG")" = "1" ] && echo 1 || echo 0) "paid twice -> the seller is asked only once"
+a=$(curl -s "$B/admin?t=$AT"); ok $(echo "$a" | grep -q 'Waiting for the seller to check it' && ! echo "$a" | grep -q 'Check your bank or UPI app, then answer' && echo 1 || echo 0) "admin page: a reported payment says 'waiting for the seller', not the seller's 'check your bank'"
+ok $(has "$(curl -s "$B/seller?t=$ST")" 'Check your bank or UPI app, then answer') "seller page: a reported payment still asks the seller to check their bank"
 paidn=$(grep -A6 ">> Link button to $SA" "$LOG" | grep -A5 "#$OID[ .]")
 ok $(has "$paidn" '/seller?t=') "paid notice to the seller has a dashboard link"
 ok $([ "$(echo "$paidn" | grep -c 'RECEIVED')" = "0" ] && echo 1 || echo 0) "paid notice has no Received / Not received buttons in WhatsApp"
