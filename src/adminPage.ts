@@ -29,10 +29,21 @@ export type AdminWaitingProduct = {
   shop: string; // "Malathy Bags (ID 5915)"
 };
 
+// A seller's new name for an approved product, waiting for the admin
+export type AdminRename = {
+  id: number;
+  oldName: string; // what customers see now
+  newName: string;
+  price: string;
+  imageUrl: string | null;
+  shop: string;
+};
+
 export function renderAdminPage(data: {
   language: string;
   token: string;
   waiting: AdminWaitingProduct[];
+  renames: AdminRename[];
   stats: { sellers: number; orders: number; sales: string };
   states: { value: string; label: string; languages: string }[]; // languages: "অসমীয়া + हिन्दी + English"
   categories: { id: number; name: string }[];
@@ -56,6 +67,20 @@ export function renderAdminPage(data: {
     '<p class="msg"></p>' +
     `<div class="acts two"><button type="button" class="btn approve" data-ok="1">✓ ${escapeHtml(W.approve)}</button>` +
     `<button type="button" class="btn ghost-red" data-ok="0">✕ ${escapeHtml(W.reject)}</button></div></article>`;
+
+  // A name change: the product's photo, the old name crossed out, the new name, Approve / Reject
+  const renameCard = (p: AdminRename) =>
+    `<article class="card rename" data-id="${p.id}">` +
+    '<div class="rnrow">' +
+    (p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">` : '<span class="noimg"></span>') +
+    `<div class="rnnames"><span class="waitchip">${svg(ICON.edit, 13)} ${escapeHtml(W.nameChangeChip)}</span>` +
+    `<small>${escapeHtml(W.oldName)}</small><s>${escapeHtml(p.oldName)}</s>` +
+    `<small>${escapeHtml(W.newName)}</small><b>${escapeHtml(p.newName)}</b></div></div>` +
+    `<p class="shopline">${svg(ICON.store, 16)} ${escapeHtml(p.shop)} · #${p.id} · ₹${escapeHtml(p.price)}</p>` +
+    '<p class="msg"></p>' +
+    `<div class="acts two"><button type="button" class="btn approve" data-ok="1">✓ ${escapeHtml(W.approve)}</button>` +
+    `<button type="button" class="btn ghost-red" data-ok="0">✕ ${escapeHtml(W.reject)}</button></div></article>`;
+  const toCheck = data.waiting.length + data.renames.length;
 
   // ---- Sellers ----
   const sellerCard = (s: AdminSellerRow) => {
@@ -99,7 +124,7 @@ export function renderAdminPage(data: {
     `<div class="earn"><div><span>${escapeHtml(W.statSales)}</span><b>₹${escapeHtml(data.stats.sales)}</b></div>` +
     `<a href="#orders"><em>${svg(ICON.orders, 16)} ${data.stats.orders} ${escapeHtml(W.statOrders)} ${svg(ICON.chevron, 14)}</em></a></div></div>` +
     '<div class="stats">' +
-    stat('hot', ICON.clock, data.waiting.length, W.statToApprove, '#approve') +
+    stat('hot', ICON.clock, toCheck, W.statToApprove, '#approve') +
     stat('blue', ICON.store, data.stats.sellers, W.statSellers, '#sellers') +
     stat('green', ICON.orders, data.stats.orders, W.statOrders, '#orders') +
     '</div>' +
@@ -137,6 +162,10 @@ export function renderAdminPage(data: {
     (data.waiting.length
       ? data.waiting.map(checkCard).join('')
       : `<div class="card caught">${svg(ICON.check, 30)}<p>${escapeHtml(W.noProductsWaiting)}</p></div>`) +
+    (data.renames.length
+      ? `<h3 class="sec">${escapeHtml(W.nameChanges)} <span class="count">${data.renames.length}</span></h3>` +
+        data.renames.map(renameCard).join('')
+      : '') +
     '</section>';
 
   const sellers =
@@ -200,7 +229,7 @@ export function renderAdminPage(data: {
         ([id, label, icon]) =>
           `<a href="#${id}" data-tab="${id}"${id === 'addseller' ? ' class="center"' : ''}>` +
           `${id === 'addseller' ? `<i class="plusbtn">${svg(ICON.plus, 26)}</i>` : svg(icon)}<span>${escapeHtml(label)}</span>` +
-          (id === 'approve' && data.waiting.length ? `<i class="dot">${data.waiting.length}</i>` : '') +
+          (id === 'approve' && toCheck ? `<i class="dot">${toCheck}</i>` : '') +
           '</a>'
       )
       .join('') +
@@ -215,6 +244,8 @@ const T = ${scriptJson({
     expired: W.expired,
     approvedNote: W.approvedNote,
     rejectedNote: W.rejectedNote,
+    renameApprovedNote: W.renameApprovedNote,
+    renameRejectedNote: W.renameRejectedNote,
   })};
 
 // Tabs: the part after # in the address, so a reload stays on the same tab
@@ -228,8 +259,9 @@ function showTab() {
 window.addEventListener('hashchange', showTab);
 showTab();
 
-// Approve / Reject a waiting product; the card then shows the decision
-document.querySelectorAll('.check').forEach((card) => {
+// Approve / Reject a waiting product or a new product name; the card then shows the decision
+document.querySelectorAll('.check, .rename').forEach((card) => {
+  const rename = card.classList.contains('rename');
   card.addEventListener('click', async (e) => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -237,7 +269,7 @@ document.querySelectorAll('.check').forEach((card) => {
     const note = card.querySelector('.msg');
     card.querySelectorAll('button').forEach((x) => { x.disabled = true; });
     try {
-      const res = await fetch('/admin/products/' + card.dataset.id, {
+      const res = await fetch('/admin/products/' + card.dataset.id + (rename ? '/name' : ''), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ t: TOKEN, approve }),
@@ -246,7 +278,8 @@ document.querySelectorAll('.check').forEach((card) => {
       if (res.ok && out.ok) {
         card.querySelector('.acts').remove();
         card.classList.add(approve ? 'decided-ok' : 'decided-no');
-        note.textContent = (approve ? '✅ ' : '✖️ ') + (approve ? T.approvedNote : T.rejectedNote);
+        note.textContent = (approve ? '✅ ' : '✖️ ') +
+          (rename ? (approve ? T.renameApprovedNote : T.renameRejectedNote) : (approve ? T.approvedNote : T.rejectedNote));
         return;
       }
       note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
@@ -372,6 +405,16 @@ const ADMIN_STYLE = `
 .check{border-left:4px solid #f59e0b;box-shadow:0 2px 10px rgba(16,24,40,.07)}
 .check .ohead b{font-size:1.05rem}
 .check .two .btn{padding:13px 10px}
+.rename{border-left:4px solid #6366f1;box-shadow:0 2px 10px rgba(16,24,40,.07)}
+.rename .msg{color:var(--ink);font-weight:700}
+.rename .two .btn{padding:13px 10px}
+.rnrow{display:flex;gap:12px;align-items:flex-start}
+.rnrow img,.rnrow .noimg{width:84px;height:84px;border-radius:12px;object-fit:cover;flex:none;background:var(--line)}
+.rnnames{display:flex;flex-direction:column;gap:1px;min-width:0}
+.rnnames .waitchip{position:static;align-self:flex-start;background:#6366f1;margin-bottom:6px}
+.rnnames small{color:var(--muted);font-size:.72rem;margin-top:4px}
+.rnnames s{color:var(--muted)}
+.rnnames b{font-size:1.05rem;color:var(--ink)}
 .decided-ok{border-left-color:var(--ok)}
 .decided-no{border-left-color:var(--warn)}
 .minis{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}

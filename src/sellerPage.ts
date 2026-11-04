@@ -11,6 +11,7 @@ import { wt } from './webText';
 export type SellerProductRow = {
   id: number;
   name: string;
+  pendingName: string | null; // a new name waiting for the admin (customers still see the old one)
   price: number;
   stock: number | null;
   imageUrl: string | null;
@@ -187,6 +188,7 @@ export function renderSellerPage(data: {
       (p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="" loading="lazy">` : '') +
       `<span class="badge ${p.status}">${escapeHtml(statusText[p.status])}</span></div>` +
       `<div class="pbody"><p class="pname">${escapeHtml(p.name)}</p>` +
+      (p.pendingName ? `<p class="pnew">${svg(ICON.clock, 13)} ${escapeHtml(W.nameWaiting(p.pendingName))}</p>` : '') +
       `<p class="pprice">₹${rupees(p.price)}</p>` +
       `<p class="pstock${p.stock === 0 ? ' none' : p.stock !== null && p.stock <= 3 ? ' low' : ''}">` +
       `${escapeHtml(W.stockLabel(p.stock))}</p>` +
@@ -198,6 +200,7 @@ export function renderSellerPage(data: {
         : '') +
       '</div>' +
       '<div class="editbox" hidden>' +
+      `<label>${escapeHtml(W.nameLabel)}</label><input class="ename" maxlength="60" autocomplete="off" value="${escapeHtml(p.pendingName ?? p.name)}">` +
       `<label>${escapeHtml(W.priceLabel)}</label><input class="eprice" inputmode="decimal" value="${p.price}">` +
       `<label>${escapeHtml(W.stockLabelEdit)}</label><input class="estock" inputmode="numeric" value="${p.stock ?? ''}">` +
       `<button type="button" class="btn primary small" data-act="save">${escapeHtml(W.saveChange)}</button></div>` +
@@ -369,19 +372,20 @@ function showTab() {
 window.addEventListener('hashchange', showTab);
 showTab();
 
-// A latest order on Home opens the Orders tab at that order
-document.querySelectorAll('[data-goto]').forEach((a) => {
-  a.addEventListener('click', (e) => {
-    e.preventDefault();
-    location.hash = 'orders';
-    showTab();
-    const card = document.querySelector('#tab-orders .order[data-id="' + a.dataset.goto + '"]');
-    if (card) {
-      card.scrollIntoView({ block: 'start' });
-      window.scrollBy(0, -80);
-      card.classList.add('flash');
-    }
-  });
+// A latest order on Home opens the Orders tab at that order (one listener for the whole page,
+// so it keeps working after the order parts are swapped in again, see refreshOrders)
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-goto]');
+  if (!a) return;
+  e.preventDefault();
+  location.hash = 'orders';
+  showTab();
+  const card = document.querySelector('#tab-orders .order[data-id="' + a.dataset.goto + '"]');
+  if (card) {
+    card.scrollIntoView({ block: 'start' });
+    window.scrollBy(0, -80);
+    card.classList.add('flash');
+  }
 });
 
 async function post(url, body, msgEl, notice) {
@@ -393,7 +397,7 @@ async function post(url, body, msgEl, notice) {
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.ok) {
-      location.href = '/seller?t=' + encodeURIComponent(TOKEN) + '&done=' + notice + (location.hash || '');
+      location.href = '/seller?t=' + encodeURIComponent(TOKEN) + '&done=' + (out.notice || notice) + (location.hash || '');
       return true;
     }
     msgEl.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
@@ -459,20 +463,59 @@ addBtn.addEventListener('click', async () => {
   }
 });
 
+// After an order step the page is not loaded again. Only its order parts (Home with the counts
+// and the latest orders, the Orders tab, the Orders badge) are fetched and swapped in, so the
+// seller stays where they are and the changed order shows its next step at once.
+async function refreshOrders(changedId) {
+  try {
+    const res = await fetch('/seller?t=' + encodeURIComponent(TOKEN), { cache: 'no-store' });
+    if (!res.ok) { location.reload(); return; }
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+    ['tab-home', 'tab-orders'].forEach((id) => {
+      const fresh = doc.getElementById(id);
+      if (fresh) document.getElementById(id).innerHTML = fresh.innerHTML;
+    });
+    const freshTab = doc.querySelector('.tabbar a[data-tab="orders"]');
+    if (freshTab) document.querySelector('.tabbar a[data-tab="orders"]').innerHTML = freshTab.innerHTML;
+    if (changedId) {
+      document.querySelectorAll('.order[data-id="' + changedId + '"]').forEach((c) => c.classList.add('flash'));
+    }
+    watchSending();
+  } catch (e) {
+    location.reload();
+  }
+}
+
 // An order whose last step's message is still going to the customer has no next button yet
 // (no text is shown for it): look again every 4 seconds until the message has gone
-if (document.querySelector('.order .sending')) setTimeout(() => location.reload(), 4000);
+function watchSending() {
+  if (document.querySelector('.order .sending')) setTimeout(() => refreshOrders(), 4000);
+}
+watchSending();
 
-// Orders: Money received / Not received, Confirm, Ship, Deliver
-document.querySelectorAll('.order').forEach((card) => {
-  card.addEventListener('click', async (e) => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    card.querySelectorAll('button').forEach((x) => { x.disabled = true; });
-    if (!(await post('/seller/orders/' + card.dataset.id, { action: b.dataset.action }, card.querySelector('.msg'), 'saved'))) {
-      card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
-    }
-  });
+// Orders: Money received / Not received, Confirm, Ship, Deliver (one listener for the whole page)
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('.order .acts button');
+  if (!b) return;
+  const card = b.closest('.order');
+  const msg = card.querySelector('.msg');
+  card.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+  msg.textContent = '';
+  try {
+    const res = await fetch('/seller/orders/' + card.dataset.id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: TOKEN, action: b.dataset.action }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.ok) { await refreshOrders(card.dataset.id); return; }
+    msg.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
+    // The order changed meanwhile (for example in the chat): show how it is now
+    if (res.status === 409) setTimeout(() => refreshOrders(card.dataset.id), 1500);
+  } catch (err) {
+    msg.textContent = T.failed;
+  }
+  card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
 });
 
 // Products: Edit (price, stock), Hide / Show
@@ -490,7 +533,9 @@ document.querySelectorAll('.prod').forEach((card) => {
       const stock = s === '' ? null : Number(s);
       if (!(price >= 1 && price <= 100000)) { m.textContent = T.priceInvalid; return; }
       if (stock !== null && !(Number.isInteger(stock) && stock >= 0 && stock <= 9999)) { m.textContent = T.stockInvalid; return; }
-      body = { price, stock };
+      const name = card.querySelector('.ename').value.replace(/\\s+/g, ' ').trim();
+      if (name.length < 2 || name.length > 60) { m.textContent = T.nameInvalid; return; }
+      body = { name, price, stock };
     } else {
       body = { active: act === 'show' };
     }

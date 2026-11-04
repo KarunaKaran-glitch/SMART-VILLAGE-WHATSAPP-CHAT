@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { prisma } from './db';
+import type { Prisma } from './generated/prisma/client';
 import { CHOOSE_LANGUAGE, LANGUAGES, t } from './messages';
 import { SHOP_TEXT } from './shopText';
 import { ot } from './orderText';
@@ -1325,6 +1326,47 @@ async function decideProduct(productId: number, approve: boolean): Promise<strin
   return REG_TEXT.productDecided(productId, approve ? 'APPROVED' : 'REJECTED');
 }
 
+// A product's new name: the main name and every translation (they hold the name the seller typed)
+async function renameProduct(tx: Prisma.TransactionClient, productId: number, name: string) {
+  await tx.product.update({ where: { id: productId }, data: { name, pendingName: null } });
+  await tx.productTranslation.updateMany({ where: { productId }, data: { name } });
+}
+
+// The admin approves or rejects a seller's new name for an approved product. One transaction,
+// and only while that same new name is still waiting (ACID: a second tap changes nothing).
+// The seller is told on WhatsApp in their language.
+async function decideRename(productId: number, approve: boolean): Promise<boolean> {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { seller: true, translations: true },
+  });
+  if (!product?.pendingName) return false;
+  const newName = product.pendingName;
+  const oldName = localName(product, product.seller.language);
+  const done = await prisma.$transaction(async (tx) => {
+    const claim = await tx.product.updateMany({
+      where: { id: productId, pendingName: newName },
+      data: { pendingName: null },
+    });
+    if (claim.count === 0) return false;
+    if (approve) await renameProduct(tx, productId, newName);
+    return true;
+  });
+  if (!done) return false;
+  try {
+    const D = dt(product.seller.language);
+    await sendReply(
+      product.seller.phone,
+      inLang(product.seller.language, () =>
+        withNav('SELLER', approve ? D.nameApprovedMsg(oldName, newName) : D.nameRejectedMsg(oldName, newName))
+      )
+    );
+  } catch (err) {
+    console.error('Seller rename notice failed:', err);
+  }
+  return true;
+}
+
 // The category list for a seller or applicant to choose their kind of product
 async function categoryChoiceReply(language: string, intro?: string): Promise<RichReply> {
   const rows = await categoryRows(language, 'SETCATEGORY');
@@ -1720,6 +1762,11 @@ app.get('/admin', async (req: Request, res: Response) => {
     include: { seller: true },
     orderBy: { id: 'asc' },
   });
+  const renames = await prisma.product.findMany({
+    where: { pendingName: { not: null } },
+    include: { seller: true, translations: true },
+    orderBy: { id: 'asc' },
+  });
   const orders = await sellerOrderRows(null, lang);
   const bot = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
   const createdCode = typeof req.query.new === 'string' ? req.query.new : null;
@@ -1743,6 +1790,14 @@ app.get('/admin', async (req: Request, res: Response) => {
         price: rupees(Number(p.price)),
         description: p.description,
         imageUrl: p.imageKey ? `/images/${p.imageKey}` : null,
+        shop: dt(lang).fromShop(p.seller.shopName ?? p.seller.phone, p.seller.shopCode ?? '-'),
+      })),
+      renames: renames.map((p) => ({
+        id: p.id,
+        oldName: localName(p, p.seller.language),
+        newName: p.pendingName ?? '',
+        price: rupees(Number(p.price)),
+        imageUrl: smallPhoto(p),
         shop: dt(lang).fromShop(p.seller.shopName ?? p.seller.phone, p.seller.shopCode ?? '-'),
       })),
       orders,
@@ -1788,6 +1843,30 @@ app.post('/admin/products/:id', async (req: Request, res: Response) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('Product decision failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// Admin approves or rejects a seller's new product name on the admin page: { t, approve }
+app.post('/admin/products/:id/name', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const admin = await dashVisitor(req.body?.t, 'ADMIN');
+    if (!admin) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const productId = Number(req.params.id);
+    const approve = req.body.approve === true;
+    if (!Number.isInteger(productId) || !(await decideRename(productId, approve))) {
+      // Already decided, taken back by the seller, or unknown
+      res.status(409).json({ ok: false, error: dt(admin.language).failed });
+      return;
+    }
+    console.log(`Admin page: new name for product #${productId} ${approve ? 'approved' : 'rejected'}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Rename decision failed:', err);
     res.status(500).json({ ok: false });
   }
 });
@@ -2074,7 +2153,9 @@ app.get('/seller', async (req: Request, res: Response) => {
           ? dt(seller.language).productAdded
           : req.query.done === 'saved'
             ? dt(seller.language).saved
-            : null,
+            : req.query.done === 'renamed'
+              ? dt(seller.language).nameSent
+              : null,
       shopLink: bot && seller.shopCode ? `https://wa.me/${bot}?text=${encodeURIComponent(`Hi ${seller.shopCode}`)}` : null,
       upiId: seller.upiId,
       qrUrl: seller.upiQrKey ? `/images/${seller.upiQrKey}` : null,
@@ -2083,6 +2164,7 @@ app.get('/seller', async (req: Request, res: Response) => {
       products: products.map((p) => ({
         id: p.id,
         name: localName(p, seller.language),
+        pendingName: p.pendingName,
         price: Number(p.price),
         stock: p.stock,
         imageUrl: smallPhoto(p),
@@ -2222,7 +2304,32 @@ app.post('/seller/products/:id', async (req: Request, res: Response) => {
         res.status(400).json({ ok: false, error: W.stockInvalid });
         return;
       }
-      await prisma.product.update({ where: { id: product.id }, data: { price, stock } });
+      // The name (same rules as a new product). Not approved yet: it changes at once, and the
+      // admin checks the new name with the product. Already approved and on sale: customers keep
+      // seeing the old name until the admin approves the new one (Approve tab, "Name changes").
+      const name = typeof req.body.name === 'string' ? req.body.name.replace(/\s+/g, ' ').trim() : undefined;
+      if (name !== undefined && (name.length < 2 || name.length > 60)) {
+        res.status(400).json({ ok: false, error: W.productNameInvalid });
+        return;
+      }
+      const translations = await prisma.productTranslation.findMany({ where: { productId: product.id } });
+      const current = localName({ name: product.name, translations }, seller.language);
+      const renamed = name !== undefined && name !== current;
+      await prisma.$transaction(async (tx) => {
+        await tx.product.update({ where: { id: product.id }, data: { price, stock } });
+        if (name === undefined) return;
+        if (product.approval !== 'APPROVED') {
+          if (renamed) await renameProduct(tx, product.id, name);
+        } else {
+          // Typing the old name again takes a waiting change back
+          await tx.product.update({ where: { id: product.id }, data: { pendingName: renamed ? name : null } });
+        }
+      });
+      if (renamed && product.approval === 'APPROVED') {
+        console.log(`Seller ${seller.shopCode} asked to rename product #${product.id}`);
+        res.json({ ok: true, notice: 'renamed' });
+        return;
+      }
     }
     res.json({ ok: true });
   } catch (err) {

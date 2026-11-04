@@ -31,7 +31,9 @@ restore_admin() {
   "$PSQL" "$DB" -qtAc "update \"User\" set \"dashToken\" = nullif(split_part('$ADMIN_TOKEN','|',1),''), \"dashTokenAt\" = nullif(split_part('$ADMIN_TOKEN','|',2),'')::timestamp where phone='919000000000'" >/dev/null
 }
 # KEEP_LOG=<file> keeps the test server's log there (to see what the bot answered)
-trap 'stop_server; cleanup; restore_admin; [ -n "$KEEP_LOG" ] && cp "$LOG" "$KEEP_LOG"; rm -rf "$SP"' EXIT
+# HOLD=<command> runs that command at the end while the test server and data still exist
+# (B, ST = seller link, AT = admin link, OID = the test order are passed to it), e.g. for screenshots
+trap '[ -n "$HOLD" ] && B="$B" ST="$ST" AT="$AT" OID="$OID" bash -c "$HOLD"; stop_server; cleanup; restore_admin; [ -n "$KEEP_LOG" ] && cp "$LOG" "$KEEP_LOG"; rm -rf "$SP"' EXIT
 
 if [ "$("$PSQL" "$DB" -tAc "select role from \"User\" where phone='919000000000'")" != "ADMIN" ]; then
   echo "The fake admin 919000000000 is missing or not an ADMIN. Make it an admin first."; exit 1
@@ -97,6 +99,31 @@ ok $(has "$(post /admin/sellers "{\"t\":\"$ST\",\"name\":\"X Y\",\"phone\":\"950
 sql "update \"Product\" set approval='APPROVED', stock=2 where id=$PID" >/dev/null
 page=$(curl -s "$B/seller?t=$ST")
 ok $(has "$page" '&lt;i&gt;Red&lt;/i&gt; Bag') "seller page: HTML in a product name is shown as text"
+
+echo "== Product name changes"
+printf '{"t":"%s","name":"Blu Pouch","price":"120","photo":"data:%s;base64,%s"}' "$ST" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp4.json"
+P2=$(post /seller/products "@$SP/vp4.json" | grep -o '"id":[0-9]*' | cut -d: -f2)
+pname() { sql "select p.name || '|' || coalesce(p.\"pendingName\",'-') || '|' || coalesce((select string_agg(t.name, ',') from \"ProductTranslation\" t where t.\"productId\" = p.id),'') from \"Product\" p where p.id = $P2"; }
+ok $(has "$(post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"X\",\"price\":120,\"stock\":null}")" ' 400') "rename: a 1-letter name refused"
+post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Blue  Pouch \",\"price\":120,\"stock\":null}" >/dev/null
+ok $([ "$(pname)" = "Blue Pouch|-|Blue Pouch" ] && echo 1 || echo 0) "rename while waiting for approval: the name changes at once (spaces tidied)"
+sql "update \"Product\" set approval='APPROVED' where id=$P2" >/dev/null
+r=$(post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Blue Cotton Pouch\",\"price\":120,\"stock\":null}")
+ok $([ "$(pname)" = "Blue Pouch|Blue Cotton Pouch|Blue Pouch" ] && has "$r" 'renamed' >/dev/null && echo 1 || echo 0) "rename an approved product: customers keep the old name, the new one waits for the admin"
+ok $(has "$(curl -s "$B/seller?t=$ST")" 'Blue Cotton Pouch') "seller page shows the new name waiting"
+ok $(has "$(curl -s "$B/admin?t=$AT")" 'class="card rename" data-id="'$P2'"') "admin page shows the name change (old -> new)"
+post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Blue Pouch\",\"price\":120,\"stock\":null}" >/dev/null
+ok $([ "$(pname)" = "Blue Pouch|-|Blue Pouch" ] && echo 1 || echo 0) "rename: typing the old name again takes the change back"
+post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Blue Cotton Pouch\",\"price\":120,\"stock\":null}" >/dev/null
+ok $(has "$(post /admin/products/$P2/name "{\"t\":\"$ST\",\"approve\":true}")" ' 403') "rename: a seller link cannot approve a name"
+ok $(has "$(post /admin/products/$P2/name "{\"t\":\"$AT\",\"approve\":true}")" '"ok":true') "admin approves the new name"
+ok $([ "$(pname)" = "Blue Cotton Pouch|-|Blue Cotton Pouch" ] && echo 1 || echo 0) "after approval the product (and its translation) has the new name"
+ok $(has "$(post /admin/products/$P2/name "{\"t\":\"$AT\",\"approve\":true}")" ' 409') "rename: approving twice refused"
+ok $(grep -q 'is now "Blue Cotton Pouch"' "$LOG" && echo 1 || echo 0) "seller is told on WhatsApp that the new name was approved"
+post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"Bad Name\",\"price\":120,\"stock\":null}" >/dev/null
+post /admin/products/$P2/name "{\"t\":\"$AT\",\"approve\":false}" >/dev/null
+ok $([ "$(pname)" = "Blue Cotton Pouch|-|Blue Cotton Pouch" ] && echo 1 || echo 0) "admin rejects a new name: the old name stays"
+sql "update \"Product\" set \"isActive\"=false where id=$P2" >/dev/null
 
 echo "== Customer C: shop without UPI ID"
 msg $C "Hi $IDA"; msg $C 2; msg $C SHOPNOW; CT=$(tok "localhost:3001/shop/$IDA?t=[^ ]*")
