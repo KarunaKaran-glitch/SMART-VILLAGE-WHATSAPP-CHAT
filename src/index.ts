@@ -1741,6 +1741,7 @@ app.get('/admin', async (req: Request, res: Response) => {
     renderAdminPage({
       language: lang,
       token: String(req.query.t),
+      stateKey: await adminStateKey(),
       stats: {
         sellers: sellers.length,
         orders: await prisma.order.count(),
@@ -1784,6 +1785,39 @@ app.get('/admin', async (req: Request, res: Response) => {
       })),
     })
   );
+});
+
+// Where every order is now, plus how many sellers and products to check, in one short text.
+// The admin page compares it every few seconds and brings its Orders and Home parts up to date.
+async function adminStateKey(): Promise<string> {
+  const orders = await prisma.order.findMany({
+    select: { id: true, status: true, payments: { select: { status: true }, orderBy: { id: 'desc' }, take: 1 } },
+    orderBy: { id: 'asc' },
+  });
+  const [sellers, waiting, renames] = await Promise.all([
+    prisma.user.count({ where: { role: 'SELLER' } }),
+    prisma.product.count({ where: { approval: 'PENDING', imageKey: { not: null } } }),
+    prisma.product.count({ where: { renamedFrom: { not: null } } }),
+  ]);
+  return (
+    orders.map((o) => `${o.id}:${o.status}:${o.payments[0]?.status ?? '-'}`).join(',') +
+    `|${sellers}|${waiting}|${renames}`
+  );
+}
+
+app.get('/admin/state', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const admin = await dashVisitor(req.query.t, 'ADMIN');
+    if (!admin) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    res.json({ ok: true, v: await adminStateKey() });
+  } catch (err) {
+    console.error('Admin state check failed:', err);
+    res.status(500).json({ ok: false });
+  }
 });
 
 // Admin approves or rejects a product on the admin page: { t, approve }.

@@ -44,6 +44,7 @@ export function renderAdminPage(data: {
   token: string;
   waiting: AdminWaitingProduct[];
   renames: AdminRename[];
+  stateKey: string; // where every order is now, in short: the page checks it for changes
   stats: { sellers: number; orders: number; sales: string };
   states: { value: string; label: string; languages: string }[]; // languages: "অসমীয়া + हिन्दी + English"
   categories: { id: number; name: string }[];
@@ -211,7 +212,7 @@ export function renderAdminPage(data: {
     '<section class="tab" id="tab-orders">' +
     `<h3 class="sec">${escapeHtml(W.ordersTitle)} <span class="count">${data.orders.length}</span></h3>` +
     (data.orders.length
-      ? data.orders.map((o) => `<article class="card order s-${o.status}">${orderView(o, data.language, true)}</article>`).join('')
+      ? data.orders.map((o) => `<article class="card order s-${o.status}" data-id="${o.id}">${orderView(o, data.language, true)}</article>`).join('')
       : `<div class="card empty">${escapeHtml(W.noOrders)}</div>`) +
     '</section>';
 
@@ -256,6 +257,45 @@ function showTab() {
 }
 window.addEventListener('hashchange', showTab);
 showTab();
+
+// Orders move on while the page is open (the seller taps Money received, Confirm, Ship,
+// Deliver). Every 5 seconds the page asks whether anything changed, and at once when the admin
+// comes back to it. Then only the Orders and Home parts and the tab badges are fetched and
+// swapped in: no page reload, so the tab, the scroll position and a half-filled form stay.
+let NOW = ${scriptJson(data.stateKey)};
+let checking = false;
+async function checkOrders() {
+  if (checking) return;
+  checking = true;
+  try {
+    const res = await fetch('/admin/state?t=' + encodeURIComponent(TOKEN), { cache: 'no-store' });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.v && out.v !== NOW) {
+      const page = await fetch('/admin?t=' + encodeURIComponent(TOKEN), { cache: 'no-store' });
+      if (page.ok) {
+        const doc = new DOMParser().parseFromString(await page.text(), 'text/html');
+        const before = new Map([...document.querySelectorAll('#tab-orders .order')].map((c) => [c.dataset.id, c.className]));
+        ['tab-home', 'tab-orders'].forEach((id) => {
+          const fresh = doc.getElementById(id);
+          if (fresh) document.getElementById(id).innerHTML = fresh.innerHTML;
+        });
+        document.querySelectorAll('.tabbar a').forEach((a) => {
+          const fresh = doc.querySelector('.tabbar a[data-tab="' + a.dataset.tab + '"]');
+          if (fresh) a.innerHTML = fresh.innerHTML;
+        });
+        // Briefly mark the orders that are new or moved to another step
+        document.querySelectorAll('#tab-orders .order').forEach((c) => {
+          if (before.get(c.dataset.id) !== c.className) c.classList.add('flash');
+        });
+        NOW = out.v;
+      }
+    }
+  } catch (e) {}
+  checking = false;
+}
+setInterval(checkOrders, 5000);
+document.addEventListener('visibilitychange', checkOrders);
+window.addEventListener('focus', checkOrders);
 
 // Approve / Reject a waiting product, or "OK, seen" on a name change; the card then shows it
 document.querySelectorAll('.check, .rename').forEach((card) => {

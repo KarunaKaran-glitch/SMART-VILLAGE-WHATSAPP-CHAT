@@ -178,7 +178,11 @@ ok $(has "$(curl -s "$B/shop/$IDA/order/$OID?t=$CT")" "/state?t=") "order page (
 post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}" > "$SP/r1" & post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}" > "$SP/r2"; wait $!; sleep 0.3
 ok $([ "$(cat "$SP/r1" "$SP/r2" | grep -c '"ok":true')" = "1" ] && echo 1 || echo 0) "seller: Money received tapped twice at the same moment -> done once"
 ok $([ "$(sql "select o.status || ' ' || p.status || ' ' || (o.\"paidAt\" is not null) from \"Order\" o join \"Payment\" p on p.\"orderId\" = o.id where o.id = $OID")" = "PAID SUCCESS true" ] && echo 1 || echo 0) "money received: order PAID, payment SUCCESS and paid time saved together"
+AV1=$(curl -s "$B/admin/state?t=$AT")
+ok $(has "$AV1" '"ok":true') "admin page change check answers for the admin"
+ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin/state?t=$ST")" = "403" ] && echo 1 || echo 0) "admin page change check: a seller link gets nothing"
 for a in CONFIRM SHIP DELIVER; do post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"$a\"}" >/dev/null; done
+ok $([ "$(curl -s "$B/admin/state?t=$AT")" != "$AV1" ] && echo 1 || echo 0) "admin page change check: an order step changes the answer (the page updates itself)"
 ok $([ "$(sql "select o.status || ' ' || bool_and(i.status = 'DELIVERED') || ' ' || (o.\"confirmedAt\" is not null and o.\"shippedAt\" is not null and o.\"deliveredAt\" is not null) from \"Order\" o join \"OrderItem\" i on i.\"orderId\" = o.id where o.id = $OID group by o.id")" = "DELIVERED true true" ] && echo 1 || echo 0) "confirm, ship, deliver: order and items move together, each step time saved"
 ok $(has "$(post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"DELIVER\"}")" ' 409') "seller: Deliver again refused"
 
