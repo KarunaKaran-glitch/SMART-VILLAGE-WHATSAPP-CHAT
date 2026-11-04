@@ -410,12 +410,20 @@ async function post(url, body, msgEl, notice) {
 
 // Shrink a photo on the phone (longest side 1200 px, JPEG) before uploading, plus a small copy
 // (longest side 400 px) that the shop grid and the order lists load instead of the big one
+// The photo is also made square: the whole product in the middle of a white square (nothing is
+// cut off), so every product shows the same size in the shop, the dashboard and the admin page
 function shrink(img, side, quality) {
-  const scale = Math.min(1, side / Math.max(img.width, img.height));
+  const box = Math.min(side, Math.max(img.width, img.height));
+  const scale = box / Math.max(img.width, img.height);
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
   const c = document.createElement('canvas');
-  c.width = Math.round(img.width * scale);
-  c.height = Math.round(img.height * scale);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  c.width = box;
+  c.height = box;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, box, box);
+  g.drawImage(img, Math.round((box - w) / 2), Math.round((box - h) / 2), w, h);
   return c.toDataURL('image/jpeg', quality);
 }
 function readPhoto(input, previewEl, msgEl, done) {

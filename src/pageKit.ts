@@ -144,8 +144,10 @@ main{max-width:640px;margin:0 auto;padding:12px 12px 96px}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 @media (min-width:560px){.grid{grid-template-columns:repeat(3,1fr)}}
 .pcard{background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.06);display:flex;flex-direction:column}
-.pimg{position:relative;aspect-ratio:1/1;background:#eef2f7}
-.pimg img{width:100%;height:100%;object-fit:cover;display:block}
+/* Every product photo box is exactly square, whatever the photo inside (a tall photo used to
+   stretch its box): the photo fills the box from edge to edge */
+.pimg{position:relative;aspect-ratio:1/1;background:#eef2f7;overflow:hidden;flex:none;min-height:0}
+.pimg img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .badge{position:absolute;top:8px;left:8px;border-radius:6px;padding:3px 8px;font-size:.72rem;font-weight:700;background:#fff;color:var(--muted);box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .badge.onSale{background:var(--ok);color:#fff}
 .badge.waiting{background:#f59e0b;color:#fff}
