@@ -84,14 +84,17 @@ msg $SA "$IDA"; ST=$(tok 'localhost:3001/seller?t=[^ ]*')
 ok $([ -n "$ST" ] && echo 1 || echo 0) "seller: own ID without Hi opens the dashboard"
 # The test photo: one of the app's own pictures, so it also works on an empty database
 cp assets/status/order-confirmed.jpg "$SP/v.img"; MIME=image/jpeg
-printf '{"t":"%s","name":"<i>Red</i> Bag","price":"450","photo":"data:%s;base64,%s"}' "$ST" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp.json"
+printf '{"t":"%s","name":"<i>Red</i> Bag","price":"450","stock":"5","photo":"data:%s;base64,%s"}' "$ST" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp.json"
 r=$(post /seller/products "@$SP/vp.json"); PID=$(echo "$r" | grep -o '"id":[0-9]*' | cut -d: -f2)
 ok $(has "$r" '"ok":true') "seller: product with photo added"
 ok $(has "$(post /seller/products "{\"t\":\"$ST\",\"name\":\"Bag\",\"price\":\"abc\",\"photo\":\"data:$MIME;base64,$(base64 -w0 "$SP/v.img" | head -c 0)\"}")" ' 400') "seller: price 'abc' refused"
 printf '{"t":"%s","name":"Bag","price":"100001","photo":"data:%s;base64,%s"}' "$ST" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp2.json"
 ok $(has "$(post /seller/products "@$SP/vp2.json")" ' 400') "seller: price above 1,00,000 refused"
-printf '{"t":"%s","name":"Bag","price":"100","description":"%s","photo":"data:%s;base64,%s"}' "$ST" "$(printf 'x%.0s' $(seq 1 301))" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp3.json"
+printf '{"t":"%s","name":"Bag","price":"100","stock":"5","description":"%s","photo":"data:%s;base64,%s"}' "$ST" "$(printf 'x%.0s' $(seq 1 301))" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp3.json"
 ok $(has "$(post /seller/products "@$SP/vp3.json")" '300') "seller: description over 300 letters refused"
+printf '{"t":"%s","name":"Bag","price":"100","photo":"data:%s;base64,%s"}' "$ST" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp5.json"
+ok $(has "$(post /seller/products "@$SP/vp5.json")" 'how many you have') "seller: new product without a stock number refused"
+ok $(has "$(post /seller/products/$PID "{\"t\":\"$ST\",\"name\":\"<i>Red</i> Bag\",\"price\":450,\"stock\":null}")" ' 400') "seller: edit with the stock left empty refused"
 ok $(has "$(post /seller/settings "{\"t\":\"$ST\",\"sellerState\":\"Tamil Nadu\"}")" ' 400') "seller: state not in the list refused"
 ok $(has "$(post /seller/settings "{\"t\":\"$ST\",\"qr\":\"data:image/png;base64,aGVsbG8=\"}")" ' 400') "seller: fake QR photo refused"
 ok $(has "$(post /seller/products/26 "{\"t\":\"$ST\",\"price\":1,\"stock\":null}")" ' 404') "seller: cannot change another seller's product"
@@ -101,10 +104,10 @@ page=$(curl -s "$B/seller?t=$ST")
 ok $(has "$page" '&lt;i&gt;Red&lt;/i&gt; Bag') "seller page: HTML in a product name is shown as text"
 
 echo "== Product name changes"
-printf '{"t":"%s","name":"Blu Pouch","price":"120","photo":"data:%s;base64,%s"}' "$ST" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp4.json"
+printf '{"t":"%s","name":"Blu Pouch","price":"120","stock":"5","photo":"data:%s;base64,%s"}' "$ST" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/vp4.json"
 P2=$(post /seller/products "@$SP/vp4.json" | grep -o '"id":[0-9]*' | cut -d: -f2)
 pname() { sql "select p.name || '|' || coalesce(p.\"renamedFrom\",'-') || '|' || coalesce((select string_agg(t.name, ',') from \"ProductTranslation\" t where t.\"productId\" = p.id),'') from \"Product\" p where p.id = $P2"; }
-ren() { post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"$1\",\"price\":120,\"stock\":null}"; }
+ren() { post /seller/products/$P2 "{\"t\":\"$ST\",\"name\":\"$1\",\"price\":120,\"stock\":5}"; }
 ok $(has "$(ren X)" ' 400') "rename: a 1-letter name refused"
 ren "Blue  Pouch " >/dev/null
 ok $([ "$(pname)" = "Blue Pouch|-|Blue Pouch" ] && echo 1 || echo 0) "rename before approval: the name changes, nothing extra for the admin (spaces tidied)"
@@ -133,6 +136,10 @@ ok $(has "$(post /shop/$IDA/order "{\"t\":\"$CT\",\"items\":[{\"id\":$PID,\"qty\
 post /seller/settings "{\"t\":\"$ST\",\"upi\":\"sampleseller@fakebank\"}" >/dev/null
 page=$(curl -s "$B/shop/$IDA?t=$CT")
 ok $(has "$page" 'id="go"') "shop page: with UPI ID the Continue button is back"
+sql "update \"Product\" set stock=null where id=$PID" >/dev/null
+ok $(has "$(curl -s "$B/shop/$IDA?t=$CT")" 'class="pcard out"') "shop page: a product without a stock number shows as sold out"
+ok $(has "$(post /shop/$IDA/order "{\"t\":\"$CT\",\"items\":[{\"id\":$PID,\"qty\":1}],\"address\":\"12 Temple Street, Puri 752001\"}")" ' 409') "order: a product without a stock number cannot be ordered"
+sql "update \"Product\" set stock=2 where id=$PID" >/dev/null
 
 echo "== Order inputs"
 o() { post /shop/$IDA/order "{\"t\":\"$CT\",\"items\":$1,\"address\":\"$2\"}"; }

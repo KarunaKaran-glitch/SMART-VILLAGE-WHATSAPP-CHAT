@@ -191,7 +191,7 @@ export function renderSellerPage(data: {
       `<span class="badge ${p.status}">${escapeHtml(statusText[p.status])}</span></div>` +
       `<div class="pbody"><p class="pname">${escapeHtml(p.name)}</p>` +
       `<p class="pprice">₹${rupees(p.price)}</p>` +
-      `<p class="pstock${p.stock === 0 ? ' none' : p.stock !== null && p.stock <= 3 ? ' low' : ''}">` +
+      `<p class="pstock${p.stock === 0 || p.stock === null ? ' none' : p.stock !== null && p.stock <= 3 ? ' low' : ''}">` +
       `${escapeHtml(W.stockLabel(p.stock))}</p>` +
       '<div class="pacts">' +
       `<button type="button" class="btn small outline" data-act="edit">${svg(ICON.edit, 15)} ${escapeHtml(W.edit)}</button>` +
@@ -281,6 +281,7 @@ export function renderSellerPage(data: {
     `<p class="hint">${escapeHtml(W.addProductHint)}</p>` +
     `<label for="pname">${escapeHtml(W.productName)}</label><input id="pname" maxlength="60" autocomplete="off">` +
     `<label for="price">${escapeHtml(W.productPrice)}</label><input id="price" inputmode="decimal" maxlength="9" autocomplete="off" placeholder="250">` +
+    `<label for="pstock">${escapeHtml(W.productStock)}</label><input id="pstock" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="5">` +
     `<label for="pdesc">${escapeHtml(W.productDesc)}</label><textarea id="pdesc" maxlength="300"></textarea>` +
     '<p class="msg" id="msg"></p>' +
     `<button type="button" class="btn primary block" id="addbtn">${escapeHtml(W.addBtn)}</button></div>` +
@@ -356,6 +357,7 @@ const T = ${scriptJson({
     nameInvalid: W.productNameInvalid,
     priceInvalid: W.priceInvalid,
     stockInvalid: W.stockInvalid,
+    stockNewInvalid: W.stockNewInvalid,
     upiInvalid: W.upiInvalid,
   })};
 
@@ -459,13 +461,16 @@ addBtn.addEventListener('click', async () => {
   const name = document.getElementById('pname').value.trim();
   const price = Number(document.getElementById('price').value.replace(/[,₹\\s]/g, ''));
   const description = document.getElementById('pdesc').value.trim();
+  const stockText = document.getElementById('pstock').value.trim();
+  const stock = Number(stockText);
   if (!photo) { msg.textContent = T.photoMissing; return; }
   if (name.length < 2 || name.length > 60) { msg.textContent = T.nameInvalid; return; }
   if (!(price >= 1 && price <= 100000)) { msg.textContent = T.priceInvalid; return; }
+  if (!stockText || !(Number.isInteger(stock) && stock >= 1 && stock <= 9999)) { msg.textContent = T.stockNewInvalid; return; }
   addBtn.disabled = true;
   addBtn.textContent = T.adding;
   history.replaceState(null, '', '#products');
-  if (!(await post('/seller/products', { name, price, description, photo, thumb }, msg, 'added'))) {
+  if (!(await post('/seller/products', { name, price, stock, description, photo, thumb }, msg, 'added'))) {
     history.replaceState(null, '', '#add');
     addBtn.disabled = false;
     addBtn.textContent = T.addBtn;
@@ -539,9 +544,9 @@ document.querySelectorAll('.prod').forEach((card) => {
     if (act === 'save') {
       const price = Number(card.querySelector('.eprice').value.replace(/[,₹\\s]/g, ''));
       const s = card.querySelector('.estock').value.trim();
-      const stock = s === '' ? null : Number(s);
+      const stock = Number(s);
       if (!(price >= 1 && price <= 100000)) { m.textContent = T.priceInvalid; return; }
-      if (stock !== null && !(Number.isInteger(stock) && stock >= 0 && stock <= 9999)) { m.textContent = T.stockInvalid; return; }
+      if (s === '' || !(Number.isInteger(stock) && stock >= 0 && stock <= 9999)) { m.textContent = T.stockInvalid; return; }
       const name = card.querySelector('.ename').value.replace(/\\s+/g, ' ').trim();
       if (name.length < 2 || name.length > 60) { m.textContent = T.nameInvalid; return; }
       body = { name, price, stock };

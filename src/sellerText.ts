@@ -100,7 +100,7 @@ const en = {
     amount === null
       ? `Product #${id} stock is now unlimited.`
       : `Product #${id} stock is now ${amount}.${amount === 0 ? ' It is hidden from customers until you add stock.' : ''}`,
-  stockInvalid: 'Please send a stock number from 0 to 100000, or OFF for unlimited.',
+  stockInvalid: 'Please send a stock number from 0 to 9999 (0 = sold out).',
   upiSet: (upi: string) =>
     `Your UPI ID is saved: ${upi}\nCustomers will see it when they pay you. Never share your bank account number or card details here.`,
   upiInvalid:
@@ -224,7 +224,7 @@ const hi: typeof en = {
     amount === null
       ? `उत्पाद #${id} का स्टॉक अब असीमित है।`
       : `उत्पाद #${id} का स्टॉक अब ${amount} है।${amount === 0 ? ' स्टॉक जोड़ने तक यह ग्राहकों से छिपा रहेगा।' : ''}`,
-  stockInvalid: 'कृपया 0 से 100000 तक स्टॉक संख्या भेजें, या असीमित के लिए OFF।',
+  stockInvalid: 'कृपया 0 से 9999 तक स्टॉक संख्या भेजें (0 = बिक गया)।',
   upiSet: (upi: string) =>
     `आपकी UPI ID सहेज ली गई: ${upi}\nभुगतान करते समय ग्राहक इसे देखेंगे। यहाँ कभी बैंक खाता नंबर या कार्ड की जानकारी न भेजें।`,
   upiInvalid:
@@ -344,7 +344,7 @@ const or: typeof en = {
     amount === null
       ? `ଉତ୍ପାଦ #${id} ର ଷ୍ଟକ ଏବେ ଅସୀମିତ।`
       : `ଉତ୍ପାଦ #${id} ର ଷ୍ଟକ ଏବେ ${amount}।${amount === 0 ? ' ଷ୍ଟକ ଯୋଡ଼ିବା ପର୍ଯ୍ୟନ୍ତ ଏହା ଗ୍ରାହକଙ୍କଠାରୁ ଲୁଚି ରହିବ।' : ''}`,
-  stockInvalid: 'ଦୟାକରି 0 ରୁ 100000 ମଧ୍ୟରେ ଷ୍ଟକ ସଂଖ୍ୟା ପଠାନ୍ତୁ, କିମ୍ବା ଅସୀମିତ ପାଇଁ OFF।',
+  stockInvalid: 'ଦୟାକରି 0 ରୁ 9999 ମଧ୍ୟରେ ଷ୍ଟକ ସଂଖ୍ୟା ପଠାନ୍ତୁ (0 = ବିକ୍ରି ସରିଲା)।',
   upiSet: (upi: string) =>
     `ଆପଣଙ୍କ UPI ID ସେଭ୍ ହେଲା: ${upi}\nପଇସା ଦେବା ସମୟରେ ଗ୍ରାହକ ଏହା ଦେଖିବେ। ଏଠାରେ କେବେ ବ୍ୟାଙ୍କ ଖାତା ନମ୍ବର ବା କାର୍ଡ ବିବରଣୀ ପଠାନ୍ତୁ ନାହିଁ।`,
   upiInvalid:
@@ -464,7 +464,7 @@ const as: typeof en = {
     amount === null
       ? `সামগ্ৰী #${id} ৰ ষ্টক এতিয়া অসীমিত।`
       : `সামগ্ৰী #${id} ৰ ষ্টক এতিয়া ${amount}।${amount === 0 ? ' ষ্টক যোগ নকৰালৈকে ই গ্ৰাহকৰ পৰা লুকাই থাকিব।' : ''}`,
-  stockInvalid: 'অনুগ্ৰহ কৰি 0 ৰ পৰা 100000 লৈ ষ্টক সংখ্যা পঠিয়াওক, নহয় অসীমিতৰ বাবে OFF।',
+  stockInvalid: 'অনুগ্ৰহ কৰি 0 ৰ পৰা 9999 লৈ ষ্টক সংখ্যা পঠিয়াওক (0 = বিক্ৰী শেষ)।',
   upiSet: (upi: string) =>
     `আপোনাৰ UPI ID সংৰক্ষণ কৰা হ'ল: ${upi}\nধন দিওঁতে গ্ৰাহকে ইয়াক দেখিব। ইয়াত কেতিয়াও বেংক একাউণ্ট নম্বৰ বা কাৰ্ডৰ তথ্য নপঠিয়াব।`,
   upiInvalid:

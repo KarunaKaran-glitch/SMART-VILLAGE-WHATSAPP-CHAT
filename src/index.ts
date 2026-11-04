@@ -779,13 +779,13 @@ async function createOrders(
         if (!item.product.isActive || item.product.approval !== 'APPROVED') {
           throw new StockError(item.productId);
         }
-        if (item.product.stock !== null) {
-          const taken = await tx.product.updateMany({
-            where: { id: item.productId, stock: { gte: item.quantity } },
-            data: { stock: { decrement: item.quantity } },
-          });
-          if (taken.count === 0) throw new StockError(item.productId);
-        }
+        // A product without a stock number (older products) cannot be ordered until the seller
+        // writes how many they have; the shop page shows it as sold out
+        const taken = await tx.product.updateMany({
+          where: { id: item.productId, stock: { gte: item.quantity } },
+          data: { stock: { decrement: item.quantity } },
+        });
+        if (taken.count === 0) throw new StockError(item.productId);
       }
 
       const results: Placed[] = [];
@@ -1605,7 +1605,8 @@ app.get('/shop/:code', async (req: Request, res: Response) => {
         price: Number(p.price),
         imageUrl: p.imageKey ? `/images/${p.imageKey}` : null,
         thumbUrl: smallPhoto(p),
-        maxQty: p.stock === null ? 99 : Math.min(p.stock, 99),
+        // No stock number: not orderable (sold out) until the seller writes how many they have
+        maxQty: p.stock === null ? 0 : Math.min(p.stock, 99),
       })),
     })
   );
@@ -2212,6 +2213,8 @@ app.post('/seller/products', async (req: Request, res: Response) => {
     const name = typeof req.body.name === 'string' ? req.body.name.replace(/\s+/g, ' ').trim() : '';
     const price = Math.round(Number(req.body.price) * 100) / 100;
     const description = typeof req.body.description === 'string' ? req.body.description.trim() : '';
+    // How many the seller has: required, so customers can never order more than exist
+    const stock = Number(req.body.stock);
     const photo = decodePhoto(req.body.photo);
 
     let error: string | null = null;
@@ -2219,6 +2222,7 @@ app.post('/seller/products', async (req: Request, res: Response) => {
     else if (!photo) error = W.photoInvalid;
     else if (name.length < 2 || name.length > 60) error = W.productNameInvalid;
     else if (!(price >= 1 && price <= 100000)) error = W.priceInvalid;
+    else if (!(Number.isInteger(stock) && stock >= 1 && stock <= 9999)) error = W.stockNewInvalid;
     else if (description.length > 300) error = W.descInvalid;
     const imageKey = error ? null : await saveImage(photo!.data, photo!.mimeType);
     if (!error && !imageKey) error = W.photoInvalid;
@@ -2234,6 +2238,7 @@ app.post('/seller/products', async (req: Request, res: Response) => {
       data: {
         name,
         price,
+        stock,
         description: description || null,
         imageKey,
         thumbKey,
@@ -2264,7 +2269,7 @@ app.post('/seller/products', async (req: Request, res: Response) => {
   }
 });
 
-// Seller changes one of their products: { t, price, stock } or { t, active }.
+// Seller changes one of their products: { t, name, price, stock } or { t, active }.
 // Price and stock change at once; hide / show only for approved products.
 app.post('/seller/products/:id', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
@@ -2292,12 +2297,13 @@ app.post('/seller/products/:id', async (req: Request, res: Response) => {
       await prisma.product.update({ where: { id: product.id }, data: { isActive: req.body.active } });
     } else {
       const price = Math.round(Number(req.body.price) * 100) / 100;
-      const stock = req.body.stock === null ? null : Number(req.body.stock);
+      // Stock is required (0 = sold out): a product without it cannot be ordered
+      const stock = req.body.stock === null || req.body.stock === '' ? NaN : Number(req.body.stock);
       if (!(price >= 1 && price <= 100000)) {
         res.status(400).json({ ok: false, error: W.priceInvalid });
         return;
       }
-      if (stock !== null && !(Number.isInteger(stock) && stock >= 0 && stock <= 9999)) {
+      if (!(Number.isInteger(stock) && stock >= 0 && stock <= 9999)) {
         res.status(400).json({ ok: false, error: W.stockInvalid });
         return;
       }
@@ -3179,8 +3185,9 @@ async function handleWebhook(body: any) {
         const stockMatch = command.match(/^STOCK\s+#?(\d+)\s+(\d+|OFF)$/);
         if (stockMatch) {
           const productId = Number(stockMatch[1]);
+          // STOCK n OFF (stock not counted) is no longer allowed: every product needs a number
           const amount = stockMatch[2] === 'OFF' ? null : Number(stockMatch[2]);
-          if (amount !== null && amount > 100000) {
+          if (amount === null || amount > 9999) {
             await staffSend(SELLER_TEXT.stockInvalid);
             return;
           }
