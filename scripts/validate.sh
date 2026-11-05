@@ -193,6 +193,8 @@ ok $([ "$(curl -s "$B/admin/state?t=$AT")" != "$AV1" ] && echo 1 || echo 0) "adm
 ok $([ "$(sql "select o.status || ' ' || bool_and(i.status = 'DELIVERED') || ' ' || (o.\"confirmedAt\" is not null and o.\"shippedAt\" is not null and o.\"deliveredAt\" is not null) from \"Order\" o join \"OrderItem\" i on i.\"orderId\" = o.id where o.id = $OID group by o.id")" = "DELIVERED true true" ] && echo 1 || echo 0) "confirm, ship, deliver: order and items move together, each step time saved"
 ok $(has "$(post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"DELIVER\"}")" ' 409') "seller: Deliver again refused"
 
+msg $C "ORDERINFO $OID"; ok $(last | grep -q ">> Buttons to $C: http://localhost:3001/images/" && echo 1 || echo 0) "chat: order details show the product's photo"
+
 echo "== Chat: shop codes and languages"
 msg $C "Hi 5918"; ok $([ "$(last | grep -c '>> Reply to')" = "1" ] && [ "$(last | grep -c -- '->')" = "0" ] && echo 1 || echo 0) "chat: Hi + unknown number -> 'no shop' message, no buttons"
 msg $C SHOPNOW; ok $([ "$(last | grep -c '/shop/')" = "0" ] && echo 1 || echo 0) "chat: after a wrong code, Shop now does not open the old shop"

@@ -452,6 +452,16 @@ async function orderInfoReply(userId: number, language: string, orderId: number)
   const lines = order.items.map((i) => `  ${localName(i.product, language)} x ${i.quantity}`).join('\n');
   let text = `#${order.id} - ${M.status(order.status)} - ₹${order.total}\n${lines}`;
   if (payment) text += `\n  ${M.pay(payment.status, payment.method)}`;
+  // The products' photos: one product -> its photo on top of the details message; several ->
+  // each photo first (at most 5) with its name, quantity and amount, then the details
+  const withPhoto = order.items.filter((i) => i.product.imageKey);
+  const onePhoto = order.items.length === 1 && withPhoto.length === 1 ? withPhoto[0].product.imageKey! : undefined;
+  const photos: RichReply[] = onePhoto
+    ? []
+    : withPhoto.slice(0, 5).map((i) => ({
+        text: `${localName(i.product, language)} x ${i.quantity} = ₹${rupees(Number(i.unitPrice) * i.quantity)}`,
+        imageKey: i.product.imageKey!,
+      }));
 
   const waitingForPayment =
     payment?.method === 'UPI_DIRECT' && payment.status === 'INITIATED' && order.status !== 'CANCELLED';
@@ -464,15 +474,19 @@ async function orderInfoReply(userId: number, language: string, orderId: number)
     if (order.items.every((i) => i.status === 'PENDING')) {
       buttons.push({ id: `CANCELORDER ${order.id}`, title: B.cancelOrder });
     }
-    return { text, buttons };
+    return [...photos, { text, buttons, imageKey: onePhoto }];
   }
-  return {
-    text,
-    buttons: [
-      { id: 'MYORDERS', title: B.myOrders },
-      { id: 'SHOPNOW', title: B.shopNow },
-    ],
-  };
+  return [
+    ...photos,
+    {
+      text,
+      imageKey: onePhoto,
+      buttons: [
+        { id: 'MYORDERS', title: B.myOrders },
+        { id: 'SHOPNOW', title: B.shopNow },
+      ],
+    },
+  ];
 }
 
 // Buttons to carry on after a customer message that has no next step of its own
