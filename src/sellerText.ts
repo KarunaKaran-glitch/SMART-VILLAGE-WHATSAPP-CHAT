@@ -105,6 +105,7 @@ const en = {
     `Your UPI ID is saved: ${upi}\nCustomers will see it when they pay you. Never share your bank account number or card details here.`,
   upiInvalid:
     'That does not look like a UPI ID. It looks like name@bank. Please send your own UPI ID again (as shown in your UPI app).',
+  paymentProof: (orderId: number) => `Payment screenshot from the customer for order #${orderId}. Check that the money is really in your bank before you tap Money received.`,
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `The customer says they paid ₹${amount} for order #${orderId}.\n` +
     (ref
@@ -229,6 +230,7 @@ const hi: typeof en = {
     `आपकी UPI ID सहेज ली गई: ${upi}\nभुगतान करते समय ग्राहक इसे देखेंगे। यहाँ कभी बैंक खाता नंबर या कार्ड की जानकारी न भेजें।`,
   upiInvalid:
     'यह UPI ID जैसा नहीं लगता। UPI ID name@bank जैसी होती है। कृपया अपनी UPI ID (UPI ऐप में जैसी दिखती है) फिर से भेजें।',
+  paymentProof: (orderId: number) => `ऑर्डर #${orderId} के लिए ग्राहक का भुगतान स्क्रीनशॉट। पैसा मिल गया दबाने से पहले देख लें कि पैसा सच में आपके बैंक में आया है।`,
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `ग्राहक कहता है कि उसने ऑर्डर #${orderId} के लिए ₹${amount} भेजे हैं।\n` +
     (ref ? `UPI ट्रांजैक्शन नंबर: ${ref}\n` : `₹${amount} का भुगतान "Order ${orderId}" नोट के साथ देखें।\n`) +
@@ -349,6 +351,7 @@ const or: typeof en = {
     `ଆପଣଙ୍କ UPI ID ସେଭ୍ ହେଲା: ${upi}\nପଇସା ଦେବା ସମୟରେ ଗ୍ରାହକ ଏହା ଦେଖିବେ। ଏଠାରେ କେବେ ବ୍ୟାଙ୍କ ଖାତା ନମ୍ବର ବା କାର୍ଡ ବିବରଣୀ ପଠାନ୍ତୁ ନାହିଁ।`,
   upiInvalid:
     'ଏହା UPI ID ପରି ଲାଗୁନାହିଁ। UPI ID name@bank ପରି ହୁଏ। ଦୟାକରି ଆପଣଙ୍କ UPI ID (UPI ଆପରେ ଯେପରି ଦେଖାଯାଏ) ପୁଣି ପଠାନ୍ତୁ।',
+  paymentProof: (orderId: number) => `ଅର୍ଡର #${orderId} ପାଇଁ ଗ୍ରାହକଙ୍କ ପେମେଣ୍ଟ ସ୍କ୍ରିନସଟ୍। ପଇସା ମିଳିଲା ଦବାଇବା ଆଗରୁ ଦେଖନ୍ତୁ ଯେ ପଇସା ପ୍ରକୃତରେ ଆପଣଙ୍କ ବ୍ୟାଙ୍କରେ ଆସିଛି।`,
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `ଗ୍ରାହକ କହୁଛନ୍ତି ସେ ଅର୍ଡର #${orderId} ପାଇଁ ₹${amount} ଦେଇଛନ୍ତି।\n` +
     (ref ? `UPI ଟ୍ରାନଜାକସନ ନମ୍ବର: ${ref}\n` : `"Order ${orderId}" ନୋଟ ସହ ₹${amount} ର ପେମେଣ୍ଟ ଖୋଜନ୍ତୁ।\n`) +
@@ -469,6 +472,7 @@ const as: typeof en = {
     `আপোনাৰ UPI ID সংৰক্ষণ কৰা হ'ল: ${upi}\nধন দিওঁতে গ্ৰাহকে ইয়াক দেখিব। ইয়াত কেতিয়াও বেংক একাউণ্ট নম্বৰ বা কাৰ্ডৰ তথ্য নপঠিয়াব।`,
   upiInvalid:
     'এইটো UPI ID যেন লগা নাই। UPI ID name@bank ৰ দৰে হয়। অনুগ্ৰহ কৰি আপোনাৰ UPI ID (UPI এপত যেনেকৈ দেখা যায়) আকৌ পঠিয়াওক।',
+  paymentProof: (orderId: number) => `অৰ্ডাৰ #${orderId} ৰ বাবে গ্ৰাহকৰ পেমেণ্ট স্ক্ৰীণশ্বট। ধন পালোঁ টিপাৰ আগতে চাওক যে ধন সঁচাকৈ আপোনাৰ বেংকত আহিছে।`,
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `গ্ৰাহকে কৈছে যে অৰ্ডাৰ #${orderId} ৰ বাবে ₹${amount} দিছে।\n` +
     (ref ? `UPI লেনদেন নম্বৰ: ${ref}\n` : `"Order ${orderId}" টোকাৰে ₹${amount} ৰ পৰিশোধ বিচাৰক।\n`) +

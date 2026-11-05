@@ -128,6 +128,8 @@ main{max-width:640px;margin:0 auto;padding:12px 12px 96px}
 .callbtn{display:inline-flex;align-items:center;gap:4px;text-decoration:none;border:1.5px solid var(--ok);color:var(--ok);border-radius:999px;padding:6px 12px;font-weight:700;font-size:.85rem;flex:none}
 .pay{margin:10px 0 0;font-weight:600;font-size:.9rem}
 .pay.check{background:var(--amberbg);color:var(--amber);border-radius:10px;padding:8px 10px}
+.proofpic{display:flex;align-items:center;gap:10px;margin-top:8px;color:var(--brand2);font-size:.88rem;font-weight:600;text-decoration:none}
+.proofpic img{width:64px;height:84px;object-fit:cover;border:1px solid var(--line);border-radius:8px;flex:none}
 .pay.paid{color:var(--ok)}
 .pay.notYet{color:var(--muted)}
 .acts{display:flex;gap:10px;margin-top:10px}

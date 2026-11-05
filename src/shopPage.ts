@@ -532,11 +532,15 @@ export function renderPayPage(data: {
       step(2, W.afterPay) +
       '<div class="card form">' +
       `<p class="paidhint">${escapeHtml(W.paidHint)}</p>` +
+      // The payment screenshot (GPay, PhonePe ...): shown to the seller, who checks their bank
+      '<label class="proof" id="proofbox"><input type="file" accept="image/*" id="proof" hidden>' +
+      '<img id="proofimg" alt="" hidden>' +
+      `<span class="btn outline block" id="prooflabel">📷 ${escapeHtml(W.proofAdd)}</span></label>` +
       '<p class="msg" id="msg"></p>' +
       `<button type="button" class="btn approve block" id="paid">✓ ${escapeHtml(W.paid)}</button></div>` +
       summary;
     script = `
-const T = ${scriptJson({ copied: W.copied, copy: W.copy, failed: W.failed, expired: W.expired })};
+const T = ${scriptJson({ copied: W.copied, copy: W.copy, failed: W.failed, expired: W.expired, proofChange: W.proofChange, proofNeeded: W.proofNeeded, proofInvalid: W.proofInvalid })};
 const copy = document.getElementById('copy');
 if (copy) copy.addEventListener('click', async () => {
   const text = document.getElementById('upi').textContent;
@@ -550,13 +554,44 @@ if (copy) copy.addEventListener('click', async () => {
 });
 const btn = document.getElementById('paid');
 const msg = document.getElementById('msg');
+// The screenshot is made smaller on the phone (longest side 1400 px, JPEG): still easy to read,
+// quick to send on a slow network
+const proof = document.getElementById('proof');
+const proofImg = document.getElementById('proofimg');
+let proofData = null;
+proof.addEventListener('change', () => {
+  proofData = null;
+  msg.textContent = '';
+  const file = proof.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    const scale = Math.min(1, 1400 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * scale);
+    c.height = Math.round(img.height * scale);
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(img, 0, 0, c.width, c.height);
+    proofData = c.toDataURL('image/jpeg', 0.82);
+    proofImg.src = proofData;
+    proofImg.hidden = false;
+    document.getElementById('prooflabel').textContent = '📷 ' + T.proofChange;
+    URL.revokeObjectURL(url);
+  };
+  img.onerror = () => { msg.textContent = T.proofInvalid; URL.revokeObjectURL(url); };
+  img.src = url;
+});
 btn.addEventListener('click', async () => {
+  if (!proofData) { msg.textContent = T.proofNeeded; return; }
   btn.disabled = true;
   try {
     const res = await fetch(location.pathname + '/paid', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ t: ${scriptJson(data.token)} }),
+      body: JSON.stringify({ t: ${scriptJson(data.token)}, proof: proofData }),
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.ok) { location.reload(); return; }
@@ -741,6 +776,8 @@ body.reviewing .cartbar{display:none}
 .btn.approve{background:var(--ok);color:#fff}
 .lines li{display:flex;justify-content:space-between;gap:10px}
 .paidhint{margin:0 0 12px;color:var(--ink);font-size:.92rem;line-height:1.45}
+.proof{display:block;margin:0 0 12px;cursor:pointer}
+.proof img{display:block;max-width:100%;max-height:340px;margin:0 auto 10px;border:1px solid var(--line);border-radius:10px}
 .statuscard{text-align:center}
 .statuscard h2{margin:10px 0 4px;font-size:1.3rem}
 .statuscard p{margin:0;color:var(--muted)}

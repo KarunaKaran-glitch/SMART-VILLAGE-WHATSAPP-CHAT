@@ -579,11 +579,13 @@ async function cancelOrder(userId: number, language: string, orderId: number): P
 
 // PAID n (tap "I have paid") or PAID n ref: the customer reports a UPI payment;
 // the seller is asked to check their bank app. The transaction number is optional.
+// proofKey: the payment screenshot uploaded on the shop page, sent on to the seller.
 async function reportPaid(
   userId: number,
   language: string,
   orderId: number,
-  rawRef?: string
+  rawRef?: string,
+  proofKey?: string
 ): Promise<Reply> {
   const U = uf(language);
 
@@ -628,7 +630,7 @@ async function reportPaid(
   try {
     const reported = await prisma.payment.updateMany({
       where: { id: payment.id, status: payment.status, reference: payment.reference },
-      data: { status: 'AWAITING_CONFIRMATION', reference: ref ?? payment.reference },
+      data: { status: 'AWAITING_CONFIRMATION', reference: ref ?? payment.reference, proofKey: proofKey ?? payment.proofKey },
     });
     if (reported.count === 0) return { text: U.paidThanks(orderId), buttons: nextButtons(language) };
   } catch (err: any) {
@@ -641,6 +643,8 @@ async function reportPaid(
   try {
     // A short notice with one button to the dashboard, where the seller answers
     for (const s of sellersOf(order.items)) {
+      // The customer's screenshot first, then the notice (the queue keeps this order)
+      if (proofKey) await sendReply(s.phone, { text: inLang(s.language, () => SELLER_TEXT.paymentProof(orderId)), imageKey: proofKey });
       const text = inLang(s.language, () => SELLER_TEXT.paymentReported(orderId, Number(payment.amount), ref));
       await sendReply(s.phone, await sellerDashboardReply(s.id, s.language, text));
     }
@@ -676,7 +680,8 @@ async function decidePayment(
     const answer = await tx.payment.updateMany({
       where: { id: payment.id, status: 'AWAITING_CONFIRMATION' },
       // Not received: back to waiting; the customer can pay and tap "I have paid" again
-      data: received ? { status: 'SUCCESS' } : { status: 'INITIATED', reference: null },
+      // (the screenshot goes too: the customer adds a new one when they report again)
+      data: received ? { status: 'SUCCESS' } : { status: 'INITIATED', reference: null, proofKey: null },
     });
     if (answer.count === 0) return false;
     if (received) {
@@ -2074,6 +2079,7 @@ async function sellerOrderRows(sellerId: number | null, language: string, onlyOr
               ? 'cancelled'
               : 'notYet',
       reference: payment?.reference ?? null,
+      proofUrl: payment?.proofKey ? `/images/${payment.proofKey}` : null,
       actions,
       sending,
     });
@@ -2511,7 +2517,19 @@ app.post('/shop/:code/order/:id/paid', async (req: Request, res: Response) => {
     }
     const { customer } = visit;
     const ref = typeof req.body.ref === 'string' && req.body.ref.trim() ? req.body.ref.replace(/\s+/g, '') : undefined;
-    const reply = await inLang(customer.language, () => reportPaid(customer.id, customer.language, order.id, ref));
+    // The payment screenshot is required on the page (the seller sees it before checking the bank)
+    const W = wt(customer.language);
+    const photo = decodePhoto(req.body.proof);
+    if (!photo || photo.data.length > 3 * 1024 * 1024) {
+      res.status(400).json({ ok: false, error: req.body.proof ? W.proofInvalid : W.proofNeeded });
+      return;
+    }
+    const proofKey = await saveImage(photo.data, photo.mimeType);
+    if (!proofKey) {
+      res.status(400).json({ ok: false, error: W.proofInvalid });
+      return;
+    }
+    const reply = await inLang(customer.language, () => reportPaid(customer.id, customer.language, order.id, ref, proofKey));
     // reportPaid answers with a plain text when something is wrong, and with buttons when it worked
     if (typeof reply === 'string') {
       res.status(409).json({ ok: false, error: reply });

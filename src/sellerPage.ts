@@ -34,6 +34,7 @@ export type SellerOrderRow = {
   status: 'PENDING' | 'PAID' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
   payment: 'notYet' | 'check' | 'paid' | 'cancelled';
   reference: string | null;
+  proofUrl: string | null; // the payment screenshot the customer uploaded
   actions: ('RECEIVED' | 'NOTRECEIVED' | 'CONFIRM' | 'SHIP' | 'DELIVER')[];
   sending: boolean; // the customer is still being told about the last step: no next button yet
 };
@@ -117,7 +118,12 @@ export function orderView(o: SellerOrderRow, language: string, withShop: boolean
     `<span class="cav">${escapeHtml(firstLetter(o.customerName))}</span>` +
     `<div class="who"><b>${escapeHtml(o.customerName)}</b><span>${svg(ICON.pin, 15)} ${escapeHtml(o.address)}</span></div>` +
     `<a class="callbtn" href="tel:+${escapeHtml(o.customerPhone)}">${svg(ICON.phone, 16)} ${escapeHtml(W.call)}</a></div>` +
-    `<p class="pay ${o.payment}">${escapeHtml(paymentText)}</p>`
+    `<p class="pay ${o.payment}">${escapeHtml(paymentText)}</p>` +
+    // The customer's payment screenshot: tap to see it full size
+    (o.proofUrl
+      ? `<a class="proofpic" href="${escapeHtml(o.proofUrl)}" target="_blank" rel="noopener">` +
+        `<img src="${escapeHtml(o.proofUrl)}" alt="" loading="lazy"><span>${escapeHtml(W.proofTitle)}</span></a>`
+      : '')
   );
 }
 

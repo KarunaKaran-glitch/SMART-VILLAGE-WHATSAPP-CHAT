@@ -225,6 +225,7 @@ model Payment {
   status     PaymentStatus @default(INITIATED)
   gatewayRef String?       @unique
   reference  String?       @unique // customer's UPI transaction number (sent with PAID)
+  proofKey   String? // Image.key of the payment screenshot / receipt the customer uploaded with "I have paid"
   createdAt  DateTime      @default(now())
 }
 
