@@ -649,6 +649,8 @@ async function reportPaid(
   try {
     // A short notice with one button to the dashboard, where the seller answers
     for (const s of sellersOf(order.items)) {
+      // A quiet seller gets the template; the screenshot waits for them on the dashboard
+      if (await templateIfQuiet(s, 'seller_payment_reported', orderId, Number(payment.amount))) continue;
       // The customer's screenshot first, then the notice (the queue keeps this order)
       if (proofKey) await sendReply(s.phone, { text: inLang(s.language, () => SELLER_TEXT.paymentProof(orderId)), imageKey: proofKey });
       const text = inLang(s.language, () => SELLER_TEXT.paymentReported(orderId, Number(payment.amount), ref));
@@ -880,16 +882,7 @@ async function createOrders(
           `${SELLER_TEXT.deliverTo}: ${address}`;
         return SELLER_TEXT.newOrder(p.orderId, [...p.lines, note], customerLabel);
       });
-      // Over 24 hours since the seller wrote to the bot: a normal message would not arrive, so an
-      // approved template goes instead (only English and Hindi: Meta has none in Odia or Assamese).
-      // Its button (DASHBOARD) sends the dashboard link. If it cannot go (not approved yet), the
-      // normal message is still tried.
-      if (!(await writtenInLast24Hours(p.sellerId))) {
-        console.log(`>> Template seller_new_order to ${p.sellerPhone}: order #${p.orderId}, ₹${rupees(p.total)}
-`);
-        const language = p.sellerLanguage === 'hi' ? 'hi' : 'en';
-        if (await sendWhatsAppTemplate(p.sellerPhone, 'seller_new_order', language, [String(p.orderId), rupees(p.total)], 'DASHBOARD')) continue;
-      }
+      if (await templateIfQuiet({ id: p.sellerId, phone: p.sellerPhone, language: p.sellerLanguage }, 'seller_new_order', p.orderId, p.total)) continue;
       await sendReply(p.sellerPhone, await sellerDashboardReply(p.sellerId, p.sellerLanguage, text));
     }
   } catch (err) {
@@ -898,10 +891,22 @@ async function createOrders(
   return { placed };
 }
 
-// Whether a normal WhatsApp message still reaches this person (kept a little under Meta's 24 hours)
-async function writtenInLast24Hours(userId: number): Promise<boolean> {
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { lastMessageAt: true } });
-  return Boolean(user?.lastMessageAt && Date.now() - user.lastMessageAt.getTime() < 23 * 3600 * 1000);
+// Over 24 hours since the seller wrote to the bot (checked a little early), a normal message would
+// not arrive, so an approved template goes instead (only English and Hindi: Meta has none in Odia
+// or Assamese). Its button (DASHBOARD) sends the dashboard link. Answers whether it went; if not
+// (the seller wrote recently, or the template is not approved yet), send the normal message.
+async function templateIfQuiet(
+  seller: { id: number; phone: string; language: string },
+  template: 'seller_new_order' | 'seller_payment_reported',
+  orderId: number,
+  amount: number
+): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: seller.id }, select: { lastMessageAt: true } });
+  if (user?.lastMessageAt && Date.now() - user.lastMessageAt.getTime() < 23 * 3600 * 1000) return false;
+  console.log(`>> Template ${template} to ${seller.phone}: order #${orderId}, ₹${rupees(amount)}
+`);
+  const language = seller.language === 'hi' ? 'hi' : 'en';
+  return sendWhatsAppTemplate(seller.phone, template, language, [String(orderId), rupees(amount)], 'DASHBOARD');
 }
 
 // Seller moves an order forward: CONFIRM, then SHIP, then DELIVER

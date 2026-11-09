@@ -245,6 +245,12 @@ sql "update \"User\" set \"lastMessageAt\" = (now() at time zone 'utc') - interv
 msg $C "Hi $IDA"; msg $C 1; msg $C SHOPNOW; CT=$(tok "localhost:3001/shop/$IDA?t=[^ ]*")
 r=$(o "[{\"id\":$PID,\"qty\":1}]" "12 Temple Street, Puri 752001"); ok $(has "$r" '"ok":true') "order placed while the seller is quiet"
 sleep 0.5; ok $(grep -q ">> Template seller_new_order to $SA: order #" "$LOG" && echo 1 || echo 0) "new order, seller quiet over 24 hours -> WhatsApp template"
+ok $([ "$(grep -c '>> Template seller_payment_reported' "$LOG")" = "0" ] && echo 1 || echo 0) "payment reported, seller wrote recently -> normal messages, no template"
+QOID=$(echo "$r" | grep -o '"orderId":[0-9]*' | cut -d: -f2)
+printf '{"t":"%s","proof":"data:%s;base64,%s"}' "$CT" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/pq.json"
+ok $(has "$(post /shop/$IDA/order/$QOID/paid "@$SP/pq.json")" '"ok":true') "payment reported while the seller is quiet"
+sleep 0.5; ok $(grep -q ">> Template seller_payment_reported to $SA: order #$QOID" "$LOG" && echo 1 || echo 0) "payment reported, seller quiet over 24 hours -> WhatsApp template"
+ok $([ "$(sql "select \"proofKey\" is not null from \"Payment\" where \"orderId\" = $QOID")" = "t" ] && echo 1 || echo 0) "payment reported, seller quiet: the screenshot is kept for the dashboard"
 msg $SA DASHBOARD; ok $(has "$(last)" '/seller?t=') "seller taps Open dashboard (DASHBOARD) -> dashboard link"
 
 echo "== Removing a seller"
