@@ -160,7 +160,7 @@ Sellers work on their dashboard. `hi`, `DASHBOARD` or their own ID (from their o
 | `APPROVEPRODUCT <id>` / `REJECTPRODUCT <id>` | Also sent by the Approve / Reject buttons on the new-product message |
 | `PENDINGPRODUCTS`, `PENDINGSELLERS`, `APPROVE <user id>`, `REJECT <user id>` | Check products and seller requests in the chat (`SELL` requests from customers still exist) |
 | `BLOCK <user id>` / `UNBLOCK <user id>` | Remove a seller's role and hide all their products / let them sell again |
-| `OPENORDERS <user id>`, `ADMINCANCEL <order id>` | A seller's open orders; cancel any undelivered order (stock is returned; if already paid, arrange a refund) |
+| `OPENORDERS <user id>` | A seller's open orders |
 | `MAKEADMIN <phone>`, `SALES`, `CATEGORIES`, `ADDCATEGORY <name>`, `ADMIN` (menu), `HELP` | |
 
 ## Business rules

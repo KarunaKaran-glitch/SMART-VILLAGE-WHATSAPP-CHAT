@@ -188,9 +188,6 @@ const en = {
   disputeAskPaid: (id: number) => `Accept the payment for order #${id}? The order moves on as paid, and the seller is told to confirm it.`,
   disputeAskNotPaid: (id: number) => `Mark order #${id} as not paid? The customer is told, and the order waits for payment again.`,
   disputeNotice: (id: number, shop: string) => `Payment complaint on order #${id} (${shop}): the customer uploaded a screenshot, the seller says the money did not arrive. Please check it on the Orders tab of the admin page.`,
-  cancelOrder: 'Cancel order',
-  cancelOrderAsk: (id: number) => `Cancel order #${id}? The customer and the seller will be told, and the stock goes back.`,
-  cancelOrderAskPaid: (id: number, amount: string) => `Cancel order #${id}? The customer has paid or reported paying ₹${amount}. That money went straight to the seller, so this app cannot refund it. The customer will be told you will contact them, so please call them.`,
   tellId: (shop: string, id: string, bot: string) =>
     `Hello! Your seller ID for ${shop} is ${id}. Send ${id} to ${bot || 'the Smart Village bot'} on WhatsApp to open your seller dashboard.`,
 };
@@ -376,9 +373,6 @@ const hi: typeof en = {
   disputeAskPaid: (id: number) => `ऑर्डर #${id} का भुगतान स्वीकार करें? ऑर्डर भुगतान हुआ मानकर आगे बढ़ेगा, और विक्रेता को इसे पक्का करने के लिए कहा जाएगा।`,
   disputeAskNotPaid: (id: number) => `ऑर्डर #${id} को भुगतान नहीं हुआ मानें? ग्राहक को बताया जाएगा, और ऑर्डर फिर भुगतान की प्रतीक्षा करेगा।`,
   disputeNotice: (id: number, shop: string) => `ऑर्डर #${id} (${shop}) पर भुगतान की शिकायत: ग्राहक ने स्क्रीनशॉट भेजा, विक्रेता कहता है कि पैसा नहीं आया। कृपया एडमिन पेज के ऑर्डर टैब पर देखें।`,
-  cancelOrder: 'ऑर्डर रद्द करें',
-  cancelOrderAsk: (id: number) => `ऑर्डर #${id} रद्द करें? ग्राहक और विक्रेता को बताया जाएगा, और स्टॉक वापस हो जाएगा।`,
-  cancelOrderAskPaid: (id: number, amount: string) => `ऑर्डर #${id} रद्द करें? ग्राहक ने ₹${amount} का भुगतान किया है या भुगतान की सूचना दी है। यह पैसा सीधे विक्रेता को गया है, इसलिए यह ऐप उसे वापस नहीं कर सकता। ग्राहक को बताया जाएगा कि आप उनसे संपर्क करेंगे, इसलिए कृपया उन्हें कॉल करें।`,
   tellId: (shop: string, id: string, bot: string) =>
     `नमस्ते! ${shop} के लिए आपकी विक्रेता आईडी ${id} है। अपना डैशबोर्ड खोलने के लिए WhatsApp पर ${bot || 'Smart Village बॉट'} को ${id} भेजें।`,
 };
@@ -564,9 +558,6 @@ const or: typeof en = {
   disputeAskPaid: (id: number) => `ଅର୍ଡର #${id} ର ପେମେଣ୍ଟ ସ୍ୱୀକାର କରିବେ? ଅର୍ଡର ପେମେଣ୍ଟ ହୋଇଥିବା ଭାବେ ଆଗକୁ ଯିବ, ଏବଂ ବିକ୍ରେତାଙ୍କୁ ଏହାକୁ ନିଶ୍ଚିତ କରିବାକୁ କୁହାଯିବ।`,
   disputeAskNotPaid: (id: number) => `ଅର୍ଡର #${id} କୁ ପେମେଣ୍ଟ ହୋଇନାହିଁ ବୋଲି ଚିହ୍ନଟ କରିବେ? ଗ୍ରାହକଙ୍କୁ ଜଣାଯିବ, ଏବଂ ଅର୍ଡର ପୁଣି ପେମେଣ୍ଟକୁ ଅପେକ୍ଷା କରିବ।`,
   disputeNotice: (id: number, shop: string) => `ଅର୍ଡର #${id} (${shop}) ରେ ପେମେଣ୍ଟ ଅଭିଯୋଗ: ଗ୍ରାହକ ସ୍କ୍ରିନସଟ୍ ଦେଇଛନ୍ତି, ବିକ୍ରେତା କୁହନ୍ତି ପଇସା ଆସିନାହିଁ। ଦୟାକରି ଆଡମିନ ପେଜର ଅର୍ଡର ଟ୍ୟାବରେ ଦେଖନ୍ତୁ।`,
-  cancelOrder: 'ଅର୍ଡର ବାତିଲ କରନ୍ତୁ',
-  cancelOrderAsk: (id: number) => `ଅର୍ଡର #${id} ବାତିଲ କରିବେ? ଗ୍ରାହକ ଓ ବିକ୍ରେତାଙ୍କୁ ଜଣାଯିବ, ଏବଂ ଷ୍ଟକ୍ ଫେରିବ।`,
-  cancelOrderAskPaid: (id: number, amount: string) => `ଅର୍ଡର #${id} ବାତିଲ କରିବେ? ଗ୍ରାହକ ₹${amount} ଦେଇଛନ୍ତି ବା ଦେବା କଥା ଜଣାଇଛନ୍ତି। ଏହି ପଇସା ସିଧା ବିକ୍ରେତାଙ୍କ ପାଖକୁ ଯାଇଛି, ତେଣୁ ଏହି ଆପ୍ ଫେରାଇପାରିବ ନାହିଁ। ଗ୍ରାହକଙ୍କୁ ଜଣାଯିବ ଯେ ଆପଣ ଯୋଗାଯୋଗ କରିବେ, ତେଣୁ ଦୟାକରି ତାଙ୍କୁ କଲ୍ କରନ୍ତୁ।`,
   tellId: (shop: string, id: string, bot: string) =>
     `ନମସ୍କାର! ${shop} ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ID ${id}। ଆପଣଙ୍କ ଡ୍ୟାସବୋର୍ଡ ଖୋଲିବା ପାଇଁ WhatsAppରେ ${bot || 'Smart Village ବଟ୍'}କୁ ${id} ପଠାନ୍ତୁ।`,
 };
@@ -752,9 +743,6 @@ const as: typeof en = {
   disputeAskPaid: (id: number) => `অৰ্ডাৰ #${id} ৰ পেমেণ্ট গ্ৰহণ কৰিব নেকি? অৰ্ডাৰটো পেমেণ্ট হোৱা বুলি আগবাঢ়িব, আৰু বিক্ৰেতাক ইয়াক নিশ্চিত কৰিবলৈ কোৱা হ'ব।`,
   disputeAskNotPaid: (id: number) => `অৰ্ডাৰ #${id} পেমেণ্ট হোৱা নাই বুলি চিহ্নিত কৰিব নেকি? গ্ৰাহকক জনোৱা হ'ব, আৰু অৰ্ডাৰটো পুনৰ পেমেণ্টৰ অপেক্ষাত থাকিব।`,
   disputeNotice: (id: number, shop: string) => `অৰ্ডাৰ #${id} (${shop}) ত পেমেণ্টৰ অভিযোগ: গ্ৰাহকে স্ক্ৰীণশ্বট দিছে, বিক্ৰেতাই কয় যে ধন অহা নাই। অনুগ্ৰহ কৰি এডমিন পেজৰ অৰ্ডাৰ টেবত চাওক।`,
-  cancelOrder: 'অৰ্ডাৰ বাতিল কৰক',
-  cancelOrderAsk: (id: number) => `অৰ্ডাৰ #${id} বাতিল কৰিব নেকি? গ্ৰাহক আৰু বিক্ৰেতাক জনোৱা হ'ব, আৰু ষ্টক ঘূৰি আহিব।`,
-  cancelOrderAskPaid: (id: number, amount: string) => `অৰ্ডাৰ #${id} বাতিল কৰিব নেকি? গ্ৰাহকে ₹${amount} দিছে বা দিয়াৰ কথা জনাইছে। এই ধন পোনপটীয়াকৈ বিক্ৰেতাৰ ওচৰলৈ গৈছে, সেয়ে এই এপে ঘূৰাই দিব নোৱাৰে। গ্ৰাহকক জনোৱা হ'ব যে আপুনি যোগাযোগ কৰিব, সেয়ে অনুগ্ৰহ কৰি তেওঁক ফোন কৰক।`,
   tellId: (shop: string, id: string, bot: string) =>
     `নমস্কাৰ! ${shop}ৰ বাবে আপোনাৰ বিক্ৰেতা ID ${id}। আপোনাৰ ডেশ্বব’ৰ্ড খুলিবলৈ WhatsAppত ${bot || 'Smart Village বট'}লৈ ${id} পঠিয়াওক।`,
 };

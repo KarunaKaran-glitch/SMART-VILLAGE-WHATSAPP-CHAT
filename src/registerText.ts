@@ -1,5 +1,4 @@
 import { byLang } from './lang';
-import { mo } from './myOrdersText';
 
 // Seller registration and admin messages in every language. Commands stay in English letters.
 // REG_TEXT answers in the language of the person the message is for (see lang.ts).
@@ -42,7 +41,6 @@ const en = {
   salesPeople: (sellers: number, customers: number) => `Sellers: ${sellers}, customers: ${customers}`,
   salesPerSeller: 'Delivered sales per seller:',
   salesNone: 'No delivered sales yet.',
-  openOrdersHint: 'Send ADMINCANCEL <order> to cancel one.',
   askShop: 'What is your shop name? (2 to 40 characters) Or send CANCEL.',
   invalidShop: 'The shop name must be 2 to 40 characters. Try again, or send CANCEL.',
   requested:
@@ -74,13 +72,6 @@ const en = {
   openOrdersTitle: (sellerId: number) => `Open orders of seller #${sellerId}:`,
   noOpenOrders: (sellerId: number) => `Seller #${sellerId} has no open orders.`,
   orderMissing: (orderId: number) => `Order #${orderId} was not found.`,
-  cannotAdminCancel: (orderId: number, status: string) =>
-    `Order #${orderId} is "${mo('en').status(status)}", so it cannot be cancelled.`,
-  adminCancelled: (orderId: number) =>
-    `Order #${orderId} is cancelled. Stock was returned, and the customer and seller have been told.`,
-  adminCancelledPaid: (orderId: number, amount: number) =>
-    `Order #${orderId} is cancelled. Stock was returned, and the customer and seller have been told.\n` +
-    `IMPORTANT: the customer already paid ₹${amount} to the seller by UPI. Arrange the refund with the seller outside WhatsApp.`,
   makeAdminUsage: 'Send MAKEADMIN with the phone number, for example: MAKEADMIN 919876543210',
   userNotFound: (phone: string) =>
     `No user with phone ${phone}. Ask them to send any message to this WhatsApp number first, then try again.`,
@@ -104,7 +95,6 @@ const en = {
     'APPROVE 7 / REJECT 7 - decide seller request #7\n' +
     'BLOCK 7 / UNBLOCK 7 - block or allow seller #7\n' +
     'OPENORDERS 7 - open orders of seller #7\n' +
-    'ADMINCANCEL 12 - cancel order #12 (not yet delivered)\n' +
     'MAKEADMIN 919876543210 - make that user an admin\n' +
     'SALES - totals for the marketplace',
 };
@@ -140,7 +130,6 @@ const hi: typeof en = {
   salesPeople: (sellers: number, customers: number) => `विक्रेता: ${sellers}, ग्राहक: ${customers}`,
   salesPerSeller: 'हर विक्रेता की डिलीवर हुई बिक्री:',
   salesNone: 'अभी कोई डिलीवर हुई बिक्री नहीं।',
-  openOrdersHint: 'किसी को रद्द करने के लिए ADMINCANCEL <ऑर्डर> भेजें।',
   askShop: 'आपकी दुकान का नाम क्या है? (2 से 40 अक्षर) या CANCEL भेजें।',
   invalidShop: 'दुकान का नाम 2 से 40 अक्षर का होना चाहिए। फिर से भेजें, या CANCEL।',
   requested: 'धन्यवाद! विक्रेता बनने का आपका अनुरोध एडमिन को भेज दिया गया। फ़ैसला होने पर आपको संदेश मिलेगा।',
@@ -170,13 +159,6 @@ const hi: typeof en = {
   openOrdersTitle: (sellerId: number) => `विक्रेता #${sellerId} के चालू ऑर्डर:`,
   noOpenOrders: (sellerId: number) => `विक्रेता #${sellerId} का कोई चालू ऑर्डर नहीं है।`,
   orderMissing: (orderId: number) => `ऑर्डर #${orderId} नहीं मिला।`,
-  cannotAdminCancel: (orderId: number, status: string) =>
-    `ऑर्डर #${orderId} "${mo('hi').status(status)}" है, इसलिए रद्द नहीं हो सकता।`,
-  adminCancelled: (orderId: number) =>
-    `ऑर्डर #${orderId} रद्द हो गया। स्टॉक वापस हुआ, और ग्राहक व विक्रेता को बता दिया गया।`,
-  adminCancelledPaid: (orderId: number, amount: number) =>
-    `ऑर्डर #${orderId} रद्द हो गया। स्टॉक वापस हुआ, और ग्राहक व विक्रेता को बता दिया गया।\n` +
-    `ज़रूरी: ग्राहक विक्रेता को UPI से ₹${amount} दे चुका है। रिफंड का इंतज़ाम विक्रेता के साथ WhatsApp के बाहर करें।`,
   makeAdminUsage: 'MAKEADMIN के साथ फ़ोन नंबर भेजें, जैसे: MAKEADMIN 919876543210',
   userNotFound: (phone: string) =>
     `${phone} वाला कोई उपयोगकर्ता नहीं है। उनसे पहले इस WhatsApp नंबर पर कोई संदेश भेजने को कहें, फिर कोशिश करें।`,
@@ -200,7 +182,6 @@ const hi: typeof en = {
     'APPROVE 7 / REJECT 7 - विक्रेता अनुरोध #7 का फ़ैसला\n' +
     'BLOCK 7 / UNBLOCK 7 - विक्रेता #7 को बंद या चालू करें\n' +
     'OPENORDERS 7 - विक्रेता #7 के चालू ऑर्डर\n' +
-    'ADMINCANCEL 12 - ऑर्डर #12 रद्द करें (डिलीवरी से पहले)\n' +
     'MAKEADMIN 919876543210 - उस उपयोगकर्ता को एडमिन बनाएँ\n' +
     'SALES - मार्केटप्लेस का कुल हिसाब',
 };
@@ -236,7 +217,6 @@ const or: typeof en = {
   salesPeople: (sellers: number, customers: number) => `ବିକ୍ରେତା: ${sellers}, ଗ୍ରାହକ: ${customers}`,
   salesPerSeller: 'ପ୍ରତ୍ୟେକ ବିକ୍ରେତାଙ୍କ ଡେଲିଭରି ହୋଇଥିବା ବିକ୍ରି:',
   salesNone: 'ଏପର୍ଯ୍ୟନ୍ତ କୌଣସି ଡେଲିଭରି ହୋଇଥିବା ବିକ୍ରି ନାହିଁ।',
-  openOrdersHint: 'ଗୋଟିଏ ବାତିଲ କରିବାକୁ ADMINCANCEL <ଅର୍ଡର> ପଠାନ୍ତୁ।',
   askShop: 'ଆପଣଙ୍କ ଦୋକାନର ନାମ କ\'ଣ? (2 ରୁ 40 ଅକ୍ଷର) କିମ୍ବା CANCEL ପଠାନ୍ତୁ।',
   invalidShop: 'ଦୋକାନ ନାମ 2 ରୁ 40 ଅକ୍ଷର ହେବା ଦରକାର। ପୁଣି ପଠାନ୍ତୁ, କିମ୍ବା CANCEL।',
   requested: 'ଧନ୍ୟବାଦ! ବିକ୍ରେତା ହେବା ପାଇଁ ଆପଣଙ୍କ ଅନୁରୋଧ ଆଡମିନଙ୍କୁ ପଠାଗଲା। ନିଷ୍ପତ୍ତି ହେଲେ ଆପଣ ବାର୍ତ୍ତା ପାଇବେ।',
@@ -266,13 +246,6 @@ const or: typeof en = {
   openOrdersTitle: (sellerId: number) => `ବିକ୍ରେତା #${sellerId} ଙ୍କ ଚାଲୁ ଅର୍ଡର:`,
   noOpenOrders: (sellerId: number) => `ବିକ୍ରେତା #${sellerId} ଙ୍କର କୌଣସି ଚାଲୁ ଅର୍ଡର ନାହିଁ।`,
   orderMissing: (orderId: number) => `ଅର୍ଡର #${orderId} ମିଳିଲା ନାହିଁ।`,
-  cannotAdminCancel: (orderId: number, status: string) =>
-    `ଅର୍ଡର #${orderId} "${mo('or').status(status)}", ତେଣୁ ବାତିଲ ହୋଇପାରିବ ନାହିଁ।`,
-  adminCancelled: (orderId: number) =>
-    `ଅର୍ଡର #${orderId} ବାତିଲ ହେଲା। ଷ୍ଟକ ଫେରିଲା, ଏବଂ ଗ୍ରାହକ ଓ ବିକ୍ରେତାଙ୍କୁ ଜଣାଗଲା।`,
-  adminCancelledPaid: (orderId: number, amount: number) =>
-    `ଅର୍ଡର #${orderId} ବାତିଲ ହେଲା। ଷ୍ଟକ ଫେରିଲା, ଏବଂ ଗ୍ରାହକ ଓ ବିକ୍ରେତାଙ୍କୁ ଜଣାଗଲା।\n` +
-    `ଜରୁରୀ: ଗ୍ରାହକ ବିକ୍ରେତାଙ୍କୁ UPI ରେ ₹${amount} ଦେଇସାରିଛନ୍ତି। ରିଫଣ୍ଡ ବିକ୍ରେତାଙ୍କ ସହ WhatsApp ବାହାରେ ବ୍ୟବସ୍ଥା କରନ୍ତୁ।`,
   makeAdminUsage: 'MAKEADMIN ସହ ଫୋନ ନମ୍ବର ପଠାନ୍ତୁ, ଉଦାହରଣ: MAKEADMIN 919876543210',
   userNotFound: (phone: string) =>
     `${phone} ଫୋନ ସହ କୌଣସି ବ୍ୟବହାରକାରୀ ନାହାଁନ୍ତି। ପ୍ରଥମେ ତାଙ୍କୁ ଏହି WhatsApp ନମ୍ବରକୁ କୌଣସି ବାର୍ତ୍ତା ପଠାଇବାକୁ କୁହନ୍ତୁ, ତା'ପରେ ଚେଷ୍ଟା କରନ୍ତୁ।`,
@@ -296,7 +269,6 @@ const or: typeof en = {
     'APPROVE 7 / REJECT 7 - ବିକ୍ରେତା ଅନୁରୋଧ #7 ର ନିଷ୍ପତ୍ତି\n' +
     'BLOCK 7 / UNBLOCK 7 - ବିକ୍ରେତା #7 କୁ ବନ୍ଦ ବା ଚାଲୁ କରନ୍ତୁ\n' +
     'OPENORDERS 7 - ବିକ୍ରେତା #7 ଙ୍କ ଚାଲୁ ଅର୍ଡର\n' +
-    'ADMINCANCEL 12 - ଅର୍ଡର #12 ବାତିଲ କରନ୍ତୁ (ଡେଲିଭରି ପୂର୍ବରୁ)\n' +
     'MAKEADMIN 919876543210 - ସେହି ବ୍ୟବହାରକାରୀଙ୍କୁ ଆଡମିନ କରନ୍ତୁ\n' +
     'SALES - ମାର୍କେଟପ୍ଲେସର ମୋଟ ହିସାବ',
 };
@@ -332,7 +304,6 @@ const as: typeof en = {
   salesPeople: (sellers: number, customers: number) => `বিক্ৰেতা: ${sellers}, গ্ৰাহক: ${customers}`,
   salesPerSeller: 'প্ৰতিজন বিক্ৰেতাৰ ডেলিভাৰী হোৱা বিক্ৰী:',
   salesNone: 'এতিয়ালৈকে কোনো ডেলিভাৰী হোৱা বিক্ৰী নাই।',
-  openOrdersHint: 'এটা বাতিল কৰিবলৈ ADMINCANCEL <অৰ্ডাৰ> পঠিয়াওক।',
   askShop: 'আপোনাৰ দোকানৰ নাম কি? (2 ৰ পৰা 40 আখৰ) নহয় CANCEL পঠিয়াওক।',
   invalidShop: 'দোকানৰ নাম 2 ৰ পৰা 40 আখৰৰ হ\'ব লাগিব। আকৌ পঠিয়াওক, নহয় CANCEL।',
   requested: 'ধন্যবাদ! বিক্ৰেতা হোৱাৰ আপোনাৰ অনুৰোধ এডমিনলৈ পঠিওৱা হ\'ল। সিদ্ধান্ত হ\'লে আপুনি বাৰ্তা পাব।',
@@ -362,13 +333,6 @@ const as: typeof en = {
   openOrdersTitle: (sellerId: number) => `বিক্ৰেতা #${sellerId} ৰ চলি থকা অৰ্ডাৰ:`,
   noOpenOrders: (sellerId: number) => `বিক্ৰেতা #${sellerId} ৰ কোনো চলি থকা অৰ্ডাৰ নাই।`,
   orderMissing: (orderId: number) => `অৰ্ডাৰ #${orderId} পোৱা নগ'ল।`,
-  cannotAdminCancel: (orderId: number, status: string) =>
-    `অৰ্ডাৰ #${orderId} "${mo('as').status(status)}", সেয়েহে বাতিল কৰিব নোৱাৰি।`,
-  adminCancelled: (orderId: number) =>
-    `অৰ্ডাৰ #${orderId} বাতিল কৰা হ'ল। ষ্টক ঘূৰাই দিয়া হ'ল, আৰু গ্ৰাহক আৰু বিক্ৰেতাক জনোৱা হ'ল।`,
-  adminCancelledPaid: (orderId: number, amount: number) =>
-    `অৰ্ডাৰ #${orderId} বাতিল কৰা হ'ল। ষ্টক ঘূৰাই দিয়া হ'ল, আৰু গ্ৰাহক আৰু বিক্ৰেতাক জনোৱা হ'ল।\n` +
-    `গুৰুত্বপূৰ্ণ: গ্ৰাহকে বিক্ৰেতাক UPI ৰে ₹${amount} দিছে। ধন ঘূৰাই দিয়াৰ ব্যৱস্থা বিক্ৰেতাৰ সৈতে WhatsApp ৰ বাহিৰত কৰক।`,
   makeAdminUsage: 'MAKEADMIN ৰ সৈতে ফোন নম্বৰ পঠিয়াওক, উদাহৰণ: MAKEADMIN 919876543210',
   userNotFound: (phone: string) =>
     `${phone} ফোনৰ কোনো ব্যৱহাৰকাৰী নাই। প্ৰথমে তেওঁক এই WhatsApp নম্বৰলৈ কোনো বাৰ্তা পঠিয়াবলৈ কওক, তাৰ পিছত চেষ্টা কৰক।`,
@@ -392,7 +356,6 @@ const as: typeof en = {
     'APPROVE 7 / REJECT 7 - বিক্ৰেতাৰ অনুৰোধ #7 ৰ সিদ্ধান্ত\n' +
     'BLOCK 7 / UNBLOCK 7 - বিক্ৰেতা #7 বন্ধ বা সক্ৰিয় কৰক\n' +
     'OPENORDERS 7 - বিক্ৰেতা #7 ৰ চলি থকা অৰ্ডাৰ\n' +
-    'ADMINCANCEL 12 - অৰ্ডাৰ #12 বাতিল কৰক (ডেলিভাৰীৰ আগতে)\n' +
     'MAKEADMIN 919876543210 - সেই ব্যৱহাৰকাৰীক এডমিন কৰক\n' +
     'SALES - মাৰ্কেটপ্লেচৰ মুঠ হিচাপ',
 };

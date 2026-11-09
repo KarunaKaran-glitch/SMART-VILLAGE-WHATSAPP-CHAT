@@ -36,6 +36,8 @@ const en = {
   proofChange: 'Change screenshot',
   proofNeeded: 'Please add a screenshot of your payment first.',
   proofInvalid: 'This picture could not be used. Please choose a JPG or PNG screenshot.',
+  cancelOrder: 'Cancel order',
+  cancelAsk: (id: number) => `Cancel order #${id}?`,
   paid: 'I have paid',
   waitingTitle: 'Payment reported',
   waiting: (shop: string) =>
@@ -106,6 +108,8 @@ const hi: typeof en = {
   proofChange: 'स्क्रीनशॉट बदलें',
   proofNeeded: 'कृपया पहले अपने भुगतान का स्क्रीनशॉट जोड़ें।',
   proofInvalid: 'यह तस्वीर इस्तेमाल नहीं हो सकी। कृपया JPG या PNG स्क्रीनशॉट चुनें।',
+  cancelOrder: 'ऑर्डर रद्द करें',
+  cancelAsk: (id: number) => `ऑर्डर #${id} रद्द करें?`,
   paid: 'मैंने भुगतान किया',
   waitingTitle: 'भुगतान की सूचना दी गई',
   waiting: (shop: string) =>
@@ -174,6 +178,8 @@ const or: typeof en = {
   proofChange: 'ସ୍କ୍ରିନସଟ୍ ବଦଳାନ୍ତୁ',
   proofNeeded: 'ଦୟାକରି ପ୍ରଥମେ ଆପଣଙ୍କ ପେମେଣ୍ଟର ସ୍କ୍ରିନସଟ୍ ଯୋଡନ୍ତୁ।',
   proofInvalid: 'ଏହି ଛବି ବ୍ୟବହାର ହୋଇପାରିଲା ନାହିଁ। ଦୟାକରି JPG କିମ୍ବା PNG ସ୍କ୍ରିନସଟ୍ ବାଛନ୍ତୁ।',
+  cancelOrder: 'ଅର୍ଡର ବାତିଲ କରନ୍ତୁ',
+  cancelAsk: (id: number) => `ଅର୍ଡର #${id} ବାତିଲ କରିବେ?`,
   paid: 'ମୁଁ ପଇସା ଦେଲି',
   waitingTitle: 'ପେମେଣ୍ଟ ଜଣାଗଲା',
   waiting: (shop: string) =>
@@ -242,6 +248,8 @@ const as: typeof en = {
   proofChange: 'স্ক্ৰীণশ্বট সলনি কৰক',
   proofNeeded: 'অনুগ্ৰহ কৰি প্ৰথমে আপোনাৰ পেমেণ্টৰ স্ক্ৰীণশ্বট যোগ কৰক।',
   proofInvalid: "এই ছবিখন ব্যৱহাৰ কৰিব পৰা নগ'ল। অনুগ্ৰহ কৰি JPG বা PNG স্ক্ৰীণশ্বট বাছক।",
+  cancelOrder: 'অৰ্ডাৰ বাতিল কৰক',
+  cancelAsk: (id: number) => `অৰ্ডাৰ #${id} বাতিল কৰিব নেকি?`,
   paid: 'মই ধন দিলোঁ',
   waitingTitle: 'পেমেণ্ট জনোৱা হ\'ল',
   waiting: (shop: string) =>

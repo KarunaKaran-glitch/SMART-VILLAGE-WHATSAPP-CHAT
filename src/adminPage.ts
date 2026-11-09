@@ -1,5 +1,5 @@
 import { dt } from './dashText';
-import { APP_STYLE, DASH_STYLE, ICON, escapeHtml, rupees, scriptJson, svg } from './pageKit';
+import { APP_STYLE, DASH_STYLE, ICON, escapeHtml, scriptJson, svg } from './pageKit';
 import { firstLetter, orderView, type SellerOrderRow } from './sellerPage';
 
 // The admin dashboard (opened from the admin's [Click here] button), in the same app style as the
@@ -239,15 +239,6 @@ export function renderAdminPage(data: {
     `<button type="button" class="btn approve" data-paid="1" data-ask="${escapeHtml(W.disputeAskPaid(d.orderId))}">✓ ${escapeHtml(W.disputePaidBtn)}</button>` +
     `<button type="button" class="btn ghost-red" data-paid="0" data-ask="${escapeHtml(W.disputeAskNotPaid(d.orderId))}">✕ ${escapeHtml(W.disputeNotPaidBtn)}</button></div></article>`;
 
-  // Open orders can be cancelled by the admin, for example when a seller stops answering
-  const cancelButton = (o: SellerOrderRow) =>
-    o.status === 'DELIVERED' || o.status === 'CANCELLED'
-      ? ''
-      : '<p class="msg"></p>' +
-        `<button type="button" class="btn ghost-red block cancelorder" data-id="${o.id}" data-ask="${escapeHtml(
-          o.payment === 'paid' || o.payment === 'check' ? W.cancelOrderAskPaid(o.id, rupees(o.total)) : W.cancelOrderAsk(o.id)
-        )}">${escapeHtml(W.cancelOrder)}</button>`;
-
   // Every shop's orders, to look at (the sellers move them on from their own dashboards)
   const orders =
     '<section class="tab" id="tab-orders">' +
@@ -257,7 +248,7 @@ export function renderAdminPage(data: {
       : '') +
     `<h3 class="sec">${escapeHtml(W.ordersTitle)} <span class="count">${data.orders.length}</span></h3>` +
     (data.orders.length
-      ? data.orders.map((o) => `<article class="card order s-${o.status}" data-id="${o.id}">${orderView(o, data.language, true)}${cancelButton(o)}</article>`).join('')
+      ? data.orders.map((o) => `<article class="card order s-${o.status}" data-id="${o.id}">${orderView(o, data.language, true)}</article>`).join('')
       : `<div class="card empty">${escapeHtml(W.noOrders)}</div>`) +
     '</section>';
 
@@ -374,7 +365,8 @@ document.querySelectorAll('.check, .rename').forEach((card) => {
   });
 });
 
-// Decide a payment complaint, after asking (the cards get replaced too, so the same way as below)
+// Decide a payment complaint, after asking. Listens on the whole page: the cards get replaced
+// when orders move on (see checkOrders).
 document.addEventListener('click', async (e) => {
   const b = e.target.closest && e.target.closest('.disputecard button');
   if (!b || !confirm(b.dataset.ask)) return;
@@ -395,29 +387,6 @@ document.addEventListener('click', async (e) => {
     note.textContent = T.failed;
   }
   card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
-});
-
-// Cancel an order, after asking. Listens on the whole page: the order cards get replaced when
-// orders move on (see checkOrders).
-document.addEventListener('click', async (e) => {
-  const b = e.target.closest && e.target.closest('.cancelorder');
-  if (!b || !confirm(b.dataset.ask)) return;
-  const note = b.parentElement.querySelector('.msg');
-  note.textContent = '';
-  b.disabled = true;
-  try {
-    const res = await fetch('/admin/orders/' + b.dataset.id + '/cancel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ t: TOKEN }),
-    });
-    const out = await res.json().catch(() => ({}));
-    if (res.ok && out.ok) { location.reload(); return; }
-    note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
-  } catch (err) {
-    note.textContent = T.failed;
-  }
-  b.disabled = false;
 });
 
 // Remove a seller, after asking; the page then loads again without them
@@ -546,14 +515,13 @@ const ADMIN_STYLE = `
 .idchip{background:var(--accent);color:#fff;border-radius:999px;padding:4px 10px;font-weight:800;font-size:.85rem;white-space:nowrap}
 .seller .hint{margin:6px 0 0}
 .seller .callbtn{justify-content:center}
-.removeseller,.cancelorder{margin-top:10px}
+.removeseller{margin-top:10px}
 .disputealert{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;background:var(--amberbg);color:var(--amber);font-weight:700;text-decoration:none}
 .disputecard{outline:2px solid var(--amber);margin-bottom:14px}
 .disputecard img{display:block;width:100%;max-height:380px;object-fit:contain;margin:8px 0;border:1px solid var(--line);border-radius:10px;background:#fff}
 .disputecard .acts{margin-top:8px}
 .disputecard .callbtn{justify-content:center}
 .disputecard .msg:empty{display:none}
-.order>.msg:empty{display:none}
 .seller .msg:empty{display:none}
 .linktext.small{font-size:.8rem;margin-top:6px}
 .seller.fresh{outline:2px solid var(--ok)}

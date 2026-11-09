@@ -538,9 +538,12 @@ export function renderPayPage(data: {
       `<span class="btn outline block" id="prooflabel">📷 ${escapeHtml(W.proofAdd)}</span></label>` +
       '<p class="msg" id="msg"></p>' +
       `<button type="button" class="btn approve block" id="paid">✓ ${escapeHtml(W.paid)}</button></div>` +
-      summary;
+      summary +
+      // Only the customer can cancel, and only until they report a payment
+      '<p class="msg" id="cancelmsg"></p>' +
+      `<button type="button" class="btn ghost-red block" id="cancelorder">${escapeHtml(W.cancelOrder)}</button>`;
     script = `
-const T = ${scriptJson({ copied: W.copied, copy: W.copy, failed: W.failed, expired: W.expired, proofChange: W.proofChange, proofNeeded: W.proofNeeded, proofInvalid: W.proofInvalid })};
+const T = ${scriptJson({ copied: W.copied, copy: W.copy, failed: W.failed, expired: W.expired, proofChange: W.proofChange, proofNeeded: W.proofNeeded, proofInvalid: W.proofInvalid, cancelAsk: W.cancelAsk(data.orderId) })};
 const copy = document.getElementById('copy');
 if (copy) copy.addEventListener('click', async () => {
   const text = document.getElementById('upi').textContent;
@@ -551,6 +554,26 @@ if (copy) copy.addEventListener('click', async () => {
   }
   copy.textContent = T.copied;
   setTimeout(() => { copy.textContent = T.copy; }, 2000);
+});
+const cancelBtn = document.getElementById('cancelorder');
+cancelBtn.addEventListener('click', async () => {
+  if (!confirm(T.cancelAsk)) return;
+  const note = document.getElementById('cancelmsg');
+  note.textContent = '';
+  cancelBtn.disabled = true;
+  try {
+    const res = await fetch(location.pathname + '/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: ${scriptJson(data.token)} }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.ok) { location.reload(); return; }
+    note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
+  } catch (e) {
+    note.textContent = T.failed;
+  }
+  cancelBtn.disabled = false;
 });
 const btn = document.getElementById('paid');
 const msg = document.getElementById('msg');
@@ -776,6 +799,8 @@ body.reviewing .cartbar{display:none}
 .btn.approve{background:var(--ok);color:#fff}
 .lines li{display:flex;justify-content:space-between;gap:10px}
 .paidhint{margin:0 0 12px;color:var(--ink);font-size:.92rem;line-height:1.45}
+#cancelorder{margin-top:14px}
+#cancelmsg:empty{display:none}
 .proof{display:block;margin:0 0 12px;cursor:pointer}
 .proof img{display:block;max-width:100%;max-height:340px;margin:0 auto 10px;border:1px solid var(--line);border-radius:10px}
 .statuscard{text-align:center}
