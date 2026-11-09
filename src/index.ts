@@ -23,6 +23,7 @@ import {
   maskDigits,
   sendWhatsAppImage,
   sendWhatsAppInteractive,
+  sendWhatsAppTemplate,
   sendWhatsAppText,
   sendingEnabled,
   signatureCheckEnabled,
@@ -1963,18 +1964,20 @@ app.post('/admin/sellers', async (req: Request, res: Response) => {
       : await prisma.user.create({ data: { ...sellerData, phone, language: shopLanguage } });
     console.log(`Admin added seller ${maskDigits(phone)} with ID ${id}`);
 
-    // Tell the seller (WhatsApp only delivers this if they wrote to the bot in the last 24 hours):
-    // first the language question; after their choice comes the welcome (see CHOOSING_LANGUAGE)
+    // Tell the seller on WhatsApp at once. A new seller has not written to the bot, so only an
+    // approved template reaches them; its button (LANG) then asks the language, and after their
+    // choice comes the welcome (see CHOOSING_LANGUAGE). If the template cannot go (not approved
+    // yet), the language question goes as a normal message, which needs a Hi in the last 24 hours.
     try {
-      await sendReply(
-        seller.phone,
-        (() => {
-          const ask = languageReply(shopLanguage);
-          return { ...ask, text: `🎉 ${name} · Smart Village · ID ${id}
+      console.log(`>> Template seller_added to ${seller.phone}: ${name} / ${shopName} / ${id}
+`);
+      const told = await sendWhatsAppTemplate(seller.phone, 'seller_added', 'en', [name, shopName, id], 'LANG');
+      if (!told) {
+        const ask = languageReply(shopLanguage);
+        await sendReply(seller.phone, { ...ask, text: `🎉 ${name} · Smart Village · ID ${id}
 
-${ask.text}` };
-        })()
-      );
+${ask.text}` });
+      }
     } catch (err) {
       console.error('Seller welcome message failed:', err);
     }
@@ -2679,8 +2682,9 @@ async function handleWebhook(body: any) {
 
     const phone: string = message.from;
     const name: string | undefined = value?.contacts?.[0]?.profile?.name;
-    // A tapped button or list row arrives with the command we gave it as its id
-    const tapId = message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id;
+    // A tapped button or list row arrives with the command we gave it as its id;
+    // a tapped template button with the command as its payload
+    const tapId = message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id ?? message.button?.payload;
     const text: string = String(tapId ?? message.text?.body ?? '').trim();
     const command = text.toUpperCase();
 

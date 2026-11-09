@@ -49,11 +49,12 @@ export function maskDigits(text: string): string {
 // the one before it to that phone has finished (retry included). Without this, on a slow network
 // a later message ("delivered") could reach Meta before an earlier one ("payment received").
 // Messages to different phones still go out side by side.
-const queues = new Map<string, Promise<void>>();
+const queues = new Map<string, Promise<boolean>>();
 
-function postMessage(to: string, kind: string, message: object): Promise<void> {
-  if (!sendingEnabled) return Promise.resolve();
-  const next = (queues.get(to) ?? Promise.resolve()).then(() => postNow(to, kind, message));
+// Answers whether Meta took the message.
+function postMessage(to: string, kind: string, message: object): Promise<boolean> {
+  if (!sendingEnabled) return Promise.resolve(false);
+  const next = (queues.get(to) ?? Promise.resolve(true)).then(() => postNow(to, kind, message));
   queues.set(to, next);
   next.finally(() => {
     if (queues.get(to) === next) queues.delete(to);
@@ -86,7 +87,7 @@ class QuickConnectAgent extends https.Agent {
 }
 const metaConnection = new QuickConnectAgent({ keepAlive: true, timeout: 20000 });
 
-async function postNow(to: string, kind: string, message: object): Promise<void> {
+async function postNow(to: string, kind: string, message: object): Promise<boolean> {
   const started = Date.now();
   for (let attempt = 1; ; attempt++) {
     try {
@@ -96,7 +97,7 @@ async function postNow(to: string, kind: string, message: object): Promise<void>
         { headers: { Authorization: `Bearer ${TOKEN}` }, timeout: 10000, httpsAgent: metaConnection }
       );
       if (attempt > 1) console.log(`WhatsApp ${kind} to ${to} sent on try ${attempt} (${((Date.now() - started) / 1000).toFixed(1)} s)`);
-      return;
+      return true;
     } catch (err: any) {
       if (!err?.response && attempt < TRIES) {
         // Could not connect: try again at once. Connected but no answer: wait a moment first.
@@ -109,7 +110,7 @@ async function postNow(to: string, kind: string, message: object): Promise<void>
       // Meta explains the problem in the response body (for example error 131047: outside the 24-hour window)
       const detail = err?.response?.data?.error ?? err?.message ?? err;
       console.error(`WhatsApp ${kind} to ${to} failed:`, JSON.stringify(detail));
-      return;
+      return false;
     }
   }
 }
@@ -127,6 +128,28 @@ export async function sendWhatsAppImage(to: string, link: string, caption: strin
 // Sends a tap message (reply buttons or a list).
 export async function sendWhatsAppInteractive(to: string, interactive: object): Promise<void> {
   await postMessage(to, 'interactive', { type: 'interactive', interactive });
+}
+
+// Sends an approved message template: the only kind of message Meta delivers to someone who has
+// not written to the bot in the last 24 hours. Tapping its button sends buttonPayload as a command.
+export async function sendWhatsAppTemplate(
+  to: string,
+  name: string,
+  language: string,
+  values: string[],
+  buttonPayload: string
+): Promise<boolean> {
+  return postMessage(to, 'template', {
+    type: 'template',
+    template: {
+      name,
+      language: { code: language },
+      components: [
+        { type: 'body', parameters: values.map((text) => ({ type: 'text', text })) },
+        { type: 'button', sub_type: 'quick_reply', index: '0', parameters: [{ type: 'payload', payload: buttonPayload }] },
+      ],
+    },
+  });
 }
 
 // Downloads a photo a user sent (WhatsApp only gives us a media ID). Returns null on failure.

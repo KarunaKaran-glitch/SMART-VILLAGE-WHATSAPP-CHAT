@@ -63,6 +63,9 @@ echo "== Setup: admin page, two fake sellers"
 msg $ADM DASHBOARD; AT=$(tok 'localhost:3001/admin?t=[^ ]*')
 r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"  Test   Maker\\nA \",\"phone\":\"09500000071\",\"shopName\":\"Shop  A\",\"sellerState\":\"Rajasthan\",\"categoryId\":2}")
 ok $(has "$r" '"ok":true') "admin: number with 0 in front (09500000071) accepted"
+ok $(grep -q ">> Template seller_added to $SA: Test Maker A / Shop A / " "$LOG" && echo 1 || echo 0) "admin adds a seller -> WhatsApp template goes to the seller's phone"
+curl -s -o /dev/null -X POST $B/webhook -H 'Content-Type: application/json' -d "{\"entry\":[{\"changes\":[{\"value\":{\"messages\":[{\"from\":\"$SA\",\"id\":\"v$RANDOM$RANDOM\",\"type\":\"button\",\"button\":{\"payload\":\"LANG\",\"text\":\"Get started\"}}]}}]}]}"; sleep 0.7
+ok $(last | grep -q "Message from: $SA | tap: LANG\|Message from:.*tap: LANG" && last | grep -q "choose your language" && echo 1 || echo 0) "seller taps Get started on the template -> language question"
 IDA=$(sql "select \"shopCode\" from \"User\" where phone='$SA'")
 ok $([ "$(sql "select name from \"User\" where phone='$SA'")" = "Test Maker A" ] && echo 1 || echo 0) "admin: extra spaces and line break in the name tidied"
 r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"<b>Bad</b>\",\"phone\":\"+91 95000 00072\",\"shopName\":\"Shop B\",\"sellerState\":\"Assam\",\"categoryId\":2}")
