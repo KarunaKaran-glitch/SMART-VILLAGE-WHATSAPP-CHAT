@@ -39,6 +39,17 @@ export type AdminRename = {
   shop: string;
 };
 
+// The customer uploaded a screenshot, the seller says the money did not arrive: the admin decides
+export type AdminDispute = {
+  orderId: number;
+  amount: string;
+  customerName: string;
+  customerPhone: string;
+  sellerPhone: string;
+  shop: string;
+  proofUrl: string;
+};
+
 export function renderAdminPage(data: {
   language: string;
   token: string;
@@ -50,6 +61,7 @@ export function renderAdminPage(data: {
   categories: { id: number; name: string }[];
   sellers: AdminSellerRow[];
   orders: SellerOrderRow[]; // every shop's orders, newest open ones first
+  disputes: AdminDispute[];
   created: { shopName: string; id: string } | null; // just added (shown at the top of Sellers)
   botNumber: string; // shown as "+15556478208", or '' when not set
 }): string {
@@ -121,6 +133,9 @@ export function renderAdminPage(data: {
 
   const home =
     '<section class="tab" id="tab-home">' +
+    (data.disputes.length
+      ? `<a class="card disputealert" href="#orders">⚠️ ${escapeHtml(W.disputeAlert(data.disputes.length))} ${svg(ICON.chevron, 16)}</a>`
+      : '') +
     '<div class="hero">' +
     `<p class="hi">${escapeHtml(W.adminHello)}</p><p class="hisub">${escapeHtml(W.adminSub)}</p>` +
     `<div class="earn"><div><span>${escapeHtml(W.statSales)}</span><b>₹${escapeHtml(data.stats.sales)}</b></div>` +
@@ -209,6 +224,21 @@ export function renderAdminPage(data: {
     `<button type="button" class="btn primary block" id="save">${escapeHtml(W.save)}</button></div>` +
     '</section>';
 
+  // A payment complaint: the screenshot, who to call, and the admin's two answers
+  const disputeCard = (d: AdminDispute) =>
+    `<article class="card disputecard" data-id="${d.orderId}">` +
+    `<div class="ohead"><div><b>#${d.orderId}</b></div><b>₹${escapeHtml(d.amount)}</b></div>` +
+    `<p class="shopline">${svg(ICON.store, 16)} ${escapeHtml(d.shop)}</p>` +
+    `<p>${escapeHtml(W.disputeText(d.customerName, d.amount))}</p>` +
+    `<a href="${escapeHtml(d.proofUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(d.proofUrl)}" alt="" loading="lazy"></a>` +
+    '<div class="acts two">' +
+    `<a class="callbtn" href="tel:+${escapeHtml(d.customerPhone)}">${svg(ICON.phone, 16)} ${escapeHtml(W.callCustomer)}</a>` +
+    `<a class="callbtn" href="tel:+${escapeHtml(d.sellerPhone)}">${svg(ICON.phone, 16)} ${escapeHtml(W.callSeller)}</a></div>` +
+    '<p class="msg"></p>' +
+    '<div class="acts two">' +
+    `<button type="button" class="btn approve" data-paid="1" data-ask="${escapeHtml(W.disputeAskPaid(d.orderId))}">✓ ${escapeHtml(W.disputePaidBtn)}</button>` +
+    `<button type="button" class="btn ghost-red" data-paid="0" data-ask="${escapeHtml(W.disputeAskNotPaid(d.orderId))}">✕ ${escapeHtml(W.disputeNotPaidBtn)}</button></div></article>`;
+
   // Open orders can be cancelled by the admin, for example when a seller stops answering
   const cancelButton = (o: SellerOrderRow) =>
     o.status === 'DELIVERED' || o.status === 'CANCELLED'
@@ -221,6 +251,10 @@ export function renderAdminPage(data: {
   // Every shop's orders, to look at (the sellers move them on from their own dashboards)
   const orders =
     '<section class="tab" id="tab-orders">' +
+    (data.disputes.length
+      ? `<h3 class="sec">⚠️ ${escapeHtml(W.disputeTitle)} <span class="count">${data.disputes.length}</span></h3>` +
+        data.disputes.map(disputeCard).join('')
+      : '') +
     `<h3 class="sec">${escapeHtml(W.ordersTitle)} <span class="count">${data.orders.length}</span></h3>` +
     (data.orders.length
       ? data.orders.map((o) => `<article class="card order s-${o.status}" data-id="${o.id}">${orderView(o, data.language, true)}${cancelButton(o)}</article>`).join('')
@@ -241,6 +275,7 @@ export function renderAdminPage(data: {
           `<a href="#${id}" data-tab="${id}"${id === 'addseller' ? ' class="center"' : ''}>` +
           `${id === 'addseller' ? `<i class="plusbtn">${svg(ICON.plus, 26)}</i>` : svg(icon)}<span>${escapeHtml(label)}</span>` +
           (id === 'approve' && toCheck ? `<i class="dot">${toCheck}</i>` : '') +
+          (id === 'orders' && data.disputes.length ? `<i class="dot">${data.disputes.length}</i>` : '') +
           '</a>'
       )
       .join('') +
@@ -337,6 +372,29 @@ document.querySelectorAll('.check, .rename').forEach((card) => {
     }
     card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
   });
+});
+
+// Decide a payment complaint, after asking (the cards get replaced too, so the same way as below)
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest && e.target.closest('.disputecard button');
+  if (!b || !confirm(b.dataset.ask)) return;
+  const card = b.closest('.disputecard');
+  const note = card.querySelector('.msg');
+  note.textContent = '';
+  card.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+  try {
+    const res = await fetch('/admin/orders/' + card.dataset.id + '/complaint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: TOKEN, paid: b.dataset.paid === '1' }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.ok) { location.reload(); return; }
+    note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
+  } catch (err) {
+    note.textContent = T.failed;
+  }
+  card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
 });
 
 // Cancel an order, after asking. Listens on the whole page: the order cards get replaced when
@@ -489,6 +547,12 @@ const ADMIN_STYLE = `
 .seller .hint{margin:6px 0 0}
 .seller .callbtn{justify-content:center}
 .removeseller,.cancelorder{margin-top:10px}
+.disputealert{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px;background:var(--amberbg);color:var(--amber);font-weight:700;text-decoration:none}
+.disputecard{outline:2px solid var(--amber);margin-bottom:14px}
+.disputecard img{display:block;width:100%;max-height:380px;object-fit:contain;margin:8px 0;border:1px solid var(--line);border-radius:10px;background:#fff}
+.disputecard .acts{margin-top:8px}
+.disputecard .callbtn{justify-content:center}
+.disputecard .msg:empty{display:none}
 .order>.msg:empty{display:none}
 .seller .msg:empty{display:none}
 .linktext.small{font-size:.8rem;margin-top:6px}

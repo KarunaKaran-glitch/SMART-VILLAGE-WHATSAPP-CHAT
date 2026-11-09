@@ -11,6 +11,9 @@ export const UPI_FLOW_TEXT = {
     paidThanks: (id: number) =>
       `Thank you! We told the seller that you paid for order #${id}. They will check their bank app and confirm.`,
     received: (id: number) => `The seller received your payment for order #${id}. They will now prepare your order.`,
+    sentToAdmin: 'Your payment screenshot has gone to the Smart Village admin, who will check it.',
+    disputePaid: (id: number) => `The Smart Village admin checked your payment for order #${id} and accepted it. The seller will now prepare your order.`,
+    disputeNotPaid: (id: number) => `The Smart Village admin checked your payment for order #${id} and could not confirm it. If you have not paid, please pay again. If money left your account, please contact your bank.`,
     notReceived: (id: number) =>
       `The seller has not received your payment for order #${id}. Please check your UPI app. If the money left your account, send PAID ${id} <transaction number> again.`,
     qrHint: 'Prefer a QR code? Send QR <order number>, for example: QR 8.',
@@ -26,6 +29,9 @@ export const UPI_FLOW_TEXT = {
     paidThanks: (id: number) =>
       `धन्यवाद! हमने विक्रेता को बता दिया है कि आपने ऑर्डर #${id} का भुगतान किया है। वे अपने बैंक ऐप में देखकर पुष्टि करेंगे।`,
     received: (id: number) => `विक्रेता को ऑर्डर #${id} का आपका भुगतान मिल गया है। अब वे आपका ऑर्डर तैयार करेंगे।`,
+    sentToAdmin: 'आपके भुगतान का स्क्रीनशॉट Smart Village एडमिन को भेज दिया गया है, वे इसकी जाँच करेंगे।',
+    disputePaid: (id: number) => `Smart Village एडमिन ने ऑर्डर #${id} के आपके भुगतान की जाँच करके उसे स्वीकार किया। विक्रेता अब आपका ऑर्डर तैयार करेगा।`,
+    disputeNotPaid: (id: number) => `Smart Village एडमिन ने ऑर्डर #${id} के आपके भुगतान की जाँच की, पर उसकी पुष्टि नहीं हो सकी। अगर आपने भुगतान नहीं किया है, तो कृपया फिर से भुगतान करें। अगर आपके खाते से पैसा कट गया है, तो कृपया अपने बैंक से संपर्क करें।`,
     notReceived: (id: number) =>
       `विक्रेता को ऑर्डर #${id} का आपका भुगतान नहीं मिला है। कृपया अपना UPI ऐप देखें। अगर पैसे आपके खाते से कट गए हैं, तो PAID ${id} <ट्रांजैक्शन नंबर> फिर से भेजें।`,
     qrHint: 'QR कोड चाहिए? QR <ऑर्डर नंबर> भेजें, जैसे: QR 8।',
@@ -41,6 +47,9 @@ export const UPI_FLOW_TEXT = {
     paidThanks: (id: number) =>
       `ଧନ୍ୟବାଦ! ଆପଣ ଅର୍ଡର #${id} ପାଇଁ ପଇସା ଦେଇଛନ୍ତି ବୋଲି ବିକ୍ରେତାଙ୍କୁ ଜଣାଇଦେଲୁ। ସେମାନେ ବ୍ୟାଙ୍କ ଆପ ଦେଖି ନିଶ୍ଚିତ କରିବେ।`,
     received: (id: number) => `ଅର୍ଡର #${id} ପାଇଁ ଆପଣଙ୍କ ପଇସା ବିକ୍ରେତାଙ୍କ ପାଖରେ ପହଞ୍ଚିଗଲା। ସେମାନେ ଏବେ ଆପଣଙ୍କ ଅର୍ଡର ପ୍ରସ୍ତୁତ କରିବେ।`,
+    sentToAdmin: 'ଆପଣଙ୍କ ପେମେଣ୍ଟ ସ୍କ୍ରିନସଟ୍ Smart Village ଆଡମିନଙ୍କ ପାଖକୁ ଯାଇଛି, ସେ ଏହାକୁ ଯାଞ୍ଚ କରିବେ।',
+    disputePaid: (id: number) => `Smart Village ଆଡମିନ ଅର୍ଡର #${id} ପାଇଁ ଆପଣଙ୍କ ପେମେଣ୍ଟ ଯାଞ୍ଚ କରି ସ୍ୱୀକାର କରିଛନ୍ତି। ବିକ୍ରେତା ଏବେ ଆପଣଙ୍କ ଅର୍ଡର ପ୍ରସ୍ତୁତ କରିବେ।`,
+    disputeNotPaid: (id: number) => `Smart Village ଆଡମିନ ଅର୍ଡର #${id} ପାଇଁ ଆପଣଙ୍କ ପେମେଣ୍ଟ ଯାଞ୍ଚ କଲେ, କିନ୍ତୁ ନିଶ୍ଚିତ କରିପାରିଲେ ନାହିଁ। ଯଦି ଆପଣ ପଇସା ଦେଇନାହାନ୍ତି, ଦୟାକରି ପୁଣି ଦିଅନ୍ତୁ। ଯଦି ଆପଣଙ୍କ ଖାତାରୁ ପଇସା କଟିଛି, ଦୟାକରି ନିଜ ବ୍ୟାଙ୍କ ସହ ଯୋଗାଯୋଗ କରନ୍ତୁ।`,
     notReceived: (id: number) =>
       `ଅର୍ଡର #${id} ପାଇଁ ଆପଣଙ୍କ ପଇସା ବିକ୍ରେତାଙ୍କ ପାଖରେ ପହଞ୍ଚିନାହିଁ। ଦୟାକରି ଆପଣଙ୍କ UPI ଆପ ଦେଖନ୍ତୁ। ପଇସା ଆପଣଙ୍କ ଖାତାରୁ କଟିଥିଲେ, ପୁଣି "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
     qrHint: 'QR କୋଡ୍ ଦରକାର? QR <ଅର୍ଡର ନମ୍ବର> ପଠାନ୍ତୁ, ଉଦାହରଣ: QR 8।',
@@ -56,6 +65,9 @@ export const UPI_FLOW_TEXT = {
     paidThanks: (id: number) =>
       `ধন্যবাদ! আপুনি অৰ্ডাৰ #${id} ৰ ধন দিছে বুলি বিক্ৰেতাক জনালোঁ। তেওঁ বেংক এপ চাই নিশ্চিত কৰিব।`,
     received: (id: number) => `অৰ্ডাৰ #${id} ৰ বাবে আপোনাৰ ধন বিক্ৰেতাই পালে। তেওঁ এতিয়া আপোনাৰ অৰ্ডাৰ সাজু কৰিব।`,
+    sentToAdmin: 'আপোনাৰ পেমেণ্টৰ স্ক্ৰীণশ্বট Smart Village এডমিনলৈ গৈছে, তেওঁ ইয়াক পৰীক্ষা কৰিব।',
+    disputePaid: (id: number) => `Smart Village এডমিনে অৰ্ডাৰ #${id} ৰ আপোনাৰ পেমেণ্ট পৰীক্ষা কৰি গ্ৰহণ কৰিছে। বিক্ৰেতাই এতিয়া আপোনাৰ অৰ্ডাৰ সাজু কৰিব।`,
+    disputeNotPaid: (id: number) => `Smart Village এডমিনে অৰ্ডাৰ #${id} ৰ আপোনাৰ পেমেণ্ট পৰীক্ষা কৰিলে, কিন্তু নিশ্চিত কৰিব নোৱাৰিলে। যদি আপুনি ধন দিয়া নাই, অনুগ্ৰহ কৰি পুনৰ দিয়ক। যদি আপোনাৰ একাউণ্টৰ পৰা ধন কাটিছে, অনুগ্ৰহ কৰি আপোনাৰ বেংকৰ সৈতে যোগাযোগ কৰক।`,
     notReceived: (id: number) =>
       `অৰ্ডাৰ #${id} ৰ বাবে আপোনাৰ ধন বিক্ৰেতাই পোৱা নাই। অনুগ্ৰহ কৰি আপোনাৰ UPI এপ চাওক। ধন আপোনাৰ একাউণ্টৰ পৰা কাটিলে, আকৌ "মই ধন দিলোঁ" টিপক।`,
     qrHint: 'QR ক\'ড লাগে? QR <অৰ্ডাৰ নম্বৰ> পঠিয়াওক, উদাহৰণ: QR 8।',

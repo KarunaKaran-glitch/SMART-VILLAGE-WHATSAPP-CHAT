@@ -274,6 +274,42 @@ ok $(has "$(post /admin/orders/$ROID/cancel "{\"t\":\"$AT\"}")" '"ok":true') "ad
 ok $([ "$(sql "select o.status || ' ' || p.status from \"Order\" o join \"Payment\" p on p.\"orderId\" = o.id where o.id = $ROID")" = "CANCELLED SUCCESS" ] && echo 1 || echo 0) "admin cancel: a paid order keeps the record that money was received"
 ok $(has "$(post /seller/orders/$ROID "{\"t\":\"$ST\",\"action\":\"CONFIRM\"}")" ' 409') "admin cancel: the seller cannot move a cancelled order on"
 
+echo "== Payment complaints"
+sql "update \"Product\" set stock = 9 where id = $PID" >/dev/null
+neworder() { r=$(o "[{\"id\":$PID,\"qty\":1}]" "12 Temple Street, Puri 752001"); echo "$r" | grep -o '"orderId":[0-9]*' | cut -d: -f2; }
+AV=$(curl -s "$B/admin/state?t=$AT")
+K1=$(neworder); post /shop/$IDA/order/$K1/paid "@$SP/pq.json" >/dev/null; sleep 0.3
+ok $(has "$(post /seller/orders/$K1 "{\"t\":\"$ST\",\"action\":\"NOTRECEIVED\"}")" '"ok":true') "complaint: seller taps Not received on a payment with a screenshot"
+sleep 0.5
+ok $([ "$(sql "select p.status || ' ' || (p.\"proofKey\" is null) || ' ' || (p.\"disputeProofKey\" is not null) || ' ' || (p.\"disputedAt\" is not null) from \"Payment\" p where p.\"orderId\" = $K1")" = "INITIATED true true true" ] && echo 1 || echo 0) "complaint: payment back to waiting, the screenshot kept for the admin"
+ok $(has "$(curl -s "$B/admin?t=$AT")" "disputecard\" data-id=\"$K1\"") "complaint: shows on the admin page"
+ok $([ "$(curl -s "$B/admin/state?t=$AT")" != "$AV" ] && echo 1 || echo 0) "complaint: the admin page notices it by itself"
+ok $(grep -A4 ">> Buttons to $C:" "$LOG" | grep -q "Your payment screenshot has gone to the Smart Village admin" && echo 1 || echo 0) "complaint: customer is told the admin will check"
+ok $(grep -A1 ">> Reply to $ADM:" "$LOG" | grep -q "Payment complaint on order #$K1" && echo 1 || echo 0) "complaint: admin is told on WhatsApp"
+ok $(has "$(post /admin/orders/$K1/complaint "{\"t\":\"$ST\",\"paid\":true}")" ' 403') "complaint: a seller link cannot decide"
+post /admin/orders/$K1/complaint "{\"t\":\"$AT\",\"paid\":true}" > "$SP/k1" & post /admin/orders/$K1/complaint "{\"t\":\"$AT\",\"paid\":true}" > "$SP/k2"; wait $!; sleep 0.5
+ok $([ "$(cat "$SP/k1" "$SP/k2" | grep -c '"ok":true')" = "1" ] && echo 1 || echo 0) "complaint: decided twice at the same moment -> done once"
+ok $([ "$(sql "select o.status || ' ' || p.status || ' ' || p.\"disputeResult\" || ' ' || (o.\"paidAt\" is not null) || ' ' || (p.\"proofKey\" is not null) from \"Order\" o join \"Payment\" p on p.\"orderId\" = o.id where o.id = $K1")" = "PAID SUCCESS PAID true true" ] && echo 1 || echo 0) "complaint, genuine: order PAID, payment SUCCESS, paid time and screenshot saved together"
+ok $(grep -A2 ">> Buttons to $C:" "$LOG" | grep -q "admin checked your payment for order #$K1 and accepted it" && echo 1 || echo 0) "complaint, genuine: customer is told"
+ok $(grep -A2 ">> Link button to $SA:" "$LOG" | grep -q "checked the customer's payment for order #$K1" && echo 1 || echo 0) "complaint, genuine: seller is told, with a dashboard link"
+ok $(! curl -s "$B/admin?t=$AT" | grep -q "disputecard\" data-id=\"$K1\"" && echo 1 || echo 0) "complaint: gone from the admin page once decided"
+ok $(has "$(post /seller/orders/$K1 "{\"t\":\"$ST\",\"action\":\"CONFIRM\"}")" '"ok":true') "complaint, genuine: the seller can now confirm the order"
+K2=$(neworder); post /shop/$IDA/order/$K2/paid "@$SP/pq.json" >/dev/null; sleep 0.3; post /seller/orders/$K2 "{\"t\":\"$ST\",\"action\":\"NOTRECEIVED\"}" >/dev/null; sleep 0.5
+ok $(has "$(post /admin/orders/$K2/complaint "{\"t\":\"$AT\",\"paid\":false}")" '"ok":true') "complaint: admin says not paid"
+sleep 0.5; ok $([ "$(sql "select o.status || ' ' || p.status || ' ' || p.\"disputeResult\" from \"Order\" o join \"Payment\" p on p.\"orderId\" = o.id where o.id = $K2")" = "PENDING INITIATED NOT_PAID" ] && echo 1 || echo 0) "complaint, not paid: the order keeps waiting for payment"
+ok $(grep -A2 ">> Buttons to $C:" "$LOG" | grep -q "admin checked your payment for order #$K2 and could not confirm" && echo 1 || echo 0) "complaint, not paid: customer is told"
+ok $(has "$(post /admin/orders/$K2/complaint "{\"t\":\"$AT\",\"paid\":true}")" ' 409') "complaint: cannot be decided a second time"
+post /shop/$IDA/order/$K2/paid "@$SP/pq.json" >/dev/null; sleep 0.3
+ok $(has "$(post /seller/orders/$K2 "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}")" '"ok":true') "complaint, not paid: the customer can pay again and the seller can accept"
+K3=$(neworder); post /shop/$IDA/order/$K3/paid "@$SP/pq.json" >/dev/null; sleep 0.3; post /seller/orders/$K3 "{\"t\":\"$ST\",\"action\":\"NOTRECEIVED\"}" >/dev/null; sleep 0.5
+post /shop/$IDA/order/$K3/paid "@$SP/pq.json" >/dev/null; sleep 0.3; post /seller/orders/$K3 "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}" >/dev/null; sleep 0.5
+ok $([ "$(sql "select \"disputeResult\" from \"Payment\" where \"orderId\" = $K3")" = "SETTLED" ] && echo 1 || echo 0) "complaint: seller finds the money later -> complaint closed"
+ok $(! curl -s "$B/admin?t=$AT" | grep -q "disputecard\" data-id=\"$K3\"" && echo 1 || echo 0) "complaint closed by the seller: gone from the admin page"
+K4=$(neworder); post /shop/$IDA/order/$K4/paid "@$SP/pq.json" >/dev/null; sleep 0.3; post /seller/orders/$K4 "{\"t\":\"$ST\",\"action\":\"NOTRECEIVED\"}" >/dev/null; sleep 0.5
+post /admin/orders/$K4/cancel "{\"t\":\"$AT\"}" >/dev/null; sleep 0.3
+ok $(! curl -s "$B/admin?t=$AT" | grep -q "disputecard\" data-id=\"$K4\"" && echo 1 || echo 0) "complaint on a cancelled order: gone from the admin page"
+ok $(has "$(post /admin/orders/$K4/complaint "{\"t\":\"$AT\",\"paid\":true}")" ' 409') "complaint on a cancelled order: cannot be accepted"
+
 echo "== Removing a seller"
 ok $(has "$(curl -s "$B/admin?t=$AT")" "data-code=\"$IDB\"") "admin page: seller card has Remove seller"
 msg $D "Hi $IDB"; msg $SB DASHBOARD; SBT=$(tok "localhost:3001/seller?t=[^ ]*")

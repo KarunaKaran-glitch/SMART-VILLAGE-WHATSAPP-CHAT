@@ -689,10 +689,23 @@ async function decidePayment(
       where: { id: payment.id, status: 'AWAITING_CONFIRMATION' },
       // Not received: back to waiting; the customer can pay and tap "I have paid" again
       // (the screenshot goes too: the customer adds a new one when they report again)
-      data: received ? { status: 'SUCCESS' } : { status: 'INITIATED', reference: null, proofKey: null },
+      // With a screenshot, "not received" opens a complaint for the admin, who gets that screenshot
+      data: received
+        ? { status: 'SUCCESS' }
+        : {
+            status: 'INITIATED',
+            reference: null,
+            proofKey: null,
+            ...(payment.proofKey ? { disputedAt: new Date(), disputeProofKey: payment.proofKey, disputeResult: null } : {}),
+          },
     });
     if (answer.count === 0) return false;
     if (received) {
+      // The seller found the money after all: an open complaint is over
+      await tx.payment.updateMany({
+        where: { id: payment.id, disputedAt: { not: null }, disputeResult: null },
+        data: { disputeResult: 'SETTLED' },
+      });
       await tx.order.updateMany({ where: { id: orderId, status: 'PENDING' }, data: { status: 'PAID' } });
       await tx.order.update({ where: { id: orderId }, data: { paidAt: new Date() } });
       await tx.orderItem.updateMany({ where: { orderId, status: 'PENDING' }, data: { status: 'PAID' } });
@@ -725,7 +738,7 @@ async function decidePayment(
               buttons: nextButtons(lang),
             }
           : {
-              text: U.notReceived(orderId),
+              text: U.notReceived(orderId) + (payment.proofKey ? `\n\n${U.sentToAdmin}` : ''),
               buttons: [
                 { id: `QR ${orderId}`, title: B.showQr },
                 { id: `PAID ${orderId}`, title: B.paid },
@@ -735,6 +748,18 @@ async function decidePayment(
     }
   } catch (err) {
     console.error('Customer payment notice failed:', err);
+  }
+
+  // Tell the admins about the complaint (they decide on the admin page)
+  if (!received && payment.proofKey) {
+    try {
+      const seller = await prisma.user.findUnique({ where: { id: sellerId }, select: { shopName: true, phone: true } });
+      for (const a of await prisma.user.findMany({ where: { role: 'ADMIN' } })) {
+        await sendReply(a.phone, dt(a.language).disputeNotice(orderId, seller?.shopName ?? seller?.phone ?? '-'));
+      }
+    } catch (err) {
+      console.error('Admin complaint notice failed:', err);
+    }
   }
 
   return received
@@ -889,6 +914,67 @@ async function createOrders(
     console.error('Seller notification failed:', err);
   }
   return { placed };
+}
+
+// The admin decides a payment complaint: the payment is genuine (the order moves on as if the seller
+// had tapped Money received) or not paid (the order keeps waiting for payment). One transaction
+// (ACID), and only while the complaint is still open, so it can be decided once.
+async function decideComplaint(orderId: number, paid: boolean): Promise<boolean> {
+  const payment = await prisma.payment.findFirst({ where: { orderId }, orderBy: { id: 'desc' } });
+  if (!payment || !payment.disputedAt || payment.disputeResult) return false;
+
+  const decided = await prisma.$transaction(async (tx) => {
+    const open = { id: payment.id, disputeResult: null, order: { status: { notIn: ['CANCELLED', 'DELIVERED'] as ('CANCELLED' | 'DELIVERED')[] } } };
+    const answer = await tx.payment.updateMany({
+      where: paid ? { ...open, status: { in: ['INITIATED', 'AWAITING_CONFIRMATION'] } } : open,
+      data: paid
+        ? { status: 'SUCCESS', disputeResult: 'PAID', proofKey: payment.proofKey ?? payment.disputeProofKey }
+        : { disputeResult: 'NOT_PAID' },
+    });
+    if (answer.count === 0) return false;
+    if (paid) {
+      await tx.order.updateMany({ where: { id: orderId, status: 'PENDING' }, data: { status: 'PAID' } });
+      await tx.order.update({ where: { id: orderId }, data: { paidAt: new Date() } });
+      await tx.orderItem.updateMany({ where: { orderId, status: 'PENDING' }, data: { status: 'PAID' } });
+    }
+    return true;
+  });
+  if (!decided) return false;
+
+  // Tell the customer and the seller. A failure here must not undo the decision.
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true, items: { include: { seller: true } } },
+    });
+    if (order) {
+      const lang = order.customer.language;
+      const B = bt(lang);
+      await sendReply(
+        order.customer.phone,
+        paid
+          ? {
+              text: `${uf(lang).disputePaid(orderId)}\n\n💰 ₹${rupees(Number(payment.amount))}`,
+              imageUrl: publicUrl(STATUS_PICTURE.paid),
+              buttons: nextButtons(lang),
+            }
+          : {
+              text: uf(lang).disputeNotPaid(orderId),
+              buttons: [
+                { id: `QR ${orderId}`, title: B.showQr },
+                { id: `PAID ${orderId}`, title: B.paid },
+              ],
+            }
+      );
+      for (const s of sellersOf(order.items)) {
+        const text = inLang(s.language, () => (paid ? SELLER_TEXT.disputePaid(orderId) : SELLER_TEXT.disputeNotPaid(orderId)));
+        await sendReply(s.phone, await sellerDashboardReply(s.id, s.language, text));
+      }
+    }
+  } catch (err) {
+    console.error('Complaint decision notice failed:', err);
+  }
+  return true;
 }
 
 // Over 24 hours since the seller wrote to the bot (checked a little early), a normal message would
@@ -1792,6 +1878,11 @@ app.get('/admin', async (req: Request, res: Response) => {
     orderBy: { id: 'asc' },
   });
   const orders = await sellerOrderRows(null, lang);
+  const complaints = await prisma.payment.findMany({
+    where: OPEN_COMPLAINT,
+    include: { order: { include: { customer: true, items: { include: { seller: true }, take: 1 } } } },
+    orderBy: { id: 'asc' },
+  });
   const bot = (process.env.WHATSAPP_BOT_NUMBER ?? '').replace(/\D/g, '');
   const createdCode = typeof req.query.new === 'string' ? req.query.new : null;
   const created = createdCode ? sellers.find((s) => s.shopCode === createdCode) : undefined;
@@ -1826,6 +1917,18 @@ app.get('/admin', async (req: Request, res: Response) => {
         shop: dt(lang).fromShop(p.seller.shopName ?? p.seller.phone, p.seller.shopCode ?? '-'),
       })),
       orders,
+      disputes: complaints.map((p) => {
+        const seller = p.order.items[0]?.seller;
+        return {
+          orderId: p.orderId,
+          amount: rupees(Number(p.amount)),
+          customerName: p.order.customer.name ?? p.order.customer.phone,
+          customerPhone: p.order.customer.phone,
+          sellerPhone: seller?.phone ?? '',
+          shop: dt(lang).fromShop(seller?.shopName ?? seller?.phone ?? '-', seller?.shopCode ?? '-'),
+          proofUrl: `/images/${p.disputeProofKey}`,
+        };
+      }),
       states,
       categories: categories.map((c) => ({ id: c.id, name: categoryName(c, lang) })),
       created: created ? { shopName: created.shopName ?? '', id: created.shopCode ?? '' } : null,
@@ -1846,6 +1949,13 @@ app.get('/admin', async (req: Request, res: Response) => {
   );
 });
 
+// A payment complaint still waiting for the admin (not for an order that has since ended)
+const OPEN_COMPLAINT = {
+  disputedAt: { not: null },
+  disputeResult: null,
+  order: { status: { notIn: ['CANCELLED', 'DELIVERED'] as ('CANCELLED' | 'DELIVERED')[] } },
+};
+
 // Where every order is now, plus how many sellers and products to check, in one short text.
 // The admin page compares it every few seconds and brings its Orders and Home parts up to date.
 async function adminStateKey(): Promise<string> {
@@ -1853,14 +1963,15 @@ async function adminStateKey(): Promise<string> {
     select: { id: true, status: true, payments: { select: { status: true }, orderBy: { id: 'desc' }, take: 1 } },
     orderBy: { id: 'asc' },
   });
-  const [sellers, waiting, renames] = await Promise.all([
+  const [sellers, waiting, renames, complaints] = await Promise.all([
     prisma.user.count({ where: { role: 'SELLER' } }),
     prisma.product.count({ where: { approval: 'PENDING', imageKey: { not: null } } }),
     prisma.product.count({ where: { renamedFrom: { not: null } } }),
+    prisma.payment.count({ where: OPEN_COMPLAINT }),
   ]);
   return (
     orders.map((o) => `${o.id}:${o.status}:${o.payments[0]?.status ?? '-'}`).join(',') +
-    `|${sellers}|${waiting}|${renames}`
+    `|${sellers}|${waiting}|${renames}|${complaints}`
   );
 }
 
@@ -2045,6 +2156,30 @@ app.post('/admin/orders/:id/cancel', async (req: Request, res: Response) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('Admin order cancel failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// Admin decides a payment complaint on the admin page: { t, paid }
+app.post('/admin/orders/:id/complaint', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const admin = await dashVisitor(req.body?.t, 'ADMIN');
+    if (!admin) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const orderId = Number(req.params.id);
+    const paid = req.body.paid === true;
+    const step = await oneStepAtATime(orderId, () => decideComplaint(orderId, paid));
+    if (step.busy || !step.result) {
+      res.status(409).json({ ok: false, error: dt(admin.language).orderChanged });
+      return;
+    }
+    console.log(`Admin page: complaint on order #${orderId} decided (${paid ? 'paid' : 'not paid'})`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Complaint decision failed:', err);
     res.status(500).json({ ok: false });
   }
 });

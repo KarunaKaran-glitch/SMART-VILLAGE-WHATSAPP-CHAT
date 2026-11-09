@@ -105,6 +105,8 @@ const en = {
     `Your UPI ID is saved: ${upi}\nCustomers will see it when they pay you. Never share your bank account number or card details here.`,
   upiInvalid:
     'That does not look like a UPI ID. It looks like name@bank. Please send your own UPI ID again (as shown in your UPI app).',
+  disputePaid: (orderId: number) => `The Smart Village admin checked the customer's payment for order #${orderId} and accepted it. Please check your bank again and confirm the order on your dashboard.`,
+  disputeNotPaid: (orderId: number) => `The Smart Village admin checked order #${orderId} and could not confirm the payment. The order is waiting for the customer to pay. Please do not send it yet.`,
   paymentProof: (orderId: number) => `Payment screenshot from the customer for order #${orderId}. Check that the money is really in your bank before you tap Money received.`,
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `The customer says they paid ₹${amount} for order #${orderId}.\n` +
@@ -230,6 +232,8 @@ const hi: typeof en = {
     `आपकी UPI ID सहेज ली गई: ${upi}\nभुगतान करते समय ग्राहक इसे देखेंगे। यहाँ कभी बैंक खाता नंबर या कार्ड की जानकारी न भेजें।`,
   upiInvalid:
     'यह UPI ID जैसा नहीं लगता। UPI ID name@bank जैसी होती है। कृपया अपनी UPI ID (UPI ऐप में जैसी दिखती है) फिर से भेजें।',
+  disputePaid: (orderId: number) => `Smart Village एडमिन ने ऑर्डर #${orderId} के ग्राहक के भुगतान की जाँच करके उसे स्वीकार किया। कृपया अपना बैंक फिर से देखें और अपने डैशबोर्ड पर ऑर्डर पक्का करें।`,
+  disputeNotPaid: (orderId: number) => `Smart Village एडमिन ने ऑर्डर #${orderId} की जाँच की, पर भुगतान की पुष्टि नहीं हो सकी। ऑर्डर ग्राहक के भुगतान की प्रतीक्षा में है। कृपया अभी इसे न भेजें।`,
   paymentProof: (orderId: number) => `ऑर्डर #${orderId} के लिए ग्राहक का भुगतान स्क्रीनशॉट। पैसा मिल गया दबाने से पहले देख लें कि पैसा सच में आपके बैंक में आया है।`,
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `ग्राहक कहता है कि उसने ऑर्डर #${orderId} के लिए ₹${amount} भेजे हैं।\n` +
@@ -351,6 +355,8 @@ const or: typeof en = {
     `ଆପଣଙ୍କ UPI ID ସେଭ୍ ହେଲା: ${upi}\nପଇସା ଦେବା ସମୟରେ ଗ୍ରାହକ ଏହା ଦେଖିବେ। ଏଠାରେ କେବେ ବ୍ୟାଙ୍କ ଖାତା ନମ୍ବର ବା କାର୍ଡ ବିବରଣୀ ପଠାନ୍ତୁ ନାହିଁ।`,
   upiInvalid:
     'ଏହା UPI ID ପରି ଲାଗୁନାହିଁ। UPI ID name@bank ପରି ହୁଏ। ଦୟାକରି ଆପଣଙ୍କ UPI ID (UPI ଆପରେ ଯେପରି ଦେଖାଯାଏ) ପୁଣି ପଠାନ୍ତୁ।',
+  disputePaid: (orderId: number) => `Smart Village ଆଡମିନ ଅର୍ଡର #${orderId} ପାଇଁ ଗ୍ରାହକଙ୍କ ପେମେଣ୍ଟ ଯାଞ୍ଚ କରି ସ୍ୱୀକାର କରିଛନ୍ତି। ଦୟାକରି ନିଜ ବ୍ୟାଙ୍କ ପୁଣି ଦେଖନ୍ତୁ ଏବଂ ଡ୍ୟାସବୋର୍ଡରେ ଅର୍ଡର ନିଶ୍ଚିତ କରନ୍ତୁ।`,
+  disputeNotPaid: (orderId: number) => `Smart Village ଆଡମିନ ଅର୍ଡର #${orderId} ଯାଞ୍ଚ କଲେ, କିନ୍ତୁ ପେମେଣ୍ଟ ନିଶ୍ଚିତ କରିପାରିଲେ ନାହିଁ। ଅର୍ଡର ଗ୍ରାହକଙ୍କ ପେମେଣ୍ଟକୁ ଅପେକ୍ଷା କରୁଛି। ଦୟାକରି ଏବେ ଏହାକୁ ପଠାନ୍ତୁ ନାହିଁ।`,
   paymentProof: (orderId: number) => `ଅର୍ଡର #${orderId} ପାଇଁ ଗ୍ରାହକଙ୍କ ପେମେଣ୍ଟ ସ୍କ୍ରିନସଟ୍। ପଇସା ମିଳିଲା ଦବାଇବା ଆଗରୁ ଦେଖନ୍ତୁ ଯେ ପଇସା ପ୍ରକୃତରେ ଆପଣଙ୍କ ବ୍ୟାଙ୍କରେ ଆସିଛି।`,
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `ଗ୍ରାହକ କହୁଛନ୍ତି ସେ ଅର୍ଡର #${orderId} ପାଇଁ ₹${amount} ଦେଇଛନ୍ତି।\n` +
@@ -472,6 +478,8 @@ const as: typeof en = {
     `আপোনাৰ UPI ID সংৰক্ষণ কৰা হ'ল: ${upi}\nধন দিওঁতে গ্ৰাহকে ইয়াক দেখিব। ইয়াত কেতিয়াও বেংক একাউণ্ট নম্বৰ বা কাৰ্ডৰ তথ্য নপঠিয়াব।`,
   upiInvalid:
     'এইটো UPI ID যেন লগা নাই। UPI ID name@bank ৰ দৰে হয়। অনুগ্ৰহ কৰি আপোনাৰ UPI ID (UPI এপত যেনেকৈ দেখা যায়) আকৌ পঠিয়াওক।',
+  disputePaid: (orderId: number) => `Smart Village এডমিনে অৰ্ডাৰ #${orderId} ৰ গ্ৰাহকৰ পেমেণ্ট পৰীক্ষা কৰি গ্ৰহণ কৰিছে। অনুগ্ৰহ কৰি আপোনাৰ বেংক পুনৰ চাওক আৰু ডেশ্বব'ৰ্ডত অৰ্ডাৰ নিশ্চিত কৰক।`,
+  disputeNotPaid: (orderId: number) => `Smart Village এডমিনে অৰ্ডাৰ #${orderId} পৰীক্ষা কৰিলে, কিন্তু পেমেণ্ট নিশ্চিত কৰিব নোৱাৰিলে। অৰ্ডাৰটো গ্ৰাহকৰ পেমেণ্টৰ অপেক্ষাত আছে। অনুগ্ৰহ কৰি এতিয়া ইয়াক নপঠিয়াব।`,
   paymentProof: (orderId: number) => `অৰ্ডাৰ #${orderId} ৰ বাবে গ্ৰাহকৰ পেমেণ্ট স্ক্ৰীণশ্বট। ধন পালোঁ টিপাৰ আগতে চাওক যে ধন সঁচাকৈ আপোনাৰ বেংকত আহিছে।`,
   paymentReported: (orderId: number, amount: number, ref: string | null) =>
     `গ্ৰাহকে কৈছে যে অৰ্ডাৰ #${orderId} ৰ বাবে ₹${amount} দিছে।\n` +
