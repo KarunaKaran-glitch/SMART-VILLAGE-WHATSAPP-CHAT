@@ -194,6 +194,10 @@ msg $SA hi; ok $(has "$(last)" '/seller?t=') "seller 'hi' -> dashboard link stra
 ok $([ "$(last | grep -c 'MYPRODUCTS\|SELLER$')" = "0" ] && echo 1 || echo 0) "seller 'hi' -> no My products / Seller menu buttons"
 msg 919500000075 hi; msg 919500000075 1
 ok $([ "$(last | grep -c '>> Reply to')" = "1" ] && [ "$(last | grep -c -- '->')" = "0" ] && echo 1 || echo 0) "new customer without a shop -> after the language, only the 'send the shop ID' message (no menu)"
+msg 919500000075 LANG; msg 919500000075 2; msg 919500000075 hi
+ok $(last | grep -q 'Welcome! ' && last | grep -q 'स्वागत है' && [ "$(last | grep -n 'Welcome! ' | cut -d: -f1)" -lt "$(last | grep -n 'स्वागत है' | cut -d: -f1)" ] && echo 1 || echo 0) "'hi' with no shop, Hindi saved -> English first, then Hindi"
+msg 919500000075 LANG; msg 919500000075 1; msg 919500000075 hi
+ok $(last | grep -q 'Welcome! ' && ! last | grep -q 'स्वागत है' && echo 1 || echo 0) "'hi' with no shop, English saved -> English only"
 msg $D "Hi $IDA"; msg $D 1; msg $D SHOPNOW; DT=$(tok "localhost:3001/shop/$IDA?t=[^ ]*")
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/shop/$IDA/order/$OID?t=$DT")" = "403" ] && echo 1 || echo 0) "pay page: another customer cannot open this order"
 ok $(has "$(post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"SHIP\"}")" ' 409') "seller: Ship before the money is received refused"

@@ -318,6 +318,13 @@ async function shopLinkReply(
   };
 }
 
+// "How to open a shop", for someone who is in no shop: English first, then their saved language
+function noShopText(language: string): string {
+  return language === 'en' ? bt('en').noShop : `${bt('en').noShop}
+
+${bt(language).noShop}`;
+}
+
 function welcomeReply(language: string, text?: string): RichReply {
   const B = bt(language);
   // A customer who came through a seller's link: that shop's welcome, like Chennai Metro's
@@ -334,7 +341,7 @@ function welcomeReply(language: string, text?: string): RichReply {
     };
   }
   // No shop link: there is no shared marketplace to browse, so only explain how to open a shop
-  return { text: text ?? B.noShop };
+  return { text: text ?? noShopText(language) };
 }
 
 // The first screen after "hi" depends on the role: sellers and admins see their own work first
@@ -3644,7 +3651,7 @@ async function handleWebhook(body: any) {
       /^\d+$/.test(text);
     if (command === 'SHOPNOW' || oldShopping) {
       if (myShop?.role !== 'SELLER' || !myShop.shopCode) {
-        await sendReply(phone, welcomeReply(user.language, B.noShop));
+        await sendReply(phone, welcomeReply(user.language, noShopText(user.language)));
         return;
       }
       const token = crypto.randomBytes(18).toString('base64url');
