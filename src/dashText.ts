@@ -178,6 +178,9 @@ const en = {
   removeSeller: 'Remove seller',
   removeSellerAsk: (shop: string) => `Remove ${shop}? The shop closes, its products are hidden, and the seller can no longer open the dashboard.`,
   sellerHasOpenOrders: (n: number) => `This seller has ${n} open order(s). They must be delivered or cancelled before the seller can be removed.`,
+  cancelOrder: 'Cancel order',
+  cancelOrderAsk: (id: number) => `Cancel order #${id}? The customer and the seller will be told, and the stock goes back.`,
+  cancelOrderAskPaid: (id: number, amount: string) => `Cancel order #${id}? The customer has paid or reported paying ₹${amount}. That money went straight to the seller, so this app cannot refund it. The customer will be told you will contact them, so please call them.`,
   tellId: (shop: string, id: string, bot: string) =>
     `Hello! Your seller ID for ${shop} is ${id}. Send ${id} to ${bot || 'the Smart Village bot'} on WhatsApp to open your seller dashboard.`,
 };
@@ -353,6 +356,9 @@ const hi: typeof en = {
   removeSeller: 'विक्रेता हटाएँ',
   removeSellerAsk: (shop: string) => `${shop} को हटाएँ? दुकान बंद हो जाएगी, उसके उत्पाद छिप जाएँगे, और विक्रेता डैशबोर्ड नहीं खोल पाएगा।`,
   sellerHasOpenOrders: (n: number) => `इस विक्रेता के ${n} ऑर्डर अभी खुले हैं। विक्रेता को हटाने से पहले उन्हें डिलीवर या रद्द होना चाहिए।`,
+  cancelOrder: 'ऑर्डर रद्द करें',
+  cancelOrderAsk: (id: number) => `ऑर्डर #${id} रद्द करें? ग्राहक और विक्रेता को बताया जाएगा, और स्टॉक वापस हो जाएगा।`,
+  cancelOrderAskPaid: (id: number, amount: string) => `ऑर्डर #${id} रद्द करें? ग्राहक ने ₹${amount} का भुगतान किया है या भुगतान की सूचना दी है। यह पैसा सीधे विक्रेता को गया है, इसलिए यह ऐप उसे वापस नहीं कर सकता। ग्राहक को बताया जाएगा कि आप उनसे संपर्क करेंगे, इसलिए कृपया उन्हें कॉल करें।`,
   tellId: (shop: string, id: string, bot: string) =>
     `नमस्ते! ${shop} के लिए आपकी विक्रेता आईडी ${id} है। अपना डैशबोर्ड खोलने के लिए WhatsApp पर ${bot || 'Smart Village बॉट'} को ${id} भेजें।`,
 };
@@ -528,6 +534,9 @@ const or: typeof en = {
   removeSeller: 'ବିକ୍ରେତାଙ୍କୁ ହଟାନ୍ତୁ',
   removeSellerAsk: (shop: string) => `${shop} କୁ ହଟାଇବେ? ଦୋକାନ ବନ୍ଦ ହେବ, ଏହାର ଉତ୍ପାଦ ଲୁଚିଯିବ, ଏବଂ ବିକ୍ରେତା ଡ୍ୟାସବୋର୍ଡ ଖୋଲିପାରିବେ ନାହିଁ।`,
   sellerHasOpenOrders: (n: number) => `ଏହି ବିକ୍ରେତାଙ୍କର ${n}ଟି ଅର୍ଡର ଖୋଲା ଅଛି। ବିକ୍ରେତାଙ୍କୁ ହଟାଇବା ଆଗରୁ ସେଗୁଡ଼ିକ ଡେଲିଭର କିମ୍ବା ବାତିଲ ହେବା ଦରକାର।`,
+  cancelOrder: 'ଅର୍ଡର ବାତିଲ କରନ୍ତୁ',
+  cancelOrderAsk: (id: number) => `ଅର୍ଡର #${id} ବାତିଲ କରିବେ? ଗ୍ରାହକ ଓ ବିକ୍ରେତାଙ୍କୁ ଜଣାଯିବ, ଏବଂ ଷ୍ଟକ୍ ଫେରିବ।`,
+  cancelOrderAskPaid: (id: number, amount: string) => `ଅର୍ଡର #${id} ବାତିଲ କରିବେ? ଗ୍ରାହକ ₹${amount} ଦେଇଛନ୍ତି ବା ଦେବା କଥା ଜଣାଇଛନ୍ତି। ଏହି ପଇସା ସିଧା ବିକ୍ରେତାଙ୍କ ପାଖକୁ ଯାଇଛି, ତେଣୁ ଏହି ଆପ୍ ଫେରାଇପାରିବ ନାହିଁ। ଗ୍ରାହକଙ୍କୁ ଜଣାଯିବ ଯେ ଆପଣ ଯୋଗାଯୋଗ କରିବେ, ତେଣୁ ଦୟାକରି ତାଙ୍କୁ କଲ୍ କରନ୍ତୁ।`,
   tellId: (shop: string, id: string, bot: string) =>
     `ନମସ୍କାର! ${shop} ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ID ${id}। ଆପଣଙ୍କ ଡ୍ୟାସବୋର୍ଡ ଖୋଲିବା ପାଇଁ WhatsAppରେ ${bot || 'Smart Village ବଟ୍'}କୁ ${id} ପଠାନ୍ତୁ।`,
 };
@@ -703,6 +712,9 @@ const as: typeof en = {
   removeSeller: 'বিক্ৰেতাক আঁতৰাওক',
   removeSellerAsk: (shop: string) => `${shop} আঁতৰাব নেকি? দোকান বন্ধ হ'ব, ইয়াৰ সামগ্ৰী লুকাই থাকিব, আৰু বিক্ৰেতাই ডেশ্বব'ৰ্ড খুলিব নোৱাৰিব।`,
   sellerHasOpenOrders: (n: number) => `এই বিক্ৰেতাৰ ${n}টা অৰ্ডাৰ খোলা আছে। বিক্ৰেতাক আঁতৰোৱাৰ আগতে সেইবোৰ ডেলিভাৰ বা বাতিল হ'ব লাগিব।`,
+  cancelOrder: 'অৰ্ডাৰ বাতিল কৰক',
+  cancelOrderAsk: (id: number) => `অৰ্ডাৰ #${id} বাতিল কৰিব নেকি? গ্ৰাহক আৰু বিক্ৰেতাক জনোৱা হ'ব, আৰু ষ্টক ঘূৰি আহিব।`,
+  cancelOrderAskPaid: (id: number, amount: string) => `অৰ্ডাৰ #${id} বাতিল কৰিব নেকি? গ্ৰাহকে ₹${amount} দিছে বা দিয়াৰ কথা জনাইছে। এই ধন পোনপটীয়াকৈ বিক্ৰেতাৰ ওচৰলৈ গৈছে, সেয়ে এই এপে ঘূৰাই দিব নোৱাৰে। গ্ৰাহকক জনোৱা হ'ব যে আপুনি যোগাযোগ কৰিব, সেয়ে অনুগ্ৰহ কৰি তেওঁক ফোন কৰক।`,
   tellId: (shop: string, id: string, bot: string) =>
     `নমস্কাৰ! ${shop}ৰ বাবে আপোনাৰ বিক্ৰেতা ID ${id}। আপোনাৰ ডেশ্বব’ৰ্ড খুলিবলৈ WhatsAppত ${bot || 'Smart Village বট'}লৈ ${id} পঠিয়াওক।`,
 };

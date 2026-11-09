@@ -1182,40 +1182,49 @@ async function openOrders(sellerId: number): Promise<string> {
 }
 
 // ADMINCANCEL n: the admin cancels any order that is not delivered yet
-async function adminCancelOrder(orderId: number): Promise<string> {
+async function adminCancelOrder(orderId: number): Promise<{ done: boolean; text: string }> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: { include: { seller: true } }, customer: true, payments: true },
   });
-  if (!order) return REG_TEXT.orderMissing(orderId);
+  if (!order) return { done: false, text: REG_TEXT.orderMissing(orderId) };
   if (order.status === 'DELIVERED' || order.status === 'CANCELLED') {
-    return REG_TEXT.cannotAdminCancel(orderId, order.status);
+    return { done: false, text: REG_TEXT.cannotAdminCancel(orderId, order.status) };
   }
 
   const openItems = order.items.filter(
     (i) => i.status !== 'DELIVERED' && i.status !== 'CANCELLED'
   );
-  // Money that already reached the seller must be refunded outside the bot
-  const paid = order.payments.find((p) => p.status === 'SUCCESS');
+  // Money that reached the seller must be refunded outside the bot. A payment the customer reported
+  // but the seller never answered counts too: the customer has most likely paid.
+  const paid = order.payments.find((p) => p.status === 'SUCCESS' || p.status === 'AWAITING_CONFIRMATION');
 
-  await prisma.$transaction([
-    prisma.orderItem.updateMany({
+  // One transaction (ACID). The order only changes while it is still open, so two cancels at the
+  // same moment (or a Deliver at the same moment) put the stock back once at most.
+  const cancelled = await prisma.$transaction(async (tx) => {
+    const changed = await tx.order.updateMany({
+      where: { id: orderId, status: { notIn: ['DELIVERED', 'CANCELLED'] } },
+      data: { status: 'CANCELLED' },
+    });
+    if (changed.count === 0) return false;
+    await tx.orderItem.updateMany({
       where: { orderId, status: { notIn: ['DELIVERED', 'CANCELLED'] } },
       data: { status: 'CANCELLED' },
-    }),
-    prisma.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } }),
-    prisma.payment.updateMany({
+    });
+    await tx.payment.updateMany({
       where: { orderId, status: { in: ['INITIATED', 'AWAITING_CONFIRMATION'] } },
       data: { status: 'CANCELLED' },
-    }),
+    });
     // Put the quantities back into stock (only for products that track stock)
-    ...openItems.map((i) =>
-      prisma.product.updateMany({
+    for (const i of openItems) {
+      await tx.product.updateMany({
         where: { id: i.productId, stock: { not: null } },
         data: { stock: { increment: i.quantity } },
-      })
-    ),
-  ]);
+      });
+    }
+    return true;
+  });
+  if (!cancelled) return { done: false, text: REG_TEXT.cannotAdminCancel(orderId, 'CANCELLED') };
 
   // Tell the customer and the sellers. A failure here must not undo the cancellation.
   try {
@@ -1228,9 +1237,10 @@ async function adminCancelOrder(orderId: number): Promise<string> {
     console.error('Admin cancel notice failed:', err);
   }
 
-  return paid
-    ? REG_TEXT.adminCancelledPaid(orderId, Number(paid.amount))
-    : REG_TEXT.adminCancelled(orderId);
+  return {
+    done: true,
+    text: paid ? REG_TEXT.adminCancelledPaid(orderId, Number(paid.amount)) : REG_TEXT.adminCancelled(orderId),
+  };
 }
 
 // MAKEADMIN phone: gives an existing customer the admin role
@@ -2012,6 +2022,29 @@ ${ask.text}` });
     res.json({ ok: true, id });
   } catch (err) {
     console.error('Adding a seller failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// Admin cancels an order on the admin page: the same as ADMINCANCEL in the chat
+app.post('/admin/orders/:id/cancel', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const admin = await dashVisitor(req.body?.t, 'ADMIN');
+    if (!admin) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const orderId = Number(req.params.id);
+    const result = await inLang(admin.language, () => adminCancelOrder(orderId));
+    if (!result.done) {
+      res.status(409).json({ ok: false, error: result.text });
+      return;
+    }
+    console.log(`Admin page: order #${orderId} cancelled`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Admin order cancel failed:', err);
     res.status(500).json({ ok: false });
   }
 });
@@ -3493,7 +3526,7 @@ async function handleWebhook(body: any) {
 
       const adminCancelMatch = command.match(/^ADMINCANCEL\s+#?(\d+)$/);
       if (adminCancelMatch) {
-        await staffSend(await adminCancelOrder(Number(adminCancelMatch[1])));
+        await staffSend((await adminCancelOrder(Number(adminCancelMatch[1]))).text);
         return;
       }
 

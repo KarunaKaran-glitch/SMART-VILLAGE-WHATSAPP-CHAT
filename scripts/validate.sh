@@ -253,6 +253,27 @@ sleep 0.5; ok $(grep -q ">> Template seller_payment_reported to $SA: order #$QOI
 ok $([ "$(sql "select \"proofKey\" is not null from \"Payment\" where \"orderId\" = $QOID")" = "t" ] && echo 1 || echo 0) "payment reported, seller quiet: the screenshot is kept for the dashboard"
 msg $SA DASHBOARD; ok $(has "$(last)" '/seller?t=') "seller taps Open dashboard (DASHBOARD) -> dashboard link"
 
+echo "== Admin cancels an order"
+ok $(has "$(curl -s "$B/admin?t=$AT")" "cancelorder\" data-id=\"$QOID\"") "admin page: an open order has Cancel order"
+ok $(! curl -s "$B/admin?t=$AT" | grep -q "cancelorder\" data-id=\"$OID\"" && echo 1 || echo 0) "admin page: a delivered order has no Cancel order"
+ok $(has "$(post /admin/orders/$QOID/cancel "{\"t\":\"$ST\"}")" ' 403') "admin cancel: a seller link cannot cancel"
+ok $(has "$(post /admin/orders/$OID/cancel "{\"t\":\"$AT\"}")" ' 409') "admin cancel: a delivered order cannot be cancelled"
+ok $(has "$(post /admin/orders/999999/cancel "{\"t\":\"$AT\"}")" ' 409') "admin cancel: an order that does not exist"
+SB4=$(sql "select stock from \"Product\" where id = $PID")
+post /admin/orders/$QOID/cancel "{\"t\":\"$AT\"}" > "$SP/c1" & post /admin/orders/$QOID/cancel "{\"t\":\"$AT\"}" > "$SP/c2"; wait $!; sleep 0.5
+ok $([ "$(cat "$SP/c1" "$SP/c2" | grep -c '"ok":true')" = "1" ] && echo 1 || echo 0) "admin cancel: tapped twice at the same moment -> done once"
+ok $([ "$(sql "select stock from \"Product\" where id = $PID")" = "$((SB4 + 1))" ] && echo 1 || echo 0) "admin cancel: stock back once only"
+ok $([ "$(sql "select o.status || ' ' || p.status || ' ' || bool_and(i.status = 'CANCELLED') || ' ' || (p.\"proofKey\" is not null) from \"Order\" o join \"Payment\" p on p.\"orderId\" = o.id join \"OrderItem\" i on i.\"orderId\" = o.id where o.id = $QOID group by o.status, p.status, p.\"proofKey\"")" = "CANCELLED CANCELLED true true" ] && echo 1 || echo 0) "admin cancel: order, items and payment change together; the screenshot is kept"
+ok $(grep -A1 ">> Reply to $C:" "$LOG" | grep -q "order #$QOID was cancelled by the marketplace. You have already paid" && echo 1 || echo 0) "admin cancel: customer who reported paying is told about the refund, not 'no need to pay'"
+r=$(o "[{\"id\":$PID,\"qty\":1}]" "12 Temple Street, Puri 752001"); UOID=$(echo "$r" | grep -o '"orderId":[0-9]*' | cut -d: -f2)
+ok $(has "$(post /admin/orders/$UOID/cancel "{\"t\":\"$AT\"}")" '"ok":true') "admin cancel: an unpaid order"
+sleep 0.3; ok $(grep -A1 ">> Reply to $C:" "$LOG" | grep -q "order #$UOID was cancelled by the marketplace. You do not need to pay" && echo 1 || echo 0) "admin cancel: unpaid order -> customer told no need to pay"
+r=$(o "[{\"id\":$PID,\"qty\":1}]" "12 Temple Street, Puri 752001"); ROID=$(echo "$r" | grep -o '"orderId":[0-9]*' | cut -d: -f2)
+post /shop/$IDA/order/$ROID/paid "@$SP/pq.json" >/dev/null; post /seller/orders/$ROID "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}" >/dev/null; sleep 0.5
+ok $(has "$(post /admin/orders/$ROID/cancel "{\"t\":\"$AT\"}")" '"ok":true') "admin cancel: a paid order"
+ok $([ "$(sql "select o.status || ' ' || p.status from \"Order\" o join \"Payment\" p on p.\"orderId\" = o.id where o.id = $ROID")" = "CANCELLED SUCCESS" ] && echo 1 || echo 0) "admin cancel: a paid order keeps the record that money was received"
+ok $(has "$(post /seller/orders/$ROID "{\"t\":\"$ST\",\"action\":\"CONFIRM\"}")" ' 409') "admin cancel: the seller cannot move a cancelled order on"
+
 echo "== Removing a seller"
 ok $(has "$(curl -s "$B/admin?t=$AT")" "data-code=\"$IDB\"") "admin page: seller card has Remove seller"
 msg $D "Hi $IDB"; msg $SB DASHBOARD; SBT=$(tok "localhost:3001/seller?t=[^ ]*")
