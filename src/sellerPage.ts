@@ -406,7 +406,11 @@ async function post(url, body, msgEl, notice) {
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.ok) {
-      location.href = '/seller?t=' + encodeURIComponent(TOKEN) + '&done=' + notice + (location.hash || '');
+      // After an earlier save the address already says done=...: going to the same address
+      // does not load the page again, so load it by hand
+      const next = '/seller?t=' + encodeURIComponent(TOKEN) + '&done=' + notice;
+      if (location.pathname + location.search === next) location.reload();
+      else location.href = next + (location.hash || '');
       return true;
     }
     msgEl.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
@@ -580,7 +584,7 @@ readPhoto(document.getElementById('qr'), document.getElementById('qrpreview'), q
 document.getElementById('saveqr').addEventListener('click', async (e) => {
   if (!qr) { qrmsg.textContent = T.photoMissing; return; }
   e.target.disabled = true;
-  if (!(await post('/seller/settings', { qr }, qrmsg, 'saved'))) e.target.disabled = false;
+  if (!(await post('/seller/settings', { qr }, qrmsg, 'qr'))) e.target.disabled = false;
 });
 const rm = document.getElementById('removeqr');
 if (rm) rm.addEventListener('click', async () => {

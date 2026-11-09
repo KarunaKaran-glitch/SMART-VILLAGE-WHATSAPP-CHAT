@@ -105,6 +105,7 @@ ok $(has "$(post /seller/products "@$SP/vp5.json")" 'how many you have') "seller
 ok $(has "$(post /seller/products/$PID "{\"t\":\"$ST\",\"name\":\"<i>Red</i> Bag\",\"price\":450,\"stock\":null}")" ' 400') "seller: edit with the stock left empty refused"
 ok $(has "$(post /seller/settings "{\"t\":\"$ST\",\"sellerState\":\"Tamil Nadu\"}")" ' 400') "seller: state not in the list refused"
 ok $(has "$(post /seller/settings "{\"t\":\"$ST\",\"qr\":\"data:image/png;base64,aGVsbG8=\"}")" ' 400') "seller: fake QR photo refused"
+ok $(has "$(curl -s "$B/seller?t=$ST&done=qr")" 'QR code uploaded successfully') "seller page: after a QR upload it says uploaded successfully"
 ok $(has "$(post /seller/products/26 "{\"t\":\"$ST\",\"price\":1,\"stock\":null}")" ' 404') "seller: cannot change another seller's product"
 ok $(has "$(post /admin/sellers "{\"t\":\"$ST\",\"name\":\"X Y\",\"phone\":\"9500000079\",\"shopName\":\"S\",\"sellerState\":\"Assam\",\"categoryId\":2}")" ' 403') "seller link cannot be used on the admin page"
 sql "update \"Product\" set approval='APPROVED', stock=2 where id=$PID" >/dev/null

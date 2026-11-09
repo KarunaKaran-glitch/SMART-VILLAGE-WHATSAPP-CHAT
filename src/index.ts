@@ -2217,9 +2217,11 @@ app.get('/seller', async (req: Request, res: Response) => {
       notice:
         req.query.done === 'added'
           ? dt(seller.language).productAdded
-          : req.query.done === 'saved'
-            ? dt(seller.language).saved
-            : null,
+          : req.query.done === 'qr'
+            ? dt(seller.language).qrSaved
+            : req.query.done === 'saved'
+              ? dt(seller.language).saved
+              : null,
       shopLink: bot && seller.shopCode ? `https://wa.me/${bot}?text=${encodeURIComponent(`Hi ${seller.shopCode}`)}` : null,
       upiId: seller.upiId,
       qrUrl: seller.upiQrKey ? `/images/${seller.upiQrKey}` : null,
