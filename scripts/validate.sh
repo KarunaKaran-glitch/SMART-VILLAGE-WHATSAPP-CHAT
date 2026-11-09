@@ -82,6 +82,11 @@ echo "== Seller A dashboard"
 ok $(grep -A6 ">> Buttons to $SA" "$LOG" | grep -F -q '[हिन्दी] -> 2   [English] -> 1' && echo 1 || echo 0) "new seller (Rajasthan) is first asked the language: Hindi or English"
 msg $SA 4; ok $(last | grep -F -q '[English] -> 1' && echo 1 || echo 0) "new seller: a language their state does not offer (4 = Assamese) asks again"
 msg $SA 1; ok $(has "$(last)" "$IDA") "new seller: after choosing English, the welcome with their ID comes"
+ok $(last | grep -F -q '[Language] -> LANG' && echo 1 || echo 0) "new seller: the welcome has a Language button next to My dashboard"
+msg $SA LANG; ok $(last | grep -F -q '[English] -> 1' && echo 1 || echo 0) "seller taps Language -> the language question comes again"
+msg $SA 2; ok $(last | grep -q "अब आप Smart Village पर विक्रेता हैं" && last | grep -F -q '[भाषा] -> LANG' && echo 1 || echo 0) "seller changes to Hindi -> the welcome and its buttons are in Hindi"
+ok $([ "$(sql "select language from \"User\" where phone='$SA'")" = "hi" ] && echo 1 || echo 0) "seller's new language is saved"
+msg $SA LANG; msg $SA 1
 ok $([ "$(sql "select language || ' ' || state from \"User\" where phone='$SA'")" = "en BROWSING" ] && echo 1 || echo 0) "new seller: the chosen language (English) is saved"
 msg $SA "$IDA"; ST=$(tok 'localhost:3001/seller?t=[^ ]*')
 ok $([ -n "$ST" ] && echo 1 || echo 0) "seller: own ID without Hi opens the dashboard"

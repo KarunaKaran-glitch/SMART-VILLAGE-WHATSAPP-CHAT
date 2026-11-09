@@ -2026,12 +2026,17 @@ app.post('/admin/sellers/:code/remove', async (req: Request, res: Response) => {
 });
 
 // The welcome for a new seller, in their language: their name, shop and ID, and [My dashboard]
-function sellerWelcomeReply(seller: { language: string; name: string | null; shopName: string | null; shopCode: string | null }): RichReply {
+// Also [Language] to choose again, unless their state only has English
+function sellerWelcomeReply(seller: { language: string; name: string | null; shopName: string | null; shopCode: string | null; shopLanguage: string | null }): RichReply {
   const D = dt(seller.language);
   const id = seller.shopCode ?? '';
+  const canChange = (shopLanguageCodes(seller.shopLanguage) ?? ['en']).length > 1;
   return inLang(seller.language, () => ({
     text: D.sellerWelcome(seller.name ?? '', seller.shopName ?? '', id),
-    buttons: [{ id: id || 'DASHBOARD', title: D.btnMyDashboard }],
+    buttons: [
+      { id: id || 'DASHBOARD', title: D.btnMyDashboard },
+      ...(canChange ? [{ id: 'LANG', title: bt(seller.language).language }] : []),
+    ],
   }));
 }
 
