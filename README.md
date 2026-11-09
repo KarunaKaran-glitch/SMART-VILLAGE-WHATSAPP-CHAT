@@ -145,7 +145,6 @@ Most people only tap. These commands still exist (not case-sensitive; `#` before
 | `MYORDERS` / `ORDERINFO <id>` | Your last orders and one order's details |
 | `QR <id>` / `PAID <id> <transaction no.>` | Pay an order from WhatsApp (if the payment page was closed) |
 | `CANCELORDER <id>` | Cancel an order while it is still pending and no payment has been reported |
-| `ADDRESS` | Set or change the delivery address (the shop page fills it in) |
 
 A customer without a shop gets only: "open the shop link your seller sent you, or send Hi and the shop code".
 

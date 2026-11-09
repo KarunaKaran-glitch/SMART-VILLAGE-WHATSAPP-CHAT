@@ -198,6 +198,8 @@ msg 919500000075 LANG; msg 919500000075 2; msg 919500000075 hi
 ok $(last | grep -q 'Welcome! ' && last | grep -q 'स्वागत है' && [ "$(last | grep -n 'Welcome! ' | cut -d: -f1)" -lt "$(last | grep -n 'स्वागत है' | cut -d: -f1)" ] && echo 1 || echo 0) "'hi' with no shop, Hindi saved -> English first, then Hindi"
 msg 919500000075 LANG; msg 919500000075 1; msg 919500000075 hi
 ok $(last | grep -q 'Welcome! ' && ! last | grep -q 'स्वागत है' && echo 1 || echo 0) "'hi' with no shop, English saved -> English only"
+msg $C MAINMENU; ok $(last | grep -q -- '-> MYORDERS' && last | grep -q -- '-> LANG' && ! last | grep -q -- '-> ADDRESS' && echo 1 || echo 0) "customer menu: My orders and Language, no Delivery address"
+msg $C ADDRESS; ok $([ "$(sql "select state from \"User\" where phone='$C'")" != "ENTERING_ADDRESS" ] && echo 1 || echo 0) "chat: typing ADDRESS no longer asks for an address (web page only)"
 msg $D "Hi $IDA"; msg $D 1; msg $D SHOPNOW; DT=$(tok "localhost:3001/shop/$IDA?t=[^ ]*")
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/shop/$IDA/order/$OID?t=$DT")" = "403" ] && echo 1 || echo 0) "pay page: another customer cannot open this order"
 ok $(has "$(post /seller/orders/$OID "{\"t\":\"$ST\",\"action\":\"SHIP\"}")" ' 409') "seller: Ship before the money is received refused"

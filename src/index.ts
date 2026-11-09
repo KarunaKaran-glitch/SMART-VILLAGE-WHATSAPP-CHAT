@@ -8,7 +8,6 @@ import { SHOP_TEXT } from './shopText';
 import { ot } from './orderText';
 import { SELLER_TEXT } from './sellerText';
 import { mo } from './myOrdersText';
-import { ad } from './addressText';
 import { cn, sellerAdminCancelNotice, sellerCancelNotice } from './cancelText';
 import { REG_TEXT } from './registerText';
 import { st } from './stockText';
@@ -410,7 +409,6 @@ function mainMenuReply(user: { language: string; role: string }): RichReply {
   const rows: Row[] = currentShop() ? [{ id: 'SHOPNOW', title: B.shopNow }] : [];
   rows.push(
     { id: 'MYORDERS', title: B.myOrders },
-    { id: 'ADDRESS', title: B.address },
     { id: 'LANG', title: B.language }
   );
   if (user.role === 'SELLER') rows.push({ id: 'SELLER', title: B.sellerMenu });
@@ -2910,7 +2908,6 @@ async function handleWebhook(body: any) {
       'ADDING_PRODUCT_PRICE',
       'ADDING_PRODUCT_PHOTO',
       'SETTING_UPI_QR',
-      'ENTERING_ADDRESS',
       'ENTERING_SHOP_NAME',
       'CHOOSING_QUANTITY',
       'CHOOSING_CATEGORY',
@@ -3552,14 +3549,13 @@ async function handleWebhook(body: any) {
       return;
     }
 
-    // While waiting for a quantity, an address or a shop name,
+    // While waiting for a quantity or a shop name,
     // these typed commands leave that step automatically
     if (
       (user.state === 'CHOOSING_QUANTITY' ||
-        user.state === 'ENTERING_ADDRESS' ||
         user.state === 'ENTERING_SHOP_NAME') &&
       ([
-        'MENU', 'CART', 'CLEAR', 'MYORDERS', 'ADDRESS', 'ORDER', 'SELL',
+        'MENU', 'CART', 'CLEAR', 'MYORDERS', 'ORDER', 'SELL',
         'MAINMENU', 'REMOVEMENU', 'PLACEORDER', 'SHOPNOW',
       ].includes(command) ||
         /^(REMOVE|CANCELORDER|QR|PRODUCT|BUY|ORDERINFO|MENU)\s+#?\d+$/.test(command) ||
@@ -3572,29 +3568,6 @@ async function handleWebhook(body: any) {
       });
       user.state = 'BROWSING';
       user.pendingProductId = null;
-    }
-
-    // ---- State: entering the delivery address ----
-    if (user.state === 'ENTERING_ADDRESS') {
-      const A = ad(user.language);
-      if (command === 'CANCEL') {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { state: 'BROWSING' },
-        });
-        await sendReply(phone, welcomeReply(user.language, A.cancelled));
-        return;
-      }
-      if (text.length < 10 || text.length > 200) {
-        await sendReply(phone, withCancel(A.invalid));
-        return;
-      }
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { address: text, state: 'BROWSING' },
-      });
-      await sendReply(phone, welcomeReply(user.language, A.saved));
-      return;
     }
 
     // ---- State: entering the shop name (seller registration) ----
@@ -3732,16 +3705,6 @@ async function handleWebhook(body: any) {
         data: { state: 'ENTERING_SHOP_NAME' },
       });
       await sendReply(phone, withCancel(REG_TEXT.askShop));
-      return;
-    }
-
-    if (command === 'ADDRESS') {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { state: 'ENTERING_ADDRESS' },
-      });
-      const A = ad(user.language);
-      await sendReply(phone, withCancel(user.address ? A.askChange(user.address) : A.ask));
       return;
     }
 
