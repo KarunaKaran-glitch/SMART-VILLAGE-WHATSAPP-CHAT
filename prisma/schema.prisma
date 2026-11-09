@@ -116,6 +116,7 @@ model User {
   // Customer's secret for the shop web page link (new one on every "Shop now", valid 24 hours)
   webToken           String?      @unique
   webTokenAt         DateTime?
+  lastMessageAt      DateTime? // when they last wrote to the bot: normal messages only reach them for 24 hours after this
   // Seller's or admin's secret for their dashboard page link (valid 24 hours)
   dashToken          String?      @unique
   dashTokenAt        DateTime?

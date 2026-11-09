@@ -237,6 +237,16 @@ echo "== Delivery failures from Meta"
 curl -s -o /dev/null -X POST $B/webhook -H 'Content-Type: application/json' -d '{"entry":[{"changes":[{"value":{"statuses":[{"id":"wamid.x","status":"failed","recipient_id":"919500000074","errors":[{"code":131047,"title":"Re-engagement message"}]}]}}]}]}'; sleep 0.5
 ok $(grep -q 'Delivery failed to 91\*\*\*\*\*\*\*\*74: the 24-hour window is closed' "$LOG" && echo 1 || echo 0) "Meta's later 'failed' notice is printed, with the number hidden and the reason in plain words"
 
+echo "== New order when the seller has been quiet for over 24 hours"
+ok $([ "$(grep -c '>> Template seller_new_order' "$LOG")" = "0" ] && echo 1 || echo 0) "new order, seller wrote recently -> normal message, no template"
+ok $([ "$(sql "select \"lastMessageAt\" is not null from \"User\" where phone='$SA'")" = "t" ] && echo 1 || echo 0) "a message from the seller saves when they last wrote"
+sql "update \"Product\" set stock = 5 where id = $PID" >/dev/null
+sql "update \"User\" set \"lastMessageAt\" = (now() at time zone 'utc') - interval '25 hours' where phone='$SA'" >/dev/null
+msg $C "Hi $IDA"; msg $C 1; msg $C SHOPNOW; CT=$(tok "localhost:3001/shop/$IDA?t=[^ ]*")
+r=$(o "[{\"id\":$PID,\"qty\":1}]" "12 Temple Street, Puri 752001"); ok $(has "$r" '"ok":true') "order placed while the seller is quiet"
+sleep 0.5; ok $(grep -q ">> Template seller_new_order to $SA: order #" "$LOG" && echo 1 || echo 0) "new order, seller quiet over 24 hours -> WhatsApp template"
+msg $SA DASHBOARD; ok $(has "$(last)" '/seller?t=') "seller taps Open dashboard (DASHBOARD) -> dashboard link"
+
 echo "== Removing a seller"
 ok $(has "$(curl -s "$B/admin?t=$AT")" "data-code=\"$IDB\"") "admin page: seller card has Remove seller"
 msg $D "Hi $IDB"; msg $SB DASHBOARD; SBT=$(tok "localhost:3001/seller?t=[^ ]*")

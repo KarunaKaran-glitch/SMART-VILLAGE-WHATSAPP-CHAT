@@ -880,12 +880,28 @@ async function createOrders(
           `${SELLER_TEXT.deliverTo}: ${address}`;
         return SELLER_TEXT.newOrder(p.orderId, [...p.lines, note], customerLabel);
       });
+      // Over 24 hours since the seller wrote to the bot: a normal message would not arrive, so an
+      // approved template goes instead (only English and Hindi: Meta has none in Odia or Assamese).
+      // Its button (DASHBOARD) sends the dashboard link. If it cannot go (not approved yet), the
+      // normal message is still tried.
+      if (!(await writtenInLast24Hours(p.sellerId))) {
+        console.log(`>> Template seller_new_order to ${p.sellerPhone}: order #${p.orderId}, ₹${rupees(p.total)}
+`);
+        const language = p.sellerLanguage === 'hi' ? 'hi' : 'en';
+        if (await sendWhatsAppTemplate(p.sellerPhone, 'seller_new_order', language, [String(p.orderId), rupees(p.total)], 'DASHBOARD')) continue;
+      }
       await sendReply(p.sellerPhone, await sellerDashboardReply(p.sellerId, p.sellerLanguage, text));
     }
   } catch (err) {
     console.error('Seller notification failed:', err);
   }
   return { placed };
+}
+
+// Whether a normal WhatsApp message still reaches this person (kept a little under Meta's 24 hours)
+async function writtenInLast24Hours(userId: number): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { lastMessageAt: true } });
+  return Boolean(user?.lastMessageAt && Date.now() - user.lastMessageAt.getTime() < 23 * 3600 * 1000);
 }
 
 // Seller moves an order forward: CONFIRM, then SHIP, then DELIVER
@@ -2745,6 +2761,7 @@ async function handleWebhook(body: any) {
     console.log('Message from:', phone, tapId ? '| tap:' : '| text:', maskDigits(text));
 
     const user = await prisma.user.findUnique({ where: { phone } });
+    if (user) await prisma.user.update({ where: { id: user.id }, data: { lastMessageAt: new Date() } });
 
     // "Hi KARNA": the customer came through a seller's shop link
     // A bare 4-digit number is also a shop ID (people often send just the number), but only
