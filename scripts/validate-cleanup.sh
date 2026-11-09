@@ -4,6 +4,7 @@ PSQL="${PSQL:-/c/Program Files/PostgreSQL/18/bin/psql.exe}"
 DB="${DB:-postgresql://postgres:postgres@localhost:5432/smart-village}"
 U="(select id from \"User\" where phone in ('919500000071','919500000072','919500000073','919500000074','919500000075','919500000079'))"
 "$PSQL" "$DB" -q -c "
+delete from \"Image\" where key in (select \"proofKey\" from \"Payment\" where \"orderId\" in (select id from \"Order\" where \"customerId\" in $U)) or key in (select \"disputeProofKey\" from \"Payment\" where \"orderId\" in (select id from \"Order\" where \"customerId\" in $U));
 delete from \"Payment\" where \"orderId\" in (select id from \"Order\" where \"customerId\" in $U);
 delete from \"OrderItem\" where \"orderId\" in (select id from \"Order\" where \"customerId\" in $U);
 delete from \"Order\" where \"customerId\" in $U;

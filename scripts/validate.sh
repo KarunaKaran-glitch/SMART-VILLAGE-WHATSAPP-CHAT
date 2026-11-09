@@ -175,7 +175,11 @@ printf '{"t":"%s","ref":"12-34","proof":"data:%s;base64,%s"}' "$CT" "$MIME" "$(b
 printf '{"t":"%s","proof":"data:%s;base64,%s"}' "$CT" "$MIME" "$(base64 -w0 "$SP/v.img")" > "$SP/pp.json"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "@$SP/pb.json")" ' 409') "paid: wrong transaction number refused (chat PAID n number still checks it)"
 ok $([ "$(curl -s "$B/shop/$IDA/order/$OID?t=$CT" | grep -c 'id="ref"')" = "0" ] && echo 1 || echo 0) "pay page: no transaction number box"
-ok $(has "$(curl -s "$B/shop/$IDA/order/$OID?t=$CT")" 'id="proof"') "pay page: has the payment screenshot upload"
+PP=$(curl -s "$B/shop/$IDA/order/$OID?t=$CT")
+ok $(has "$PP" 'id="proof"') "pay page: has the payment screenshot upload"
+ok $(echo "$PP" | grep -q 'data-panel="pay-qr"' && echo "$PP" | grep -q 'data-panel="pay-upi"' && echo 1 || echo 0) "pay page: the customer chooses QR code or UPI ID first"
+ok $(echo "$PP" | grep -q 'id="pay-qr" hidden' && echo "$PP" | grep -q 'id="pay-upi" hidden' && echo "$PP" | grep -q 'id="afterpay" hidden' && echo 1 || echo 0) "pay page: QR, UPI ID and the screenshot step stay hidden until a choice"
+ok $(echo "$PP" | grep -q 'upi://pay?[^"]*am=450' && echo 1 || echo 0) "pay page: the UPI button opens the UPI app with the amount filled in"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\"}")" ' 400') "paid: 'I have paid' without a screenshot refused"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\",\"proof\":\"data:image/png;base64,aGVsbG8=\"}")" ' 400') "paid: a fake screenshot refused"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "@$SP/pp.json")" '"ok":true') "paid: 'I have paid' with a screenshot accepted"

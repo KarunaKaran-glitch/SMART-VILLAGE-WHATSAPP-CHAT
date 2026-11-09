@@ -510,25 +510,35 @@ export function renderPayPage(data: {
   let body: string;
   let script = '';
   if (data.state === 'pay') {
+    const bothWays = Boolean(data.qrSrc && data.upiLink);
     body =
       `<div class="card amountcard"><span>${escapeHtml(W.amount)}</span><b>₹${total}</b>` +
       `<p>${escapeHtml(W.payDirect(data.shopName))}</p></div>` +
-      step(1, W.payByUpi) +
+      // First the customer chooses how to pay (when the seller offers both): only that way is shown
+      (bothWays
+        ? step(1, W.chooseHow) +
+          '<div class="paychoices">' +
+          `<button type="button" class="paychoice" data-panel="pay-qr">${svg(ICON.qr, 26)}<b>${escapeHtml(W.chooseQr)}</b><small>${escapeHtml(W.chooseQrHint)}</small></button>` +
+          `<button type="button" class="paychoice" data-panel="pay-upi">${svg(ICON.wallet, 26)}<b>${escapeHtml(W.chooseUpi)}</b><small>${escapeHtml(W.chooseUpiHint)}</small></button>` +
+          '</div>'
+        : step(1, W.payByUpi)) +
       (data.qrSrc
-        ? `<div class="card qrcard"><p class="hint">${escapeHtml(W.scanQr)}</p>` +
+        ? `<div class="card qrcard" id="pay-qr"${bothWays ? ' hidden' : ''}><p class="hint">${escapeHtml(W.scanQr)}</p>` +
           `<img class="qr" src="${escapeHtml(data.qrSrc)}" alt="UPI QR">` +
           `<p class="hint">${escapeHtml(data.qrFromSeller ? W.qrSellerNote(total, data.orderId) : W.qrAutoNote(data.orderId))}</p></div>`
         : '') +
-      '<div class="card">' +
-      (data.upiId
-        ? `<div class="upirow"><div><span>${escapeHtml(W.upiId)}</span><b id="upi">${escapeHtml(data.upiId)}</b></div>` +
-          `<button type="button" class="btn outline small" id="copy">${escapeHtml(W.copy)}</button></div>`
-        : '') +
       (data.upiLink
-        ? `<a class="btn primary block" href="${escapeHtml(data.upiLink)}">${escapeHtml(W.payApp)}</a>` +
-          `<p class="hint">${escapeHtml(W.payAppNote)}</p>`
+        ? `<div class="card" id="pay-upi"${bothWays ? ' hidden' : ''}>` +
+          `<a class="btn primary block" href="${escapeHtml(data.upiLink)}">${escapeHtml(W.payApp)} · ₹${total}</a>` +
+          `<p class="hint">${escapeHtml(W.payAppNote)}</p>` +
+          (data.upiId
+            ? `<div class="upirow"><div><span>${escapeHtml(W.upiId)}</span><b id="upi">${escapeHtml(data.upiId)}</b></div>` +
+              `<button type="button" class="btn outline small" id="copy">${escapeHtml(W.copy)}</button></div>`
+            : '') +
+          '</div>'
         : '') +
-      '</div>' +
+      // After paying: the screenshot and "I have paid", once a way to pay is chosen
+      `<div id="afterpay"${bothWays ? ' hidden' : ''}>` +
       step(2, W.afterPay) +
       '<div class="card form">' +
       `<p class="paidhint">${escapeHtml(W.paidHint)}</p>` +
@@ -537,7 +547,7 @@ export function renderPayPage(data: {
       '<img id="proofimg" alt="" hidden>' +
       `<span class="btn outline block" id="prooflabel">📷 ${escapeHtml(W.proofAdd)}</span></label>` +
       '<p class="msg" id="msg"></p>' +
-      `<button type="button" class="btn approve block" id="paid">✓ ${escapeHtml(W.paid)}</button></div>` +
+      `<button type="button" class="btn approve block" id="paid">✓ ${escapeHtml(W.paid)}</button></div></div>` +
       summary +
       // Only the customer can cancel, and only until they report a payment
       '<p class="msg" id="cancelmsg"></p>' +
@@ -554,6 +564,20 @@ if (copy) copy.addEventListener('click', async () => {
   }
   copy.textContent = T.copied;
   setTimeout(() => { copy.textContent = T.copy; }, 2000);
+});
+// Tap a way to pay: show only that way, and the step after paying
+document.querySelectorAll('.paychoice').forEach((b) => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.paychoice').forEach((x) => {
+      const on = x === b;
+      x.classList.toggle('on', on);
+      document.getElementById(x.dataset.panel).hidden = !on;
+    });
+    document.getElementById('afterpay').hidden = false;
+    // UPI ID: go straight to the UPI app, with the amount filled in. The button stays on the page
+    // for when it did not open, or the customer comes back and wants to try again.
+    if (b.dataset.panel === 'pay-upi') location.href = document.querySelector('#pay-upi a').href;
+  });
 });
 const cancelBtn = document.getElementById('cancelorder');
 cancelBtn.addEventListener('click', async () => {
@@ -800,8 +824,16 @@ body.reviewing .cartbar{display:none}
 .lines li{display:flex;justify-content:space-between;gap:10px}
 .paidhint{margin:0 0 12px;color:var(--ink);font-size:.92rem;line-height:1.45}
 #cancelorder{margin-top:14px}
+.paychoices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.paychoice{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 10px;background:var(--card);border:2px solid var(--line);border-radius:14px;color:var(--ink);font:inherit;text-align:center;cursor:pointer}
+.paychoice svg{color:var(--brand2)}
+.paychoice small{color:var(--muted);font-size:.78rem;line-height:1.3}
+.paychoice.on{border-color:var(--brand2);background:#eef3ff}
+#pay-qr[hidden],#pay-upi[hidden],#afterpay[hidden]{display:none}
+#pay-upi .upirow{margin-top:12px}
 #cancelmsg:empty{display:none}
 .proof{display:block;margin:0 0 12px;cursor:pointer}
+.proof img[hidden]{display:none}
 .proof img{display:block;max-width:100%;max-height:340px;margin:0 auto 10px;border:1px solid var(--line);border-radius:10px}
 .statuscard{text-align:center}
 .statuscard h2{margin:10px 0 4px;font-size:1.3rem}
