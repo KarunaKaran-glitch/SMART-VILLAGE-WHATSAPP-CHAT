@@ -1086,11 +1086,13 @@ async function blockSeller(sellerId: number): Promise<string> {
       },
     }),
     prisma.product.updateMany({ where: { sellerId }, data: { isActive: false } }),
+    // Customers who were in this shop start again from a shop ID
+    prisma.user.updateMany({ where: { shopId: sellerId }, data: { shopId: null, webToken: null } }),
   ]);
 
   // Orders already placed stay as they are, so count the ones still open
   const open = await prisma.orderItem.count({
-    where: { sellerId, status: { in: ['PENDING', 'CONFIRMED', 'SHIPPED'] } },
+    where: { sellerId, status: { in: ['PENDING', 'PAID', 'CONFIRMED', 'SHIPPED'] } },
   });
 
   try {
@@ -1984,6 +1986,41 @@ ${ask.text}` });
     res.json({ ok: true, id });
   } catch (err) {
     console.error('Adding a seller failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// Admin removes a seller: the same as BLOCK in the chat (shop closed, products hidden, dashboard
+// link dead; past orders stay). Refused while orders are open: nobody could finish them, and the
+// customers may already have paid. Adding the same phone again later makes them a seller again.
+app.post('/admin/sellers/:code/remove', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const admin = await dashVisitor(req.body?.t, 'ADMIN');
+    if (!admin) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const seller = await prisma.user.findFirst({ where: { shopCode: String(req.params.code), role: 'SELLER' } });
+    if (!seller) {
+      res.status(404).json({ ok: false });
+      return;
+    }
+    const open = await prisma.order.count({
+      where: {
+        status: { notIn: ['DELIVERED', 'CANCELLED'] },
+        items: { some: { sellerId: seller.id } },
+      },
+    });
+    if (open > 0) {
+      res.status(409).json({ ok: false, error: dt(admin.language).sellerHasOpenOrders(open) });
+      return;
+    }
+    await blockSeller(seller.id);
+    console.log(`Admin removed seller ${maskDigits(seller.phone)} (ID ${seller.shopCode})`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Removing a seller failed:', err);
     res.status(500).json({ ok: false });
   }
 });

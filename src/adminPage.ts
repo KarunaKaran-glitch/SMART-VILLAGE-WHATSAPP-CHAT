@@ -100,6 +100,8 @@ export function renderAdminPage(data: {
       '<div class="acts two">' +
       `<a class="callbtn" href="tel:+${escapeHtml(s.phone)}">${svg(ICON.phone, 16)} ${escapeHtml(W.call)}</a>` +
       `<a class="btn whatsapp small" href="${escapeHtml(tell)}">${svg(ICON.share, 16)} ${escapeHtml(W.sendId)}</a></div>` +
+      `<button type="button" class="btn ghost-red block removeseller" data-code="${escapeHtml(s.id)}" data-ask="${escapeHtml(W.removeSellerAsk(s.shopName))}">${escapeHtml(W.removeSeller)}</button>` +
+      '<p class="msg"></p>' +
       '</article>'
     );
   };
@@ -328,6 +330,29 @@ document.querySelectorAll('.check, .rename').forEach((card) => {
   });
 });
 
+// Remove a seller, after asking; the page then loads again without them
+document.querySelectorAll('.removeseller').forEach((b) => {
+  b.addEventListener('click', async () => {
+    if (!confirm(b.dataset.ask)) return;
+    const note = b.parentElement.querySelector('.msg');
+    note.textContent = '';
+    b.disabled = true;
+    try {
+      const res = await fetch('/admin/sellers/' + encodeURIComponent(b.dataset.code) + '/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ t: TOKEN }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (res.ok && out.ok) { location.reload(); return; }
+      note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
+    } catch (err) {
+      note.textContent = T.failed;
+    }
+    b.disabled = false;
+  });
+});
+
 // Add a seller, then show the Sellers tab with the new seller's ID
 // The state shows its customer languages as numbered chips (1 = the state's language)
 const state = document.getElementById('state');
@@ -431,6 +456,8 @@ const ADMIN_STYLE = `
 .idchip{background:var(--accent);color:#fff;border-radius:999px;padding:4px 10px;font-weight:800;font-size:.85rem;white-space:nowrap}
 .seller .hint{margin:6px 0 0}
 .seller .callbtn{justify-content:center}
+.removeseller{margin-top:10px}
+.seller .msg:empty{display:none}
 .linktext.small{font-size:.8rem;margin-top:6px}
 .seller.fresh{outline:2px solid var(--ok)}
 .created{border-left:5px solid var(--ok)}

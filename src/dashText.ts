@@ -174,6 +174,9 @@ const en = {
   nextToApprove: 'Waiting for your check',
   seeMore: 'See all',
   sendId: 'Send ID on WhatsApp',
+  removeSeller: 'Remove seller',
+  removeSellerAsk: (shop: string) => `Remove ${shop}? The shop closes, its products are hidden, and the seller can no longer open the dashboard.`,
+  sellerHasOpenOrders: (n: number) => `This seller has ${n} open order(s). They must be delivered or cancelled before the seller can be removed.`,
   tellId: (shop: string, id: string, bot: string) =>
     `Hello! Your seller ID for ${shop} is ${id}. Send ${id} to ${bot || 'the Smart Village bot'} on WhatsApp to open your seller dashboard.`,
 };
@@ -345,6 +348,9 @@ const hi: typeof en = {
   nextToApprove: 'आपकी जाँच बाकी',
   seeMore: 'सभी देखें',
   sendId: 'WhatsApp पर आईडी भेजें',
+  removeSeller: 'विक्रेता हटाएँ',
+  removeSellerAsk: (shop: string) => `${shop} को हटाएँ? दुकान बंद हो जाएगी, उसके उत्पाद छिप जाएँगे, और विक्रेता डैशबोर्ड नहीं खोल पाएगा।`,
+  sellerHasOpenOrders: (n: number) => `इस विक्रेता के ${n} ऑर्डर अभी खुले हैं। विक्रेता को हटाने से पहले उन्हें डिलीवर या रद्द होना चाहिए।`,
   tellId: (shop: string, id: string, bot: string) =>
     `नमस्ते! ${shop} के लिए आपकी विक्रेता आईडी ${id} है। अपना डैशबोर्ड खोलने के लिए WhatsApp पर ${bot || 'Smart Village बॉट'} को ${id} भेजें।`,
 };
@@ -516,6 +522,9 @@ const or: typeof en = {
   nextToApprove: 'ଆପଣଙ୍କ ଯାଞ୍ଚ ବାକି',
   seeMore: 'ସବୁ ଦେଖନ୍ତୁ',
   sendId: 'WhatsAppରେ ID ପଠାନ୍ତୁ',
+  removeSeller: 'ବିକ୍ରେତାଙ୍କୁ ହଟାନ୍ତୁ',
+  removeSellerAsk: (shop: string) => `${shop} କୁ ହଟାଇବେ? ଦୋକାନ ବନ୍ଦ ହେବ, ଏହାର ଉତ୍ପାଦ ଲୁଚିଯିବ, ଏବଂ ବିକ୍ରେତା ଡ୍ୟାସବୋର୍ଡ ଖୋଲିପାରିବେ ନାହିଁ।`,
+  sellerHasOpenOrders: (n: number) => `ଏହି ବିକ୍ରେତାଙ୍କର ${n}ଟି ଅର୍ଡର ଖୋଲା ଅଛି। ବିକ୍ରେତାଙ୍କୁ ହଟାଇବା ଆଗରୁ ସେଗୁଡ଼ିକ ଡେଲିଭର କିମ୍ବା ବାତିଲ ହେବା ଦରକାର।`,
   tellId: (shop: string, id: string, bot: string) =>
     `ନମସ୍କାର! ${shop} ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ID ${id}। ଆପଣଙ୍କ ଡ୍ୟାସବୋର୍ଡ ଖୋଲିବା ପାଇଁ WhatsAppରେ ${bot || 'Smart Village ବଟ୍'}କୁ ${id} ପଠାନ୍ତୁ।`,
 };
@@ -687,6 +696,9 @@ const as: typeof en = {
   nextToApprove: 'আপোনাৰ পৰীক্ষা বাকী',
   seeMore: 'সকলো চাওক',
   sendId: 'WhatsAppত ID পঠিয়াওক',
+  removeSeller: 'বিক্ৰেতাক আঁতৰাওক',
+  removeSellerAsk: (shop: string) => `${shop} আঁতৰাব নেকি? দোকান বন্ধ হ'ব, ইয়াৰ সামগ্ৰী লুকাই থাকিব, আৰু বিক্ৰেতাই ডেশ্বব'ৰ্ড খুলিব নোৱাৰিব।`,
+  sellerHasOpenOrders: (n: number) => `এই বিক্ৰেতাৰ ${n}টা অৰ্ডাৰ খোলা আছে। বিক্ৰেতাক আঁতৰোৱাৰ আগতে সেইবোৰ ডেলিভাৰ বা বাতিল হ'ব লাগিব।`,
   tellId: (shop: string, id: string, bot: string) =>
     `নমস্কাৰ! ${shop}ৰ বাবে আপোনাৰ বিক্ৰেতা ID ${id}। আপোনাৰ ডেশ্বব’ৰ্ড খুলিবলৈ WhatsAppত ${bot || 'Smart Village বট'}লৈ ${id} পঠিয়াওক।`,
 };

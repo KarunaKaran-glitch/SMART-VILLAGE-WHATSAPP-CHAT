@@ -173,6 +173,8 @@ ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\"}")" ' 400') "paid: '
 ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\",\"proof\":\"data:image/png;base64,aGVsbG8=\"}")" ' 400') "paid: a fake screenshot refused"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "@$SP/pp.json")" '"ok":true') "paid: 'I have paid' with a screenshot accepted"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "@$SP/pp.json")" '"ok":true') "paid: tapped again -> still fine"
+ok $(has "$(post /admin/sellers/$IDA/remove "{\"t\":\"$AT\"}")" 'open order') "admin: seller with an open order cannot be removed"
+ok $(has "$(post /admin/sellers/$IDA/remove "{\"t\":\"$ST\"}")" ' 403') "admin: a seller link cannot remove a seller"
 sleep 0.5; ok $(grep -A1 ">> Image to $SA: http://localhost:3001/images/" "$LOG" | grep -q "screenshot from the customer for order #$OID" && echo 1 || echo 0) "paid: the seller gets the customer's screenshot on WhatsApp"
 ok $(has "$(curl -s "$B/seller?t=$ST")" 'class="proofpic"') "seller page: the payment screenshot is shown with the order"
 sleep 0.5; ok $([ "$(grep -c "\"Order $OID\"" "$LOG")" = "1" ] && echo 1 || echo 0) "paid twice -> the seller is asked only once"
@@ -222,6 +224,20 @@ msg $SB CANCEL
 echo "== Delivery failures from Meta"
 curl -s -o /dev/null -X POST $B/webhook -H 'Content-Type: application/json' -d '{"entry":[{"changes":[{"value":{"statuses":[{"id":"wamid.x","status":"failed","recipient_id":"919500000074","errors":[{"code":131047,"title":"Re-engagement message"}]}]}}]}]}'; sleep 0.5
 ok $(grep -q 'Delivery failed to 91\*\*\*\*\*\*\*\*74: the 24-hour window is closed' "$LOG" && echo 1 || echo 0) "Meta's later 'failed' notice is printed, with the number hidden and the reason in plain words"
+
+echo "== Removing a seller"
+ok $(has "$(curl -s "$B/admin?t=$AT")" "data-code=\"$IDB\"") "admin page: seller card has Remove seller"
+msg $D "Hi $IDB"; msg $SB DASHBOARD; SBT=$(tok "localhost:3001/seller?t=[^ ]*")
+ok $(has "$(post /admin/sellers/$IDB/remove "{\"t\":\"$AT\"}")" '"ok":true') "admin: seller without open orders removed"
+ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/seller?t=$SBT")" = "403" ] && echo 1 || echo 0) "removed seller: dashboard link no longer opens"
+ok $([ "$(sql "select role || ' ' || \"sellerStatus\" from \"User\" where phone='$SB'")" = "CUSTOMER BLOCKED" ] && echo 1 || echo 0) "removed seller: account is no longer a seller"
+ok $([ "$(sql "select count(*) from \"Product\" p join \"User\" u on u.id = p.\"sellerId\" where u.phone='$SB' and p.\"isActive\"")" = "0" ] && echo 1 || echo 0) "removed seller: products hidden"
+ok $([ "$(sql "select \"shopId\" is null from \"User\" where phone='$D'")" = "t" ] && echo 1 || echo 0) "removed seller: customers in that shop are moved out of it"
+msg $C "Hi $IDB"; ok $(last | grep -q "$IDB" && [ "$(last | grep -c '/shop/')" = "0" ] && echo 1 || echo 0) "removed seller: customer Hi + their ID -> 'no shop'"
+ok $(! curl -s "$B/admin?t=$AT" | grep -q "data-code=\"$IDB\"" && echo 1 || echo 0) "removed seller: gone from the admin's Sellers list"
+ok $(has "$(post /admin/sellers/$IDB/remove "{\"t\":\"$AT\"}")" ' 404') "admin: removing the same seller twice -> not found"
+r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"Back Again\",\"phone\":\"$SB\",\"shopName\":\"Shop B2\",\"sellerState\":\"Assam\",\"categoryId\":2}")
+ok $(has "$r" '"ok":true') "admin: a removed seller's phone can be added again"
 
 echo "== Old links"
 sql "update \"User\" set \"webTokenAt\" = (now() at time zone 'utc') - interval '25 hours' where phone='$D'" >/dev/null
