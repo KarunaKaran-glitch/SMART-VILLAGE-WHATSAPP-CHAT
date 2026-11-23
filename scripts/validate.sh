@@ -343,6 +343,9 @@ ok $(echo "$SPG" | grep -oP '<tr class="best">.*?</tr>' | grep -q 'Shop A' && ec
 ok $(echo "$SPG" | grep -oP '<tr class="worst">.*?</tr>' | grep -q 'class="scorenum">35<' && echo 1 || echo 0) "a seller with no orders scores 35 of 100 (speed 10 + nothing waiting 15 + no complaints 10)"
 ok $(echo "$SPG" | grep -oP '<b>Junakimondal</b>.*?</tr>' | grep -q 'Needs 2+ sellers' && echo 1 || echo 0) "a village with one seller has a best but no worst"
 ok $(echo "$SPG" | grep -oP '<b>Kusunpur</b>.*?</tr>' | grep -q 'No sellers yet' && echo 1 || echo 0) "a village with no sellers says so"
+ok $([ "$(echo "$SPG" | grep -o 'class="donut"' | wc -l)" = "2" ] && echo "$SPG" | grep -q 'class="columns"' && echo "$SPG" | grep -q 'class="meters"' && echo 1 || echo 0) "statistics: 2 donut charts, a bar chart and the score bars"
+ok $(echo "$SPG" | grep -oP '<svg class="donut"[^>]*aria-label="Orders by status">.*?</svg>' | grep -q '<path d="M' && echo 1 || echo 0) "Orders by status donut has slices"
+ok $(echo "$SPG" | grep -oP '<svg class="columns".*?</svg>' | grep -q 'class="clab">Sawaipura<' && echo 1 || echo 0) "Orders per village bar chart names the villages"
 ok $(curl -s "$B/admin?t=$AT&period=all" | grep -q 'class="on" href="[^"]*period=all' && echo 1 || echo 0) "statistics: All time can be chosen"
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin?t=$ST")" = "302" ] && echo 1 || echo 0) "a seller link cannot open the admin page or its statistics"
 
@@ -381,7 +384,8 @@ ok $(has "$(post /admin/login "{\"id\":\"ADM-0000\",\"password\":\"testpass123\"
 ok $(has "$(post /admin/login "{\"id\":\"$IDA\",\"password\":\"testpass123\"}")" ' 401') "login: a seller ID cannot log in as admin"
 r=$(post /admin/login "{\"id\":\" $(echo "$ACODE" | tr 'A-Z' 'a-z') \",\"password\":\"testpass123\"}")
 ok $(has "$r" '"url":"/admin?t=') "login: right ID (small letters, spaces) and password -> admin page link"
-AT2=$(echo "$r" | grep -o 't=[^"]*' | sed 's/t=//')
+AT2=$(echo "$r" | grep -o 't=[^"#]*' | sed 's/t=//')
+ok $(has "$r" '#stats"') "login opens the admin page on the Statistics tab"
 ok $(has "$(curl -s "$B/admin?t=$AT2")" 'id="tab-home"') "the login link opens the admin page"
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin?t=$AT")" = "302" ] && echo 1 || echo 0) "a new login ends the older admin link (it goes to the login page)"
 ok $(has "$(post /admin/password "{\"t\":\"$AT2\",\"old\":\"testpass123\",\"password\":\"newpass456\"}")" '"ok":true') "admin changes the password with the current one"
@@ -390,6 +394,21 @@ post /admin/logout "{\"t\":\"$AT2\"}" >/dev/null
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin?t=$AT2")" = "302" ] && echo 1 || echo 0) "log out: the admin link stops working at once"
 for i in 1 2 3 4 5; do post /admin/login "{\"id\":\"$ACODE\",\"password\":\"wrongpass$i\"}" >/dev/null; done
 ok $(has "$(post /admin/login "{\"id\":\"$ACODE\",\"password\":\"newpass456\"}")" ' 429') "after 5 more wrong tries, even the right password must wait 15 minutes"
+
+echo "== Admin account made by the server team (npm run admin)"
+out=$(npx.cmd ts-node --transpile-only scripts/admin-account.ts "x" 2>&1)
+ok $(has "$out" 'Usage') "admin command: a too-short Admin ID shows how to use it"
+out=$(npx.cmd ts-node --transpile-only scripts/admin-account.ts validweb 2>&1)
+WP=$(echo "$out" | grep -o 'Password:  [A-Za-z0-9]*' | sed 's/Password:  //')
+ok $([ ${#WP} = 12 ] && echo "$out" | grep -q 'Admin ID:  VALIDWEB' && echo 1 || echo 0) "admin command: website-only admin VALIDWEB made, with a 12-letter password"
+ok $([ "$(sql "select role || ' ' || phone || ' ' || (\"passwordHash\" like 'scrypt%') from \"User\" where \"adminCode\"='VALIDWEB'")" = "ADMIN web-validweb true" ] && echo 1 || echo 0) "admin command: saved as an admin with no WhatsApp number, password hashed"
+ok $(has "$(post /admin/login "{\"id\":\"validweb\",\"password\":\"$WP\"}")" '"url":"/admin?t=') "the new admin can log in on the website"
+out=$(npx.cmd ts-node --transpile-only scripts/admin-account.ts VALIDWEB 2>&1)
+WP2=$(echo "$out" | grep -o 'Password:  [A-Za-z0-9]*' | sed 's/Password:  //')
+ok $(echo "$out" | grep -q 'New password for VALIDWEB' && [ -n "$WP2" ] && [ "$WP2" != "$WP" ] && echo 1 || echo 0) "admin command again: a new password"
+ok $(has "$(post /admin/login "{\"id\":\"VALIDWEB\",\"password\":\"$WP\"}")" ' 401') "after a new password, the old one no longer works"
+out=$(npx.cmd ts-node --transpile-only scripts/admin-account.ts SELLERTRY 9500000071 2>&1)
+ok $(has "$out" 'is a seller') "admin command: a seller's number cannot become an admin"
 
 echo "== Old links"
 sql "update \"User\" set \"webTokenAt\" = (now() at time zone 'utc') - interval '25 hours' where phone='$D'" >/dev/null

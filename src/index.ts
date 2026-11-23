@@ -1847,7 +1847,8 @@ app.post('/admin/login', async (req: Request, res: Response) => {
     loginSucceeded(code);
     const token = await newDashToken(admin.id);
     console.log(`Admin ${code} logged in`);
-    res.json({ ok: true, url: `/admin?t=${token}` });
+    // straight to the Statistics tab
+    res.json({ ok: true, url: `/admin?t=${token}#stats` });
   } catch (err) {
     console.error('Admin login failed:', err);
     res.status(500).json({ ok: false });
@@ -1915,6 +1916,8 @@ async function sellerStatistics(period: '30' | 'all') {
   const now = Date.now();
   const hoursSince = (d: Date | null) => (d ? (now - d.getTime()) / 3600000 : 0);
 
+  // Every order in the period by where it is now (for the Orders by status chart)
+  const statusCounts = { delivered: 0, active: 0, waiting: 0, cancelled: 0 };
   const raw = sellers.map((seller) => {
     const byOrder = new Map<number, typeof items>();
     for (const i of items) if (i.sellerId === seller.id) byOrder.set(i.orderId, [...(byOrder.get(i.orderId) ?? []), i]);
@@ -1924,6 +1927,12 @@ async function sellerStatistics(period: '30' | 'all') {
       const o = list[0].order;
       const status = o.status === 'CANCELLED' ? 'CANCELLED' : list[0].status;
       const pay = o.payments[0];
+      if (!since || o.createdAt >= since) {
+        if (status === 'CANCELLED') statusCounts.cancelled++;
+        else if (status === 'DELIVERED') statusCounts.delivered++;
+        else if (status === 'PENDING' && pay?.status !== 'SUCCESS') statusCounts.waiting++;
+        else statusCounts.active++;
+      }
       if ((!since || o.createdAt >= since) && status !== 'CANCELLED') {
         orders++;
         if (status === 'DELIVERED') {
@@ -2002,11 +2011,12 @@ async function sellerStatistics(period: '30' | 'all') {
       sellers: here.length,
       orders: here.reduce((n, r) => n + r.orders, 0),
       sales: rupees(here.reduce((n, r) => n + r.salesValue, 0)),
+      salesValue: here.reduce((n, r) => n + r.salesValue, 0),
       best: pick(best),
       worst: pick(worst),
     };
   });
-  return { period, villages, sellers: rows };
+  return { period, villages, sellers: rows, statusCounts };
 }
 
 // ---- Warning a seller (Statistics tab): a WhatsApp message with their score and what to fix.

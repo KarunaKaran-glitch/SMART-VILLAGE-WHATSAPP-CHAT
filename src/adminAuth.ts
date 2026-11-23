@@ -90,12 +90,12 @@ button:disabled{opacity:.6}
   <p class="sub">Smart Village marketplace</p>
   ${note ? `<p class="note">${escapeHtml(note)}</p>` : ''}
   <label for="code">Admin ID</label>
-  <input id="code" name="username" autocomplete="username" placeholder="ADM-1234" required maxlength="20" autocapitalize="characters" spellcheck="false">
+  <input id="code" name="username" autocomplete="username" placeholder="SVADMIN" required maxlength="20" autocapitalize="characters" spellcheck="false">
   <label for="pw">Password</label>
   <input id="pw" name="password" type="password" autocomplete="current-password" required maxlength="72">
   <button type="submit" id="go">Log in</button>
   <p class="msg" id="msg" role="alert"></p>
-  <p class="help">Forgot your password? Ask the project team to reset it.</p>
+  <p class="help">Your Admin ID and password are given by the Smart Village project team.<br>Forgot your password? Ask them for a new one.</p>
 </form>
 <script>
 const f = document.getElementById('f'), go = document.getElementById('go'), msg = document.getElementById('msg');

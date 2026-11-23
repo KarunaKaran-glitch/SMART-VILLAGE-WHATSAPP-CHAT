@@ -15,5 +15,6 @@ delete from \"ProductTranslation\" where \"productId\" in (select id from \"Prod
 delete from \"Product\" where \"sellerId\" in $U;
 update \"User\" set \"shopId\" = null where \"shopId\" in $U;
 delete from \"User\" where id in $U;
+delete from \"User\" where phone = 'web-validweb';
 update \"User\" set \"dashToken\" = null, \"dashTokenAt\" = null where phone = '919000000000';"
 echo "Validation test data removed."

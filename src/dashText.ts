@@ -259,6 +259,17 @@ const en = {
   probNoProducts: 'no products on sale',
   probNoOrders: 'no orders in the last 30 days',
   probLow: 'low activity',
+  // Statistics charts
+  chartStatus: 'Orders by status',
+  chartSalesVillage: 'Sales by village',
+  chartOrdersVillage: 'Orders per village',
+  chartScores: 'Seller scores (out of 100)',
+  stActive: 'In progress',
+  stWaiting: 'Waiting for payment',
+  ordersWord: 'orders',
+  totalSalesWord: 'total sales',
+  noDataYet: 'No data yet',
+  moreInTable: (n: number) => `+${n} more in the table below`,
 };
 
 const hi: typeof en = {
@@ -513,6 +524,17 @@ const hi: typeof en = {
   probNoProducts: 'बिक्री के लिए कोई उत्पाद नहीं',
   probNoOrders: 'पिछले 30 दिनों में कोई ऑर्डर नहीं',
   probLow: 'कम गतिविधि',
+  // Statistics charts
+  chartStatus: 'स्थिति के अनुसार ऑर्डर',
+  chartSalesVillage: 'गाँव के अनुसार बिक्री',
+  chartOrdersVillage: 'हर गाँव के ऑर्डर',
+  chartScores: 'विक्रेता स्कोर (100 में से)',
+  stActive: 'चल रहे',
+  stWaiting: 'पेमेंट का इंतज़ार',
+  ordersWord: 'ऑर्डर',
+  totalSalesWord: 'कुल बिक्री',
+  noDataYet: 'अभी कोई आँकड़ा नहीं',
+  moreInTable: (n: number) => `+${n} और, नीचे की तालिका में`,
 };
 
 const or: typeof en = {
@@ -767,6 +789,17 @@ const or: typeof en = {
   probNoProducts: 'ବିକ୍ରି ପାଇଁ କୌଣସି ଉତ୍ପାଦ ନାହିଁ',
   probNoOrders: 'ଗତ 30 ଦିନରେ କୌଣସି ଅର୍ଡର ନାହିଁ',
   probLow: 'କମ୍ କାର୍ଯ୍ୟକଳାପ',
+  // Statistics charts
+  chartStatus: 'ସ୍ଥିତି ଅନୁସାରେ ଅର୍ଡର',
+  chartSalesVillage: 'ଗାଁ ଅନୁସାରେ ବିକ୍ରି',
+  chartOrdersVillage: 'ପ୍ରତି ଗାଁର ଅର୍ଡର',
+  chartScores: 'ବିକ୍ରେତା ସ୍କୋର (100 ମଧ୍ୟରୁ)',
+  stActive: 'ଚାଲିଛି',
+  stWaiting: 'ପେମେଣ୍ଟ ଅପେକ୍ଷାରେ',
+  ordersWord: 'ଅର୍ଡର',
+  totalSalesWord: 'ମୋଟ ବିକ୍ରି',
+  noDataYet: 'ଏପର୍ଯ୍ୟନ୍ତ କୌଣସି ତଥ୍ୟ ନାହିଁ',
+  moreInTable: (n: number) => `ତଳ ସାରଣୀରେ ଆଉ ${n}ଟି`,
 };
 
 const as: typeof en = {
@@ -1021,6 +1054,17 @@ const as: typeof en = {
   probNoProducts: 'বিক্ৰীৰ বাবে কোনো সামগ্ৰী নাই',
   probNoOrders: 'যোৱা 30 দিনত কোনো অৰ্ডাৰ নাই',
   probLow: 'কম কাৰ্যকলাপ',
+  // Statistics charts
+  chartStatus: 'স্থিতি অনুসৰি অৰ্ডাৰ',
+  chartSalesVillage: 'গাঁও অনুসৰি বিক্ৰী',
+  chartOrdersVillage: 'প্ৰতিখন গাঁৱৰ অৰ্ডাৰ',
+  chartScores: 'বিক্ৰেতাৰ স্ক’ৰ (100 ৰ ভিতৰত)',
+  stActive: 'চলি আছে',
+  stWaiting: 'পেমেণ্টৰ অপেক্ষাত',
+  ordersWord: 'অৰ্ডাৰ',
+  totalSalesWord: 'মুঠ বিক্ৰী',
+  noDataYet: 'এতিয়াও কোনো তথ্য নাই',
+  moreInTable: (n: number) => `তলৰ তালিকাত আৰু ${n}টা`,
 };
 
 const DASH_TEXT: Record<string, typeof en> = { en, hi, or, as };

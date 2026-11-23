@@ -54,6 +54,8 @@ const queues = new Map<string, Promise<boolean>>();
 // Answers whether Meta took the message.
 function postMessage(to: string, kind: string, message: object): Promise<boolean> {
   if (!sendingEnabled) return Promise.resolve(false);
+  // A website-only admin has no WhatsApp number ("web-svadmin"): nothing to send
+  if (!/^\d{8,15}$/.test(to)) return Promise.resolve(false);
   const next = (queues.get(to) ?? Promise.resolve(true)).then(() => postNow(to, kind, message));
   queues.set(to, next);
   next.finally(() => {

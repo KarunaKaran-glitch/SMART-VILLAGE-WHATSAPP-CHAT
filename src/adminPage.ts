@@ -57,6 +57,7 @@ export type VillageStat = {
   sellers: number;
   orders: number;
   sales: string;
+  salesValue: number;
   best: { id: string; shop: string; score: number } | null;
   worst: { id: string; shop: string; score: number } | null; // only with 2 or more sellers
 };
@@ -81,11 +82,92 @@ export type SellerStat = {
   lastWarningDays: number | null;
 };
 
+// ---- Charts for the Statistics tab, drawn here as SVG (no library; they also print)
+// Village colours in a fixed order (checked for colour-blind readers); every chart also has
+// labels with the numbers, and the tables below show the same data.
+const VILLAGE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
+const STATUS_COLORS = { delivered: '#1f9254', active: '#2a78d6', waiting: '#eda100', cancelled: '#9a9893' };
+type Part = { label: string; value: number; text: string; color: string };
+
+function donutChart(parts: Part[], center: string, centerSub: string, empty: string, title: string): string {
+  const total = parts.reduce((n, p) => n + p.value, 0);
+  const R = 80, r = 50, C = 90;
+  const at = (angle: number, radius: number) => `${(C + radius * Math.sin(angle)).toFixed(2)} ${(C - radius * Math.cos(angle)).toFixed(2)}`;
+  const pct = (v: number) => (total ? Math.round((v * 100) / total) : 0);
+  const live = parts.filter((p) => p.value > 0);
+  let rings = '';
+  if (!total) {
+    rings = `<circle cx="${C}" cy="${C}" r="${(R + r) / 2}" fill="none" stroke="#e9edf3" stroke-width="${R - r}"/>`;
+  } else if (live.length === 1) {
+    rings = `<circle cx="${C}" cy="${C}" r="${(R + r) / 2}" fill="none" stroke="${live[0].color}" stroke-width="${R - r}"><title>${escapeHtml(`${live[0].label}: ${live[0].text} (100%)`)}</title></circle>`;
+  } else {
+    let start = 0;
+    for (const p of live) {
+      const end = start + (2 * Math.PI * p.value) / total;
+      const large = end - start > Math.PI ? 1 : 0;
+      rings +=
+        `<path d="M ${at(start, R)} A ${R} ${R} 0 ${large} 1 ${at(end, R)} L ${at(end, r)} A ${r} ${r} 0 ${large} 0 ${at(start, r)} Z" ` +
+        `fill="${p.color}" stroke="#fff" stroke-width="2"><title>${escapeHtml(`${p.label}: ${p.text} (${pct(p.value)}%)`)}</title></path>`;
+      start = end;
+    }
+  }
+  const svgPart =
+    `<svg class="donut" viewBox="0 0 180 180" role="img" aria-label="${escapeHtml(title)}">${rings}` +
+    `<text x="${C}" y="${C + 2}" text-anchor="middle" class="dbig">${escapeHtml(total ? center : '0')}</text>` +
+    `<text x="${C}" y="${C + 22}" text-anchor="middle" class="dsmall">${escapeHtml(centerSub)}</text></svg>`;
+  const legend =
+    '<ul class="legend">' +
+    parts
+      .map(
+        (p) =>
+          `<li><i style="background:${p.color}"></i><span>${escapeHtml(p.label)}</span>` +
+          `<b>${escapeHtml(p.text)}</b><em>${total ? `${pct(p.value)}%` : ''}</em></li>`
+      )
+      .join('') +
+    '</ul>';
+  return `<div class="donutwrap">${svgPart}${legend}</div>` + (total ? '' : `<p class="hint nodata">${escapeHtml(empty)}</p>`);
+}
+
+function columnChart(items: { label: string; value: number; color: string }[], title: string): string {
+  const W = 340, H = 210, top = 26, bottom = 40, side = 6;
+  const base = H - bottom, plot = base - top;
+  const slot = (W - side * 2) / items.length;
+  const bw = Math.min(40, slot * 0.55);
+  const max = Math.max(1, ...items.map((i) => i.value));
+  const bars = items
+    .map((it, i) => {
+      const h = it.value ? Math.max(3, (it.value / max) * plot) : 0;
+      const x = side + i * slot + (slot - bw) / 2;
+      const y = base - h;
+      const cx = (x + bw / 2).toFixed(1);
+      // rounded top corners, flat on the baseline
+      const rr = Math.min(4, h);
+      const shape = h
+        ? `<path d="M ${x.toFixed(1)} ${base} V ${(y + rr).toFixed(1)} Q ${x.toFixed(1)} ${y.toFixed(1)} ${(x + rr).toFixed(1)} ${y.toFixed(1)} H ${(x + bw - rr).toFixed(1)} Q ${(x + bw).toFixed(1)} ${y.toFixed(1)} ${(x + bw).toFixed(1)} ${(y + rr).toFixed(1)} V ${base} Z" fill="${it.color}"><title>${escapeHtml(`${it.label}: ${it.value}`)}</title></path>`
+        : '';
+      return (
+        shape +
+        `<text x="${cx}" y="${(y - 7).toFixed(1)}" text-anchor="middle" class="cval">${it.value}</text>` +
+        `<text x="${cx}" y="${base + 17}" text-anchor="middle" class="clab">${escapeHtml(it.label)}</text>`
+      );
+    })
+    .join('');
+  return (
+    `<svg class="columns" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(title)}">` +
+    `<line x1="${side}" y1="${base}" x2="${W - side}" y2="${base}" stroke="#d6dce5" stroke-width="1"/>${bars}</svg>`
+  );
+}
+
 export function renderAdminPage(data: {
   language: string;
   token: string;
   account: { adminCode: string; hasPassword: boolean; loginUrl: string };
-  sellerStats: { period: '30' | 'all'; villages: VillageStat[]; sellers: SellerStat[] };
+  sellerStats: {
+    period: '30' | 'all';
+    villages: VillageStat[];
+    sellers: SellerStat[];
+    statusCounts: { delivered: number; active: number; waiting: number; cancelled: number };
+  };
   waiting: AdminWaitingProduct[];
   renames: AdminRename[];
   stateKey: string; // where every order is now, in short: the page checks it for changes
@@ -345,6 +427,55 @@ export function renderAdminPage(data: {
     '<section class="tab" id="tab-stats">' +
     `<h3 class="sec">${escapeHtml(W.statsTitle)}</h3><p class="hint statsub">${escapeHtml(W.statsSub)}</p>` +
     `<div class="periods">${periodLink('30', W.period30)}${periodLink('all', W.periodAll)}</div>` +
+    // The charts first, then the tables with the same numbers
+    '<div class="charts">' +
+    `<div class="card chart"><h4>${escapeHtml(W.chartStatus)}</h4>` +
+    donutChart(
+      (
+        [
+          ['delivered', W.stDelivered],
+          ['active', W.stActive],
+          ['waiting', W.stWaiting],
+          ['cancelled', W.stCancelled],
+        ] as const
+      ).map(([k, label]) => ({ label, value: ss.statusCounts[k], text: String(ss.statusCounts[k]), color: STATUS_COLORS[k] })),
+      String(Object.values(ss.statusCounts).reduce((n, v) => n + v, 0)),
+      W.ordersWord,
+      W.noDataYet,
+      W.chartStatus
+    ) +
+    '</div>' +
+    `<div class="card chart"><h4>${escapeHtml(W.chartSalesVillage)}</h4>` +
+    donutChart(
+      ss.villages.map((v, i) => ({ label: v.village, value: v.salesValue, text: `₹${v.sales}`, color: VILLAGE_COLORS[i % VILLAGE_COLORS.length] })),
+      `₹${ss.villages.reduce((n, v) => n + v.salesValue, 0).toLocaleString('en-IN')}`,
+      W.totalSalesWord,
+      W.noDataYet,
+      W.chartSalesVillage
+    ) +
+    '</div>' +
+    `<div class="card chart"><h4>${escapeHtml(W.chartOrdersVillage)}</h4>` +
+    columnChart(ss.villages.map((v) => ({ label: v.village, value: v.orders, color: '#2a78d6' })), W.chartOrdersVillage) +
+    '</div>' +
+    `<div class="card chart"><h4>${escapeHtml(W.chartScores)}</h4>` +
+    (ss.sellers.length
+      ? '<div class="meters">' +
+        ss.sellers
+          .slice(0, 10)
+          .map(
+            (r) =>
+              `<div class="meter"><span class="mname"><b>${escapeHtml(r.shop)}</b>` +
+              (r.badge ? ` <em class="rankchip ${r.badge}">${escapeHtml(r.badge === 'best' ? W.badgeBest : W.badgeWorst)}</em>` : '') +
+              `<small>${escapeHtml(r.village || r.state || '')}</small></span>` +
+              `<span class="mtrack" title="${escapeHtml(`${r.shop}: ${r.score}/100`)}"><i class="${level(r.score)}" style="width:${Math.max(r.score, 2)}%"></i></span>` +
+              `<b class="mval">${r.score}</b></div>`
+          )
+          .join('') +
+        '</div>' +
+        (ss.sellers.length > 10 ? `<p class="hint">${escapeHtml(W.moreInTable(ss.sellers.length - 10))}</p>` : '')
+      : `<p class="hint nodata">${escapeHtml(W.noDataYet)}</p>`) +
+    '</div>' +
+    '</div>' +
     `<h3 class="sec">${escapeHtml(W.villagesTitle)}</h3>` +
     `<div class="card tablewrap"><table class="stattable villages">${head([W.colVillage, W.colSellers, W.colOrders, W.colSales, W.colBest, W.colWorst])}` +
     `<tbody>${ss.villages.map(villageRow).join('')}</tbody></table></div>` +
@@ -642,6 +773,31 @@ btn.addEventListener('click', async () => {
 
 const ADMIN_STYLE = `
 .statsub{margin:-4px 0 10px}
+.charts{display:grid;grid-template-columns:1fr;gap:12px;margin:10px 0 4px}
+@media (min-width:900px){.charts{grid-template-columns:1fr 1fr}}
+.chart h4{margin:0 0 10px;font-size:.98rem}
+.donutwrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.donut{width:150px;height:150px;flex:none}
+.donut .dbig{font-size:22px;font-weight:800;fill:var(--ink)}
+.donut .dsmall{font-size:11px;fill:var(--muted)}
+.legend{list-style:none;margin:0;padding:0;flex:1;min-width:170px}
+.legend li{display:grid;grid-template-columns:12px 1fr auto 40px;gap:8px;align-items:center;padding:4px 0;font-size:.88rem;border-bottom:1px solid var(--line)}
+.legend li:last-child{border-bottom:0}
+.legend i{width:12px;height:12px;border-radius:3px}
+.legend b{font-variant-numeric:tabular-nums}
+.legend em{font-style:normal;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.columns{width:100%;height:auto;display:block}
+.columns .cval{font-size:12px;font-weight:800;fill:var(--ink)}
+.columns .clab{font-size:10px;fill:var(--muted)}
+.nodata{margin:8px 0 0}
+.meters{display:flex;flex-direction:column;gap:9px}
+.meter{display:grid;grid-template-columns:minmax(110px,40%) 1fr 30px;gap:10px;align-items:center}
+.mname{font-size:.86rem;line-height:1.2;overflow:hidden}
+.mname small{display:block;color:var(--muted);font-size:.75rem}
+.mtrack{height:12px;border-radius:99px;background:#e9edf3;overflow:hidden}
+.mtrack i{display:block;height:100%;border-radius:99px}
+.mtrack i.good{background:#1f9254}.mtrack i.mid{background:#e08a00}.mtrack i.low{background:#d4382c}
+.mval{text-align:right;font-variant-numeric:tabular-nums}
 .periods{display:flex;gap:8px;margin-bottom:6px}
 .periods a{padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;font-weight:700;font-size:.88rem}
 .periods a.on{background:var(--brand2);border-color:var(--brand2);color:#fff}
