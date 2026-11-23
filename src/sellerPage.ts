@@ -37,6 +37,11 @@ export type SellerOrderRow = {
   proofUrl: string | null; // the payment screenshot the customer uploaded
   actions: ('RECEIVED' | 'NOTRECEIVED' | 'CONFIRM' | 'SHIP' | 'DELIVER')[];
   sending: boolean; // the customer is still being told about the last step: no next button yet
+  // For the admin's Orders filters (the same groups as the Statistics charts)
+  shopCode: string;
+  village: string;
+  group: 'delivered' | 'active' | 'waiting' | 'cancelled';
+  ageDays: number;
 };
 
 export type SellerStats = {

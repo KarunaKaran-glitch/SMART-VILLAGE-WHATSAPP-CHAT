@@ -338,7 +338,7 @@ SPG=$(curl -s "$B/admin?t=$AT")
 ok $(for v in Kusunpur Junakimondal Sawaipura Janakpur Jhundi; do echo "$SPG" | grep -q "<b>$v</b>" || exit 1; done && echo 1 || echo 0) "statistics: all 5 villages are listed"
 ok $(has "$SPG" 'Rajasthan · Sawaipura') "add seller: the state list shows the village"
 ROW=$(echo "$SPG" | grep -oP '<b>Sawaipura</b>.*?</tr>')
-ok $(echo "$ROW" | grep -q 'who best"><b>Shop A</b>' && echo "$ROW" | grep -q 'who worst"><b>Shop Quiet</b>' && echo 1 || echo 0) "Sawaipura: Shop A (has sales) is best, Shop Quiet (no orders) is worst"
+ok $(echo "$ROW" | grep -q 'who best"[^>]*><b>Shop A</b>' && echo "$ROW" | grep -q 'who worst"[^>]*><b>Shop Quiet</b>' && echo 1 || echo 0) "Sawaipura: Shop A (has sales) is best, Shop Quiet (no orders) is worst"
 ok $(echo "$SPG" | grep -oP '<tr class="best">.*?</tr>' | grep -q 'Shop A' && echo "$SPG" | grep -oP '<tr class="worst">.*?</tr>' | grep -q 'Shop Quiet' && echo 1 || echo 0) "seller table: best and worst rows are marked"
 ok $(echo "$SPG" | grep -oP '<tr class="worst">.*?</tr>' | grep -q 'class="scorenum">35<' && echo 1 || echo 0) "a seller with no orders scores 35 of 100 (speed 10 + nothing waiting 15 + no complaints 10)"
 # (real sellers may also be in Assam: the check follows how many there are)

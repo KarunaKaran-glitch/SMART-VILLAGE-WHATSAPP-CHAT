@@ -225,7 +225,7 @@ const en = {
   colScore: 'Score',
   colDelivered: 'Delivered',
   colSpeed: 'Sending time',
-  colLate: 'Waiting too long',
+  colLate: 'Late',
   colComplaints: 'Complaints',
   colProducts: 'Products',
   colLastMsg: 'Last message',
@@ -271,6 +271,10 @@ const en = {
   totalSalesWord: 'total sales',
   noDataYet: 'No data yet',
   moreInTable: (n: number) => `+${n} more in the table below`,
+  // Admin Orders filters
+  fAll: 'All',
+  clearFilter: 'Show all',
+  noOrdersHere: 'No orders here.',
 };
 
 const hi: typeof en = {
@@ -491,7 +495,7 @@ const hi: typeof en = {
   colScore: 'स्कोर',
   colDelivered: 'डिलीवर',
   colSpeed: 'भेजने का समय',
-  colLate: 'बहुत देर से रुके',
+  colLate: 'देरी',
   colComplaints: 'शिकायतें',
   colProducts: 'उत्पाद',
   colLastMsg: 'आखिरी संदेश',
@@ -537,6 +541,10 @@ const hi: typeof en = {
   totalSalesWord: 'कुल बिक्री',
   noDataYet: 'अभी कोई आँकड़ा नहीं',
   moreInTable: (n: number) => `+${n} और, नीचे की तालिका में`,
+  // Admin Orders filters
+  fAll: 'सभी',
+  clearFilter: 'सभी दिखाएँ',
+  noOrdersHere: 'यहाँ कोई ऑर्डर नहीं।',
 };
 
 const or: typeof en = {
@@ -757,7 +765,7 @@ const or: typeof en = {
   colScore: 'ସ୍କୋର',
   colDelivered: 'ଡେଲିଭର',
   colSpeed: 'ପଠାଇବା ସମୟ',
-  colLate: 'ବହୁତ ଦିନ ଅପେକ୍ଷା',
+  colLate: 'ବିଳମ୍ବ',
   colComplaints: 'ଅଭିଯୋଗ',
   colProducts: 'ଉତ୍ପାଦ',
   colLastMsg: 'ଶେଷ ମେସେଜ୍',
@@ -803,6 +811,10 @@ const or: typeof en = {
   totalSalesWord: 'ମୋଟ ବିକ୍ରି',
   noDataYet: 'ଏପର୍ଯ୍ୟନ୍ତ କୌଣସି ତଥ୍ୟ ନାହିଁ',
   moreInTable: (n: number) => `ତଳ ସାରଣୀରେ ଆଉ ${n}ଟି`,
+  // Admin Orders filters
+  fAll: 'ସମସ୍ତ',
+  clearFilter: 'ସବୁ ଦେଖାନ୍ତୁ',
+  noOrdersHere: 'ଏଠାରେ କୌଣସି ଅର୍ଡର ନାହିଁ।',
 };
 
 const as: typeof en = {
@@ -1023,7 +1035,7 @@ const as: typeof en = {
   colScore: 'স্ক’ৰ',
   colDelivered: 'ডেলিভাৰ',
   colSpeed: 'পঠোৱাৰ সময়',
-  colLate: 'বহুত দিন অপেক্ষা',
+  colLate: 'পলম',
   colComplaints: 'অভিযোগ',
   colProducts: 'সামগ্ৰী',
   colLastMsg: 'শেষ বাৰ্তা',
@@ -1069,6 +1081,10 @@ const as: typeof en = {
   totalSalesWord: 'মুঠ বিক্ৰী',
   noDataYet: 'এতিয়াও কোনো তথ্য নাই',
   moreInTable: (n: number) => `তলৰ তালিকাত আৰু ${n}টা`,
+  // Admin Orders filters
+  fAll: 'সকলো',
+  clearFilter: 'সকলো দেখুৱাওক',
+  noOrdersHere: 'ইয়াত কোনো অৰ্ডাৰ নাই।',
 };
 
 const DASH_TEXT: Record<string, typeof en> = { en, hi, or, as };

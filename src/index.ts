@@ -1933,8 +1933,8 @@ async function sellerStatistics(period: '30' | 'all') {
         else if (status === 'PENDING' && pay?.status !== 'SUCCESS') statusCounts.waiting++;
         else statusCounts.active++;
       }
+      if (!since || o.createdAt >= since) orders++;
       if ((!since || o.createdAt >= since) && status !== 'CANCELLED') {
-        orders++;
         if (status === 'DELIVERED') {
           delivered++;
           sales += list.reduce((n, i) => n + Number(i.unitPrice) * i.quantity, 0);
@@ -2520,10 +2520,10 @@ async function sellerOrderRows(sellerId: number | null, language: string, onlyOr
     include: {
       order: { include: { customer: true, payments: { orderBy: { id: 'desc' }, take: 1 } } },
       product: { include: { translations: true } },
-      seller: { select: { shopName: true, shopCode: true, phone: true } },
+      seller: { select: { shopName: true, shopCode: true, phone: true, sellerState: true } },
     },
     orderBy: { orderId: 'desc' },
-    take: 300,
+    take: 1000,
   });
   const byOrder = new Map<number, typeof items>();
   for (const i of items) byOrder.set(i.orderId, [...(byOrder.get(i.orderId) ?? []), i]);
@@ -2577,12 +2577,18 @@ async function sellerOrderRows(sellerId: number | null, language: string, onlyOr
       proofUrl: payment?.proofKey ? `/images/${payment.proofKey}` : null,
       actions,
       sending,
+      shopCode: list[0].seller.shopCode ?? '-',
+      village: SELLER_STATES.find((x) => x.name === list[0].seller.sellerState)?.village ?? '',
+      group:
+        status === 'CANCELLED' ? 'cancelled' : status === 'DELIVERED' ? 'delivered' : status === 'PENDING' && payment?.status !== 'SUCCESS' ? 'waiting' : 'active',
+      ageDays: Math.floor((Date.now() - order.createdAt.getTime()) / 86400000),
     });
   }
-  // Orders that still need something first, then the finished ones; at most 30
+  // Orders that still need something first, then the finished ones; at most 30 on a seller's
+  // page, 300 on the admin's (the admin filters them by status, village and seller)
   const open = rows.filter((r) => r.status !== 'DELIVERED' && r.status !== 'CANCELLED');
   const done = rows.filter((r) => r.status === 'DELIVERED' || r.status === 'CANCELLED');
-  return [...open, ...done].slice(0, 30);
+  return [...open, ...done].slice(0, sellerId === null ? 300 : 30);
 }
 
 // Seller taps an order button on the dashboard: { t, action }

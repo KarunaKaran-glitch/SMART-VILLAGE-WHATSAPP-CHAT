@@ -87,7 +87,7 @@ export type SellerStat = {
 // labels with the numbers, and the tables below show the same data.
 const VILLAGE_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
 const STATUS_COLORS = { delivered: '#1f9254', active: '#2a78d6', waiting: '#eda100', cancelled: '#9a9893' };
-type Part = { label: string; value: number; text: string; color: string };
+type Part = { label: string; value: number; text: string; color: string; href?: string };
 
 function donutChart(parts: Part[], center: string, centerSub: string, empty: string, title: string): string {
   const total = parts.reduce((n, p) => n + p.value, 0);
@@ -105,9 +105,10 @@ function donutChart(parts: Part[], center: string, centerSub: string, empty: str
     for (const p of live) {
       const end = start + (2 * Math.PI * p.value) / total;
       const large = end - start > Math.PI ? 1 : 0;
-      rings +=
+      const slice =
         `<path d="M ${at(start, R)} A ${R} ${R} 0 ${large} 1 ${at(end, R)} L ${at(end, r)} A ${r} ${r} 0 ${large} 0 ${at(start, r)} Z" ` +
         `fill="${p.color}" stroke="#fff" stroke-width="2"><title>${escapeHtml(`${p.label}: ${p.text} (${pct(p.value)}%)`)}</title></path>`;
+      rings += p.href ? `<a href="${escapeHtml(p.href)}">${slice}</a>` : slice;
       start = end;
     }
   }
@@ -120,15 +121,17 @@ function donutChart(parts: Part[], center: string, centerSub: string, empty: str
     parts
       .map(
         (p) =>
-          `<li><i style="background:${p.color}"></i><span>${escapeHtml(p.label)}</span>` +
-          `<b>${escapeHtml(p.text)}</b><em>${total ? `${pct(p.value)}%` : ''}</em></li>`
+          (p.href ? `<li><a class="lg" href="${escapeHtml(p.href)}">` : '<li><span class="lg">') +
+          `<i style="background:${p.color}"></i><span>${escapeHtml(p.label)}</span>` +
+          `<b>${escapeHtml(p.text)}</b><em>${total ? `${pct(p.value)}%` : ''}</em>` +
+          (p.href ? '</a></li>' : '</span></li>')
       )
       .join('') +
     '</ul>';
   return `<div class="donutwrap">${svgPart}${legend}</div>` + (total ? '' : `<p class="hint nodata">${escapeHtml(empty)}</p>`);
 }
 
-function columnChart(items: { label: string; value: number; color: string }[], title: string): string {
+function columnChart(items: { label: string; value: number; color: string; href?: string }[], title: string): string {
   const W = 340, H = 210, top = 26, bottom = 40, side = 6;
   const base = H - bottom, plot = base - top;
   const slot = (W - side * 2) / items.length;
@@ -145,11 +148,13 @@ function columnChart(items: { label: string; value: number; color: string }[], t
       const shape = h
         ? `<path d="M ${x.toFixed(1)} ${base} V ${(y + rr).toFixed(1)} Q ${x.toFixed(1)} ${y.toFixed(1)} ${(x + rr).toFixed(1)} ${y.toFixed(1)} H ${(x + bw - rr).toFixed(1)} Q ${(x + bw).toFixed(1)} ${y.toFixed(1)} ${(x + bw).toFixed(1)} ${(y + rr).toFixed(1)} V ${base} Z" fill="${it.color}"><title>${escapeHtml(`${it.label}: ${it.value}`)}</title></path>`
         : '';
-      return (
+      const bar =
+        // a clear hit area over the whole column, so a short bar is easy to tap too
+        `<rect x="${(side + i * slot).toFixed(1)}" y="${top - 20}" width="${slot.toFixed(1)}" height="${plot + 44}" fill="transparent"/>` +
         shape +
         `<text x="${cx}" y="${(y - 7).toFixed(1)}" text-anchor="middle" class="cval">${it.value}</text>` +
-        `<text x="${cx}" y="${base + 17}" text-anchor="middle" class="clab">${escapeHtml(it.label)}</text>`
-      );
+        `<text x="${cx}" y="${base + 17}" text-anchor="middle" class="clab">${escapeHtml(it.label)}</text>`;
+      return it.href ? `<a href="${escapeHtml(it.href)}">${bar}</a>` : bar;
     })
     .join('');
   return (
@@ -380,37 +385,71 @@ export function renderAdminPage(data: {
       ? `<h3 class="sec">⚠️ ${escapeHtml(W.disputeTitle)} <span class="count">${data.disputes.length}</span></h3>` +
         data.disputes.map(disputeCard).join('')
       : '') +
-    `<h3 class="sec">${escapeHtml(W.ordersTitle)} <span class="count">${data.orders.length}</span></h3>` +
+    `<h3 class="sec">${escapeHtml(W.ordersTitle)} <span class="count" id="ocount">${data.orders.length}</span></h3>` +
+    // Filters (also opened from the Statistics tab): status, and village / seller / last days
+    '<div class="ofilter">' +
+    (
+      [
+        ['', W.fAll],
+        ['delivered', W.stDelivered],
+        ['active', W.stActive],
+        ['waiting', W.stWaiting],
+        ['cancelled', W.stCancelled],
+      ] as const
+    )
+      .map(([g, label]) => `<a data-g="${g}" href="#orders${g ? `?g=${g}` : ''}">${escapeHtml(label)}</a>`)
+      .join('') +
+    '</div><p class="otags" id="otags" hidden></p>' +
+    `<div class="card empty" id="onone" hidden>${escapeHtml(W.noOrdersHere)}</div>` +
     (data.orders.length
-      ? data.orders.map((o) => `<article class="card order s-${o.status}" data-id="${o.id}">${orderView(o, data.language, true)}</article>`).join('')
+      ? data.orders
+          .map(
+            (o) =>
+              `<article class="card order s-${o.status}" data-id="${o.id}" data-g="${o.group}" data-v="${escapeHtml(o.village)}" ` +
+              `data-s="${escapeHtml(o.shopCode)}" data-shop="${escapeHtml(o.shop)}" data-age="${o.ageDays}">${orderView(o, data.language, true)}</article>`
+          )
+          .join('')
       : `<div class="card empty">${escapeHtml(W.noOrders)}</div>`) +
     '</section>';
 
   // ---- Statistics: villages, then every seller by score
   const ss = data.sellerStats;
+  const ordersLink = (f: { g?: string; v?: string; s?: string }) => {
+    const q = new URLSearchParams();
+    if (f.g) q.set('g', f.g);
+    if (f.v) q.set('v', f.v);
+    if (f.s) q.set('s', f.s);
+    if (ss.period === '30') q.set('d', '30');
+    const qs = q.toString();
+    return '#orders' + (qs ? '?' + qs : '');
+  };
   const level = (n: number) => (n >= 70 ? 'good' : n >= 40 ? 'mid' : 'low');
   const periodLink = (p: '30' | 'all', label: string) =>
     `<a class="${ss.period === p ? 'on' : ''}" href="?t=${escapeHtml(encodeURIComponent(data.token))}&amp;period=${p}#stats">${escapeHtml(label)}</a>`;
   const pickCell = (x: VillageStat['best'], cls: string, empty: string) =>
     x
-      ? `<td><span class="who ${cls}"><b>${escapeHtml(x.shop)}</b><small>ID ${escapeHtml(x.id)} · ${x.score}/100</small></span></td>`
+      ? `<td><a class="who ${cls}" href="${escapeHtml(ordersLink({ s: x.id }))}"><b>${escapeHtml(x.shop)}</b><small>ID ${escapeHtml(x.id)} · ${x.score}/100</small></a></td>`
       : `<td><small class="muted">${escapeHtml(empty)}</small></td>`;
   const villageRow = (v: VillageStat) =>
     '<tr>' +
-    `<th scope="row"><b>${escapeHtml(v.village)}</b><small>${escapeHtml(v.state)}</small></th>` +
-    `<td class="num">${v.sellers}</td><td class="num">${v.orders}</td><td class="num">₹${escapeHtml(v.sales)}</td>` +
+    `<th scope="row"><a href="${escapeHtml(ordersLink({ v: v.village }))}"><b>${escapeHtml(v.village)}</b><small>${escapeHtml(v.state)}</small></a></th>` +
+    `<td class="num">${v.sellers}</td>` +
+    `<td class="num"><a href="${escapeHtml(ordersLink({ v: v.village }))}">${v.orders}</a></td>` +
+    `<td class="num"><a href="${escapeHtml(ordersLink({ g: 'delivered', v: v.village }))}">₹${escapeHtml(v.sales)}</a></td>` +
     pickCell(v.best, 'best', W.noSellersYet) +
     pickCell(v.worst, 'worst', v.sellers ? W.needTwoSellers : W.noSellersYet) +
     '</tr>';
   const sellerStatRow = (r: SellerStat, i: number) =>
     `<tr class="${r.badge ?? ''}">` +
     `<td class="num rank">${i + 1}</td>` +
-    `<th scope="row"><b>${escapeHtml(r.shop)}</b>` +
+    `<th scope="row"><a href="${escapeHtml(ordersLink({ s: r.id }))}"><b>${escapeHtml(r.shop)}</b>` +
     (r.badge ? ` <em class="rankchip ${r.badge}">${escapeHtml(r.badge === 'best' ? W.badgeBest : W.badgeWorst)}</em>` : '') +
-    `<small>ID ${escapeHtml(r.id)}</small></th>` +
+    `<small>ID ${escapeHtml(r.id)}</small></a></th>` +
     `<td>${escapeHtml(r.village || r.state || '—')}</td>` +
     `<td class="scorecell"><span class="score ${level(r.score)}"><i style="width:${r.score}%"></i></span><b class="scorenum">${r.score}</b></td>` +
-    `<td class="num">₹${escapeHtml(r.sales)}</td><td class="num">${r.orders}</td><td class="num">${r.delivered}</td>` +
+    `<td class="num"><a href="${escapeHtml(ordersLink({ g: 'delivered', s: r.id }))}">₹${escapeHtml(r.sales)}</a></td>` +
+    `<td class="num"><a href="${escapeHtml(ordersLink({ s: r.id }))}">${r.orders}</a></td>` +
+    `<td class="num"><a href="${escapeHtml(ordersLink({ g: 'delivered', s: r.id }))}">${r.delivered}</a></td>` +
     `<td class="num${r.late ? ' bad' : ''}">${r.late}</td><td class="num${r.complaints ? ' bad' : ''}">${r.complaints}</td>` +
     // Warnings: how many, Warn, and Remove seller in red after 2
     '<td><div class="warnbox">' +
@@ -431,12 +470,12 @@ export function renderAdminPage(data: {
     // Four big numbers, then the charts, then the tables with the same numbers
     '<div class="kpis">' +
     [
-      [W.colSellers, String(ss.sellers.length)],
-      [W.colOrders, String(Object.values(ss.statusCounts).reduce((n, v) => n + v, 0) - ss.statusCounts.cancelled)],
-      [W.colSales, `₹${ss.villages.reduce((n, v) => n + v.salesValue, 0).toLocaleString('en-IN')}`],
-      [W.colDelivered, String(ss.statusCounts.delivered)],
+      [W.colSellers, String(ss.sellers.length), '#sellers'],
+      [W.colOrders, String(Object.values(ss.statusCounts).reduce((n, v) => n + v, 0)), ordersLink({})],
+      [W.colSales, `₹${ss.villages.reduce((n, v) => n + v.salesValue, 0).toLocaleString('en-IN')}`, ordersLink({ g: 'delivered' })],
+      [W.colDelivered, String(ss.statusCounts.delivered), ordersLink({ g: 'delivered' })],
     ]
-      .map(([label, value]) => `<div class="card kpi"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`)
+      .map(([label, value, href]) => `<a class="card kpi" href="${escapeHtml(href)}"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></a>`)
       .join('') +
     '</div>' +
     '<div class="charts">' +
@@ -449,7 +488,7 @@ export function renderAdminPage(data: {
           ['waiting', W.stWaiting],
           ['cancelled', W.stCancelled],
         ] as const
-      ).map(([k, label]) => ({ label, value: ss.statusCounts[k], text: String(ss.statusCounts[k]), color: STATUS_COLORS[k] })),
+      ).map(([k, label]) => ({ label, value: ss.statusCounts[k], text: String(ss.statusCounts[k]), color: STATUS_COLORS[k], href: ordersLink({ g: k }) })),
       String(Object.values(ss.statusCounts).reduce((n, v) => n + v, 0)),
       W.allOrdersWord,
       W.noDataYet,
@@ -458,7 +497,13 @@ export function renderAdminPage(data: {
     '</div>' +
     `<div class="card chart"><h4>${escapeHtml(W.chartSalesVillage)}</h4>` +
     donutChart(
-      ss.villages.map((v, i) => ({ label: v.village, value: v.salesValue, text: `₹${v.sales}`, color: VILLAGE_COLORS[i % VILLAGE_COLORS.length] })),
+      ss.villages.map((v, i) => ({
+        label: v.village,
+        value: v.salesValue,
+        text: `₹${v.sales}`,
+        color: VILLAGE_COLORS[i % VILLAGE_COLORS.length],
+        href: ordersLink({ g: 'delivered', v: v.village }),
+      })),
       `₹${ss.villages.reduce((n, v) => n + v.salesValue, 0).toLocaleString('en-IN')}`,
       W.totalSalesWord,
       W.noDataYet,
@@ -466,7 +511,7 @@ export function renderAdminPage(data: {
     ) +
     '</div>' +
     `<div class="card chart"><h4>${escapeHtml(W.chartOrdersVillage)}</h4>` +
-    columnChart(ss.villages.map((v) => ({ label: v.village, value: v.orders, color: '#2a78d6' })), W.chartOrdersVillage) +
+    columnChart(ss.villages.map((v) => ({ label: v.village, value: v.orders, color: '#2a78d6', href: ordersLink({ v: v.village }) })), W.chartOrdersVillage) +
     '</div>' +
     `<div class="card chart"><h4>${escapeHtml(W.chartScores)}</h4>` +
     (ss.sellers.length
@@ -475,11 +520,11 @@ export function renderAdminPage(data: {
           .slice(0, 10)
           .map(
             (r) =>
-              `<div class="meter"><span class="mname"><b>${escapeHtml(r.shop)}</b>` +
+              `<a class="meter" href="${escapeHtml(ordersLink({ s: r.id }))}"><span class="mname"><b>${escapeHtml(r.shop)}</b>` +
               (r.badge ? ` <em class="rankchip ${r.badge}">${escapeHtml(r.badge === 'best' ? W.badgeBest : W.badgeWorst)}</em>` : '') +
               `<small>${escapeHtml(r.village || r.state || '')}</small></span>` +
               `<span class="mtrack" title="${escapeHtml(`${r.shop}: ${r.score}/100`)}"><i class="${level(r.score)}" style="width:${Math.max(r.score, 2)}%"></i></span>` +
-              `<b class="mval">${r.score}</b></div>`
+              `<b class="mval">${r.score}</b></a>`
           )
           .join('') +
         '</div>' +
@@ -531,7 +576,10 @@ const T = ${scriptJson({
     passwordShort: W.passwordShort,
     passwordMismatch: W.passwordMismatch,
     passwordSaved: W.passwordSaved,
+    clearFilter: W.clearFilter,
+    last30: W.period30,
   })};
+T.lastDays = (d) => (d === 30 ? T.last30 : d + ' d');
 
 // My account: set or change the password, log out. Listens on the whole page: Home is
 // replaced when something changes (see checkOrders).
@@ -565,10 +613,53 @@ document.addEventListener('click', async (e) => {
 
 // Tabs: the part after # in the address, so a reload stays on the same tab
 const TABS = ['home', 'approve', 'addseller', 'stats', 'sellers', 'orders'];
+// "#orders?g=delivered&v=Kusunpur&d=30": the tab, then the Orders filters
+function hashParts() {
+  const h = location.hash.slice(1), i = h.indexOf('?');
+  return { tab: i < 0 ? h : h.slice(0, i), q: new URLSearchParams(i < 0 ? '' : h.slice(i + 1)) };
+}
+// Show only the orders that match: status group, village, seller, last days
+function applyOrderFilter() {
+  const q = hashParts().q, g = q.get('g') || '', v = q.get('v') || '', s = q.get('s') || '', d = Number(q.get('d') || 0);
+  let n = 0;
+  document.querySelectorAll('#tab-orders .order').forEach((c) => {
+    const ok = (!g || c.dataset.g === g) && (!v || c.dataset.v === v) && (!s || c.dataset.s === s) && (!d || Number(c.dataset.age) < d);
+    c.hidden = !ok;
+    if (ok) n++;
+  });
+  const count = document.getElementById('ocount');
+  if (count) count.textContent = n;
+  const none = document.getElementById('onone');
+  if (none) none.hidden = n > 0;
+  // status buttons keep the other filters
+  document.querySelectorAll('#tab-orders .ofilter a').forEach((a) => {
+    const p = new URLSearchParams(q);
+    if (a.dataset.g) p.set('g', a.dataset.g); else p.delete('g');
+    a.href = '#orders' + (p.toString() ? '?' + p : '');
+    a.classList.toggle('on', (a.dataset.g || '') === g);
+  });
+  const tags = document.getElementById('otags');
+  if (tags) {
+    const shopCard = s && document.querySelector('#tab-orders .order[data-s="' + CSS.escape(s) + '"]');
+    const parts = [v, s ? (shopCard ? shopCard.dataset.shop : 'ID ' + s) : '', d ? T.lastDays(d) : ''].filter(Boolean);
+    tags.hidden = !parts.length;
+    tags.innerHTML = '';
+    if (parts.length) {
+      tags.append(parts.join(' · ') + ' ');
+      const clear = document.createElement('a');
+      const p = new URLSearchParams(); if (g) p.set('g', g);
+      clear.href = '#orders' + (p.toString() ? '?' + p : '');
+      clear.textContent = '✕ ' + T.clearFilter;
+      tags.append(clear);
+    }
+  }
+}
 function showTab() {
-  const t = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
+  const h = hashParts().tab;
+  const t = TABS.includes(h) ? h : 'home';
   TABS.forEach((x) => { document.getElementById('tab-' + x).hidden = x !== t; });
   document.querySelectorAll('.tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === t));
+  applyOrderFilter();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', showTab);
@@ -610,6 +701,7 @@ async function checkOrders() {
         document.querySelectorAll('#tab-orders .order').forEach((c) => {
           if (before.get(c.dataset.id) !== c.className) c.classList.add('flash');
         });
+        applyOrderFilter();
         if (all) NOW = out.v;
       }
     }
@@ -771,6 +863,27 @@ btn.addEventListener('click', async () => {
 
 const ADMIN_STYLE = `
 .statsub{margin:-4px 0 10px}
+a.kpi{display:block;text-decoration:none;color:var(--ink);transition:box-shadow .15s,transform .15s}
+a.kpi:hover{box-shadow:0 6px 18px rgba(31,60,136,.14);transform:translateY(-1px)}
+a.kpi b{color:var(--brand2)}
+.legend a.lg,.legend span.lg{display:contents;color:inherit;text-decoration:none}
+.legend li:has(a.lg){cursor:pointer}
+.legend li:has(a.lg):hover span{color:var(--brand2);text-decoration:underline}
+.donut a path:hover,.columns a path:hover{opacity:.85}
+a.meter{text-decoration:none;color:var(--ink);border-radius:8px}
+a.meter:hover .mname b{color:var(--brand2);text-decoration:underline}
+.stattable a,.stattable a:visited,a.meter:visited,a.kpi:visited,.legend a.lg:visited{color:inherit;text-decoration:none}
+.stattable a:hover b,.stattable td.num a:hover{color:var(--brand2);text-decoration:underline}
+.stattable .who.best b{color:#11683a}
+.stattable .who.worst b{color:#b42318}
+.ofilter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+.ofilter a{padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;font-weight:700;font-size:.86rem}
+.ofilter a.on{background:var(--brand2);border-color:var(--brand2);color:#fff}
+.otags{margin:-2px 0 12px;font-size:.9rem;font-weight:700}
+.otags a{margin-left:8px;color:var(--brand2);font-weight:700}
+.order[hidden]{display:none}
+#tab-orders>.ofilter,#tab-orders>.otags{grid-column:1/-1;margin-bottom:0}
+#tab-orders>.otags[hidden],#tab-orders>.empty[hidden]{display:none}
 .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:12px 0 2px}
 @media (min-width:700px){.kpis{grid-template-columns:repeat(4,1fr)}}
 .kpi{padding:14px 16px;margin:0}
@@ -789,7 +902,7 @@ const ADMIN_STYLE = `
 .legend i{width:12px;height:12px;border-radius:3px}
 .legend b{font-variant-numeric:tabular-nums}
 .legend em{font-style:normal;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
-.columns{width:100%;height:auto;display:block}
+.columns{width:100%;max-width:560px;height:auto;display:block;margin:0 auto}
 .columns .cval{font-size:12px;font-weight:800;fill:var(--ink)}
 .columns .clab{font-size:10px;fill:var(--muted)}
 .nodata{margin:8px 0 0}
@@ -806,12 +919,12 @@ const ADMIN_STYLE = `
 .periods a.on{background:var(--brand2);border-color:var(--brand2);color:#fff}
 .tablewrap{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .stattable{width:100%;border-collapse:collapse;font-size:.88rem}
-.stattable th,.stattable td{padding:10px 9px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+.stattable th,.stattable td{padding:10px 7px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
 .stattable thead th{white-space:normal;line-height:1.25;vertical-align:bottom}
 .stattable thead th.num{text-align:right}
 .stattable tbody tr:hover>*{background:#f8faff}
-.stattable .rank{color:var(--muted);width:36px}
-.stattable .scorecell{min-width:130px}
+.stattable .rank{color:var(--muted);width:28px}
+.stattable .scorecell{min-width:104px}
 .stattable thead th{background:#f4f6fb;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;font-weight:700}
 .stattable tbody tr:last-child>*{border-bottom:0}
 .stattable tbody th{position:sticky;left:0;background:#fff;z-index:1}
@@ -821,9 +934,7 @@ const ADMIN_STYLE = `
 .stattable .muted{color:var(--muted)}
 .stattable .who.best b{color:#11683a}
 .stattable .who.worst b{color:#b42318}
-.stattable tr.best th{background:#f0faf3}
-.stattable tr.worst th{background:#fff4f2}
-.warnbox{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.warnbox{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:max-content}
 .warnbox .msg{flex-basis:100%;margin:2px 0 0;color:#b42318;font-size:.78rem;white-space:normal;max-width:220px}
 .warnbox .msg:empty{display:none}
 .warncount{min-width:24px;height:24px;border-radius:999px;display:inline-grid;place-items:center;font-weight:800;font-size:.8rem;padding:0 6px}
@@ -837,7 +948,7 @@ const ADMIN_STYLE = `
 .rankchip{font-style:normal;font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:999px;vertical-align:middle}
 .rankchip.best{background:#d7f5df;color:#11683a}
 .rankchip.worst{background:#fde2dd;color:#b42318}
-.score{display:inline-block;width:70px;height:8px;border-radius:99px;background:#e9edf3;vertical-align:middle;overflow:hidden;margin-right:8px}
+.score{display:inline-block;width:56px;height:8px;border-radius:99px;background:#e9edf3;vertical-align:middle;overflow:hidden;margin-right:8px}
 .score i{display:block;height:100%;border-radius:99px}
 .score.good i{background:#1f9254}.score.mid i{background:#e08a00}.score.low i{background:#d4382c}
 .scorenum{font-variant-numeric:tabular-nums}
