@@ -59,6 +59,8 @@ last() { awk '/^Message from:/{buf=""} {buf=buf"\n"$0} END{print buf}' "$LOG"; }
 post() { curl -s -w ' %{http_code}' -X POST "$B$1" -H 'Content-Type: application/json' --data-binary "$2"; }
 tok()  { grep -o "$1" "$LOG" | tail -1 | sed 's/.*t=//'; }
 
+UNUSED_PHOTOS="select count(*) from \"Image\" m where not exists (select 1 from \"Product\" p where p.\"imageKey\" = m.key or p.\"thumbKey\" = m.key) and not exists (select 1 from \"User\" u where u.\"upiQrKey\" = m.key) and not exists (select 1 from \"Payment\" y where y.\"proofKey\" = m.key or y.\"disputeProofKey\" = m.key)"
+UNUSED0=$(sql "$UNUSED_PHOTOS")
 ADM=919000000000; SA=919500000071; SB=919500000072; C=919500000073; D=919500000074
 
 echo "== Setup: admin page, two fake sellers"
@@ -186,6 +188,7 @@ ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\"}")" ' 400') "paid: '
 ok $(has "$(post /shop/$IDA/order/$OID/paid "{\"t\":\"$CT\",\"proof\":\"data:image/png;base64,aGVsbG8=\"}")" ' 400') "paid: a fake screenshot refused"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "@$SP/pp.json")" '"ok":true') "paid: 'I have paid' with a screenshot accepted"
 ok $(has "$(post /shop/$IDA/order/$OID/paid "@$SP/pp.json")" '"ok":true') "paid: tapped again -> still fine"
+ok $([ "$(sql "$UNUSED_PHOTOS")" = "$UNUSED0" ] && echo 1 || echo 0) "paid tapped twice: the second screenshot is not left behind unused"
 ok $(has "$(post /admin/sellers/$IDA/remove "{\"t\":\"$AT\"}")" 'open order') "admin: seller with an open order cannot be removed"
 ok $(has "$(post /admin/sellers/$IDA/remove "{\"t\":\"$ST\"}")" ' 403') "admin: a seller link cannot remove a seller"
 sleep 0.5; ok $(grep -A1 ">> Image to $SA: http://localhost:3001/images/" "$LOG" | grep -q "screenshot from the customer for order #$OID" && echo 1 || echo 0) "paid: the seller gets the customer's screenshot on WhatsApp"
@@ -428,6 +431,8 @@ ok $(echo "$out" | grep -q 'New password for VALIDWEB' && [ -n "$WP2" ] && [ "$W
 ok $(has "$(post /admin/login "{\"id\":\"VALIDWEB\",\"password\":\"$WP\"}")" ' 401') "after a new password, the old one no longer works"
 out=$(npx.cmd ts-node --transpile-only scripts/admin-account.ts SELLERTRY 9500000071 2>&1)
 ok $(has "$out" 'is a seller') "admin command: a seller's number cannot become an admin"
+
+ok $([ "$(sql "$UNUSED_PHOTOS")" = "$UNUSED0" ] && echo 1 || echo 0) "after all the tests: no unused photos left behind"
 
 echo "== Old links"
 sql "update \"User\" set \"webTokenAt\" = (now() at time zone 'utc') - interval '25 hours' where phone='$D'" >/dev/null

@@ -3033,7 +3033,15 @@ app.post('/shop/:code/order/:id/paid', async (req: Request, res: Response) => {
       res.status(400).json({ ok: false, error: W.proofInvalid });
       return;
     }
-    const reply = await inLang(customer.language, () => reportPaid(customer.id, customer.language, order.id, ref, proofKey));
+    let reply: Awaited<ReturnType<typeof reportPaid>>;
+    try {
+      reply = await inLang(customer.language, () => reportPaid(customer.id, customer.language, order.id, ref, proofKey));
+    } finally {
+      // The screenshot stays only if the payment now uses it. Tapped twice, or the report was
+      // refused: it is removed again, so no unused photos pile up.
+      const used = await prisma.payment.count({ where: { OR: [{ proofKey }, { disputeProofKey: proofKey }] } });
+      if (!used) await prisma.image.deleteMany({ where: { key: proofKey } });
+    }
     // reportPaid answers with a plain text when something is wrong, and with buttons when it worked
     if (typeof reply === 'string') {
       res.status(409).json({ ok: false, error: reply });
