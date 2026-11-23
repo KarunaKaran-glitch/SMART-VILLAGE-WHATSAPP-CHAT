@@ -375,13 +375,7 @@ update();
     `<span>${svg(ICON.truck, 16)} ${escapeHtml(W.freeDelivery)}</span>` +
     `<span>${svg(ICON.wallet, 16)} ${escapeHtml(W.payByUpi)}</span>` +
     `<span>${svg(ICON.heart, 16)} ${escapeHtml(W.handmade)}</span>` +
-    '</div>' +
-    // Wide screens: up to three product photos fanned out on the right of the banner
-    `<div class="fan" aria-hidden="true">${data.products
-      .filter((p) => p.thumbUrl)
-      .slice(0, 3)
-      .map((p) => `<img src="${escapeHtml(p.thumbUrl!)}" alt="" loading="lazy">`)
-      .join('')}</div></header>`;
+    '</div></header>';
 
   return (
     head(data.language, data.shopName, CUSTOMER_STYLE) +
@@ -852,8 +846,8 @@ main.gone{padding-top:60px}
 .btn.big{padding:15px 16px;font-size:1.05rem;margin-top:16px;box-shadow:0 8px 20px rgba(37,211,102,.35)}
 /* Parts used on wide screens only */
 .side{display:contents}
-.bag,.peek,.fan{display:none}
-/* Desktop (wide screens only; phones keep the layout above): a big banner with product photos,
+.bag,.peek{display:none}
+/* Desktop (wide screens only; phones keep the layout above): a big banner,
    the products on the left and "Your order" (address, total, [Continue]) on the right; the
    product details / order review open as a window in the middle of the screen */
 @media (min-width:1024px){
@@ -869,14 +863,6 @@ body{background:#f4f6fb}
 .trust{margin-top:26px;gap:10px}
 .trust span{padding:9px 16px;font-size:.9rem;background:rgba(255,255,255,.15)}
 .trust svg{width:18px;height:18px}
-.fan{display:block;grid-column:2;grid-row:1/span 2;position:relative;width:340px;height:200px}
-.fan img{position:absolute;top:16px;left:95px;width:150px;height:170px;object-fit:cover;border-radius:18px;border:5px solid #fff;background:#fff;box-shadow:0 16px 34px rgba(0,0,0,.3);transition:transform .3s}
-.fan img:nth-child(1){left:0;transform:rotate(-9deg)}
-.fan img:nth-child(2){top:0;z-index:2;transform:rotate(2deg)}
-.fan img:nth-child(3){left:190px;transform:rotate(10deg)}
-.fan img:only-child{left:95px}
-.fan:hover img:nth-child(1){transform:rotate(-13deg) translateX(-10px)}
-.fan:hover img:nth-child(3){transform:rotate(14deg) translateX(10px)}
 main.shop{max-width:1240px;padding:34px 40px 60px}
 main.shop.withside{display:grid;grid-template-columns:minmax(0,1fr) 360px;column-gap:32px;align-items:start}
 main.shop.withside>*{grid-column:1}

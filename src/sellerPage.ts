@@ -130,6 +130,7 @@ export function orderView(o: SellerOrderRow, language: string, withShop: boolean
 export function renderSellerPage(data: {
   language: string;
   token: string;
+  stateKey: string; // where the products and orders are now: the page checks it for changes
   shopName: string;
   sellerName: string;
   sellerId: string; // the unique ID
@@ -353,6 +354,31 @@ export function renderSellerPage(data: {
 
   const script = `
 const TOKEN = ${scriptJson(data.token)};
+
+// The admin approves a product, a customer orders or pays while this page is open: every
+// 5 seconds (and when the seller comes back to the page) it asks whether anything changed and
+// then loads again on the same tab. Not while the seller is typing or has chosen a photo.
+let NOW = ${scriptJson(data.stateKey)};
+let checking = false;
+function busy() {
+  if (document.activeElement && document.activeElement.matches('input, textarea, select')) return true;
+  return [...document.querySelectorAll('input, textarea, select')].some((i) =>
+    i.type === 'file' ? i.files && i.files.length : i.type === 'checkbox' || i.type === 'radio' ? i.checked !== i.defaultChecked
+      : i.tagName === 'SELECT' ? [...i.options].some((o) => o.selected !== o.defaultSelected) : i.value !== i.defaultValue);
+}
+async function checkChanges() {
+  if (checking || document.hidden) return;
+  checking = true;
+  try {
+    const res = await fetch('/seller/state?t=' + encodeURIComponent(TOKEN), { cache: 'no-store' });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.v && out.v !== NOW && !busy()) { location.reload(); return; }
+  } catch (e) {}
+  checking = false;
+}
+setInterval(checkChanges, 5000);
+document.addEventListener('visibilitychange', checkChanges);
+window.addEventListener('focus', checkChanges);
 const T = ${scriptJson({
     adding: W.adding,
     addBtn: W.addBtn,

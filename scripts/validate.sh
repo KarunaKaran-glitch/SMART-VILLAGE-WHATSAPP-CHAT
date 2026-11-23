@@ -341,13 +341,32 @@ ROW=$(echo "$SPG" | grep -oP '<b>Sawaipura</b>.*?</tr>')
 ok $(echo "$ROW" | grep -q 'who best"><b>Shop A</b>' && echo "$ROW" | grep -q 'who worst"><b>Shop Quiet</b>' && echo 1 || echo 0) "Sawaipura: Shop A (has sales) is best, Shop Quiet (no orders) is worst"
 ok $(echo "$SPG" | grep -oP '<tr class="best">.*?</tr>' | grep -q 'Shop A' && echo "$SPG" | grep -oP '<tr class="worst">.*?</tr>' | grep -q 'Shop Quiet' && echo 1 || echo 0) "seller table: best and worst rows are marked"
 ok $(echo "$SPG" | grep -oP '<tr class="worst">.*?</tr>' | grep -q 'class="scorenum">35<' && echo 1 || echo 0) "a seller with no orders scores 35 of 100 (speed 10 + nothing waiting 15 + no complaints 10)"
-ok $(echo "$SPG" | grep -oP '<b>Junakimondal</b>.*?</tr>' | grep -q 'Needs 2+ sellers' && echo 1 || echo 0) "a village with one seller has a best but no worst"
+# (real sellers may also be in Assam: the check follows how many there are)
+NAS=$(sql "select count(*) from \"User\" where role='SELLER' and \"sellerState\"='Assam'")
+ok $(echo "$SPG" | grep -oP '<b>Junakimondal</b>.*?</tr>' | grep -q "$([ "$NAS" = 1 ] && echo 'Needs 2+ sellers' || echo 'who worst')" && echo 1 || echo 0) "a village with one seller has a best but no worst (with 2+, a worst)"
 ok $(echo "$SPG" | grep -oP '<b>Kusunpur</b>.*?</tr>' | grep -q 'No sellers yet' && echo 1 || echo 0) "a village with no sellers says so"
 ok $([ "$(echo "$SPG" | grep -o 'class="donut"' | wc -l)" = "2" ] && echo "$SPG" | grep -q 'class="columns"' && echo "$SPG" | grep -q 'class="meters"' && echo 1 || echo 0) "statistics: 2 donut charts, a bar chart and the score bars"
 ok $(echo "$SPG" | grep -oP '<svg class="donut"[^>]*aria-label="Orders by status">.*?</svg>' | grep -q '<path d="M' && echo 1 || echo 0) "Orders by status donut has slices"
 ok $(echo "$SPG" | grep -oP '<svg class="columns".*?</svg>' | grep -q 'class="clab">Sawaipura<' && echo 1 || echo 0) "Orders per village bar chart names the villages"
 ok $(curl -s "$B/admin?t=$AT&period=all" | grep -q 'class="on" href="[^"]*period=all' && echo 1 || echo 0) "statistics: All time can be chosen"
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin?t=$ST")" = "302" ] && echo 1 || echo 0) "a seller link cannot open the admin page or its statistics"
+
+echo "== Pages update by themselves"
+AV1=$(curl -s "$B/admin/state?t=$AT"); SV1=$(curl -s "$B/seller/state?t=$ST")
+ok $(has "$SV1" '"ok":true') "seller page change check answers"
+ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/seller/state?t=$AT")" = "403" ] && echo 1 || echo 0) "seller page change check: an admin link gets nothing"
+post /seller/products "@$SP/vp.json" >/dev/null; sleep 0.3
+AV2=$(curl -s "$B/admin/state?t=$AT"); SV2=$(curl -s "$B/seller/state?t=$ST")
+ok $([ "$AV1" != "$AV2" ] && echo 1 || echo 0) "a seller sends a product -> the admin page sees a change (shows it without reload)"
+ok $([ "$SV1" != "$SV2" ] && echo 1 || echo 0) "... and so does the seller's own page"
+NP=$(sql "select p.id from \"Product\" p join \"User\" u on u.id = p.\"sellerId\" where u.phone='$SA' order by p.id desc limit 1")
+post /admin/products/$NP "{\"t\":\"$AT\",\"approve\":true}" >/dev/null; sleep 0.3
+SV3=$(curl -s "$B/seller/state?t=$ST")
+ok $([ "$SV2" != "$SV3" ] && echo 1 || echo 0) "admin approves -> the seller page sees a change (Waiting for admin -> On sale without reload)"
+SHOPP=$(curl -s "$B/shop/$IDA?t=$CT")
+ok $(echo "$SHOPP" | grep -q 'shophero' && ! echo "$SHOPP" | grep -q 'class="fan"' && echo 1 || echo 0) "shop page: no product photos in the banner"
+ok $(! curl -s "$B/admin?t=$AT" | grep -q 'class="card how"' && echo 1 || echo 0) "statistics: no 'How the score works' box"
+ok $(curl -s "$B/admin?t=$AT" | grep -q 'class="card kpi"' && echo 1 || echo 0) "statistics: big number tiles at the top"
 
 echo "== Warning a seller"
 SQ=$(sql "select \"shopCode\" from \"User\" where phone='919500000076'")

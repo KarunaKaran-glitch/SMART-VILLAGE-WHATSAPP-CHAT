@@ -2209,7 +2209,9 @@ async function adminStateKey(): Promise<string> {
   });
   const [sellers, waiting, renames, complaints] = await Promise.all([
     prisma.user.count({ where: { role: 'SELLER' } }),
-    prisma.product.count({ where: { approval: 'PENDING', imageKey: { not: null } } }),
+    prisma.product
+      .findMany({ where: { approval: 'PENDING', imageKey: { not: null } }, select: { id: true, imageKey: true }, orderBy: { id: 'asc' } })
+      .then((list) => list.map((p) => `${p.id}.${p.imageKey}`).join('+')),
     prisma.product.count({ where: { renamedFrom: { not: null } } }),
     prisma.payment.count({ where: OPEN_COMPLAINT }),
   ]);
@@ -2218,6 +2220,39 @@ async function adminStateKey(): Promise<string> {
     `|${sellers}|${waiting}|${renames}|${complaints}`
   );
 }
+
+// Where this seller's products and orders are now, in short: the seller page checks it every
+// few seconds and loads again when it changed (the admin approved a product, a new order came)
+async function sellerStateKey(sellerId: number): Promise<string> {
+  const [products, items] = await Promise.all([
+    prisma.product.findMany({ where: { sellerId }, select: { id: true, approval: true, isActive: true, stock: true }, orderBy: { id: 'asc' } }),
+    prisma.orderItem.findMany({
+      where: { sellerId },
+      select: { orderId: true, status: true, order: { select: { status: true, payments: { select: { status: true, disputedAt: true }, orderBy: { id: 'desc' }, take: 1 } } } },
+      orderBy: { id: 'asc' },
+    }),
+  ]);
+  return (
+    products.map((p) => `${p.id}:${p.approval}:${p.isActive ? 1 : 0}:${p.stock ?? '-'}`).join(',') +
+    '|' +
+    items.map((i) => `${i.orderId}:${i.order.status}:${i.status}:${i.order.payments[0]?.status ?? '-'}:${i.order.payments[0]?.disputedAt ? 1 : 0}`).join(',')
+  );
+}
+
+app.get('/seller/state', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const seller = await dashVisitor(req.query.t, 'SELLER');
+    if (!seller) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    res.json({ ok: true, v: await sellerStateKey(seller.id) });
+  } catch (err) {
+    console.error('Seller state check failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
 
 app.get('/admin/state', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
@@ -2617,6 +2652,7 @@ app.get('/seller', async (req: Request, res: Response) => {
     renderSellerPage({
       language: seller.language,
       token: String(req.query.t),
+      stateKey: await sellerStateKey(seller.id),
       shopName: seller.shopName ?? '',
       sellerName: seller.name ?? seller.shopName ?? '',
       sellerId: seller.shopCode ?? '',

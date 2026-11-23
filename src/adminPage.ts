@@ -404,11 +404,14 @@ export function renderAdminPage(data: {
     '</tr>';
   const sellerStatRow = (r: SellerStat, i: number) =>
     `<tr class="${r.badge ?? ''}">` +
-    `<td class="num">${i + 1}</td>` +
+    `<td class="num rank">${i + 1}</td>` +
     `<th scope="row"><b>${escapeHtml(r.shop)}</b>` +
     (r.badge ? ` <em class="rankchip ${r.badge}">${escapeHtml(r.badge === 'best' ? W.badgeBest : W.badgeWorst)}</em>` : '') +
-    `<small>ID ${escapeHtml(r.id)}${r.village ? ` · ${escapeHtml(r.village)}` : ''}</small></th>` +
-    `<td><span class="score ${level(r.score)}"><i style="width:${r.score}%"></i></span><b class="scorenum">${r.score}</b></td>` +
+    `<small>ID ${escapeHtml(r.id)}</small></th>` +
+    `<td>${escapeHtml(r.village || r.state || '—')}</td>` +
+    `<td class="scorecell"><span class="score ${level(r.score)}"><i style="width:${r.score}%"></i></span><b class="scorenum">${r.score}</b></td>` +
+    `<td class="num">₹${escapeHtml(r.sales)}</td><td class="num">${r.orders}</td><td class="num">${r.delivered}</td>` +
+    `<td class="num${r.late ? ' bad' : ''}">${r.late}</td><td class="num${r.complaints ? ' bad' : ''}">${r.complaints}</td>` +
     // Warnings: how many, Warn, and Remove seller in red after 2
     '<td><div class="warnbox">' +
     `<span class="warncount w${Math.min(r.warnings, 2)}" title="${escapeHtml(r.lastWarningDays === null ? '' : W.lastActive(r.lastWarningDays))}">${r.warnings}</span>` +
@@ -417,17 +420,25 @@ export function renderAdminPage(data: {
       ? `<button type="button" class="rmbtn removeseller" data-code="${escapeHtml(r.id)}" data-ask="${escapeHtml(W.removeSellerAsk(r.shop))}">${escapeHtml(W.removeSeller)}</button>`
       : '') +
     '<p class="msg"></p></div></td>' +
-    `<td class="num">₹${escapeHtml(r.sales)}</td><td class="num">${r.orders}</td><td class="num">${r.delivered}</td>` +
-    `<td class="num">${r.speedHours === null ? '—' : escapeHtml(W.hoursText(r.speedHours))}</td>` +
-    `<td class="num${r.late ? ' bad' : ''}">${r.late}</td><td class="num${r.complaints ? ' bad' : ''}">${r.complaints}</td>` +
-    `<td class="num">${r.products}</td><td>${escapeHtml(W.lastActive(r.lastActiveDays))}</td>` +
     '</tr>';
-  const head = (cols: string[]) => `<thead><tr>${cols.map((x) => `<th scope="col">${escapeHtml(x)}</th>`).join('')}</tr></thead>`;
+  // A heading over a number column is lined up on the right, like the numbers
+  const head = (cols: (string | [string, 'num'])[]) =>
+    `<thead><tr>${cols.map((x) => (Array.isArray(x) ? `<th scope="col" class="num">${escapeHtml(x[0])}</th>` : `<th scope="col">${escapeHtml(x)}</th>`)).join('')}</tr></thead>`;
   const statsTab =
     '<section class="tab" id="tab-stats">' +
     `<h3 class="sec">${escapeHtml(W.statsTitle)}</h3><p class="hint statsub">${escapeHtml(W.statsSub)}</p>` +
     `<div class="periods">${periodLink('30', W.period30)}${periodLink('all', W.periodAll)}</div>` +
-    // The charts first, then the tables with the same numbers
+    // Four big numbers, then the charts, then the tables with the same numbers
+    '<div class="kpis">' +
+    [
+      [W.colSellers, String(ss.sellers.length)],
+      [W.colOrders, String(Object.values(ss.statusCounts).reduce((n, v) => n + v, 0) - ss.statusCounts.cancelled)],
+      [W.colSales, `₹${ss.villages.reduce((n, v) => n + v.salesValue, 0).toLocaleString('en-IN')}`],
+      [W.colDelivered, String(ss.statusCounts.delivered)],
+    ]
+      .map(([label, value]) => `<div class="card kpi"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`)
+      .join('') +
+    '</div>' +
     '<div class="charts">' +
     `<div class="card chart"><h4>${escapeHtml(W.chartStatus)}</h4>` +
     donutChart(
@@ -440,7 +451,7 @@ export function renderAdminPage(data: {
         ] as const
       ).map(([k, label]) => ({ label, value: ss.statusCounts[k], text: String(ss.statusCounts[k]), color: STATUS_COLORS[k] })),
       String(Object.values(ss.statusCounts).reduce((n, v) => n + v, 0)),
-      W.ordersWord,
+      W.allOrdersWord,
       W.noDataYet,
       W.chartStatus
     ) +
@@ -477,16 +488,13 @@ export function renderAdminPage(data: {
     '</div>' +
     '</div>' +
     `<h3 class="sec">${escapeHtml(W.villagesTitle)}</h3>` +
-    `<div class="card tablewrap"><table class="stattable villages">${head([W.colVillage, W.colSellers, W.colOrders, W.colSales, W.colBest, W.colWorst])}` +
+    `<div class="card tablewrap"><table class="stattable villages">${head([W.colVillage, [W.colSellers, 'num'], [W.colOrders, 'num'], [W.colSales, 'num'], W.colBest, W.colWorst])}` +
     `<tbody>${ss.villages.map(villageRow).join('')}</tbody></table></div>` +
     `<h3 class="sec">${escapeHtml(W.sellersByScore)} <span class="count">${ss.sellers.length}</span></h3>` +
     (ss.sellers.length
-      ? `<div class="card tablewrap"><table class="stattable sellers">${head(['#', W.colSeller, W.colScore, W.colWarnings, W.colSales, W.colOrders, W.colDelivered, W.colSpeed, W.colLate, W.colComplaints, W.colProducts, W.colLastMsg])}` +
+      ? `<div class="card tablewrap"><table class="stattable sellers">${head([['#', 'num'], W.colSeller, W.colVillage, W.colScore, [W.colSales, 'num'], [W.colOrders, 'num'], [W.colDelivered, 'num'], [W.colLate, 'num'], [W.colComplaints, 'num'], W.colWarnings])}` +
         `<tbody>${ss.sellers.map(sellerStatRow).join('')}</tbody></table></div>`
       : `<div class="card empty">${escapeHtml(W.noStatsSellers)}</div>`) +
-    `<details class="card how"><summary>${escapeHtml(W.scoreHowTitle)}</summary>` +
-    `<ul>${W.scoreParts.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul><p class="hint">${escapeHtml(W.scoreNote)}</p>` +
-    `<p class="hint">${escapeHtml(W.warnRule)}</p></details>` +
     '</section>';
 
   const tabbar =
@@ -525,14 +533,22 @@ const T = ${scriptJson({
     passwordSaved: W.passwordSaved,
   })};
 
-// My account: set or change the password, log out
-document.getElementById('pwsave').addEventListener('click', async () => {
-  const btn = document.getElementById('pwsave'), note = document.getElementById('pwmsg');
+// My account: set or change the password, log out. Listens on the whole page: Home is
+// replaced when something changes (see checkOrders).
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest && e.target.closest('#pwsave, #logout');
+  if (!t) return;
+  if (t.id === 'logout') {
+    try { await fetch('/admin/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: TOKEN }) }); } catch {}
+    location.replace('/admin/login?out=1');
+    return;
+  }
+  const note = document.getElementById('pwmsg');
   const old = document.getElementById('pwold'), pw = document.getElementById('pwnew').value, pw2 = document.getElementById('pwnew2').value;
   note.className = 'msg';
   if (pw.length < 8 || pw.length > 72) { note.textContent = T.passwordShort; return; }
   if (pw !== pw2) { note.textContent = T.passwordMismatch; return; }
-  btn.disabled = true;
+  t.disabled = true;
   try {
     const res = await fetch('/admin/password', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -544,11 +560,7 @@ document.getElementById('pwsave').addEventListener('click', async () => {
       document.querySelectorAll('#pwbox input').forEach((i) => { i.value = ''; });
     } else note.textContent = res.status === 403 ? T.expired : j.error || T.failed;
   } catch { note.textContent = T.failed; }
-  btn.disabled = false;
-});
-document.getElementById('logout').addEventListener('click', async () => {
-  try { await fetch('/admin/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: TOKEN }) }); } catch {}
-  location.replace('/admin/login?out=1');
+  t.disabled = false;
 });
 
 // Tabs: the part after # in the address, so a reload stays on the same tab
@@ -562,12 +574,15 @@ function showTab() {
 window.addEventListener('hashchange', showTab);
 showTab();
 
-// Orders move on while the page is open (the seller taps Money received, Confirm, Ship,
-// Deliver). Every 5 seconds the page asks whether anything changed, and at once when the admin
-// comes back to it. Then only the Orders and Home parts and the tab badges are fetched and
-// swapped in: no page reload, so the tab, the scroll position and a half-filled form stay.
+// Things change while the page is open: a seller sends a product to approve, a seller moves
+// an order on, a customer pays. Every 5 seconds the page asks whether anything changed, and at
+// once when the admin comes back to it. Then the tabs are fetched again and swapped in: no page
+// reload, so the tab and the scroll position stay. Add seller is never swapped, and neither is a
+// tab with something typed in it (it is tried again on the next check).
 let NOW = ${scriptJson(data.stateKey)};
 let checking = false;
+const LIVE_TABS = ['tab-home', 'tab-approve', 'tab-stats', 'tab-sellers', 'tab-orders'];
+const typing = (el) => [...el.querySelectorAll('input, textarea')].some((i) => i.value || i === document.activeElement);
 async function checkOrders() {
   if (checking) return;
   checking = true;
@@ -575,13 +590,17 @@ async function checkOrders() {
     const res = await fetch('/admin/state?t=' + encodeURIComponent(TOKEN), { cache: 'no-store' });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.v && out.v !== NOW) {
-      const page = await fetch('/admin?t=' + encodeURIComponent(TOKEN), { cache: 'no-store' });
+      // the same address (keeps Last 30 days / All time)
+      const page = await fetch('/admin' + location.search, { cache: 'no-store' });
       if (page.ok) {
         const doc = new DOMParser().parseFromString(await page.text(), 'text/html');
         const before = new Map([...document.querySelectorAll('#tab-orders .order')].map((c) => [c.dataset.id, c.className]));
-        ['tab-home', 'tab-orders'].forEach((id) => {
-          const fresh = doc.getElementById(id);
-          if (fresh) document.getElementById(id).innerHTML = fresh.innerHTML;
+        let all = true;
+        LIVE_TABS.forEach((id) => {
+          const fresh = doc.getElementById(id), now = document.getElementById(id);
+          if (!fresh || !now) return;
+          if (typing(now)) { all = false; return; }
+          now.innerHTML = fresh.innerHTML;
         });
         document.querySelectorAll('.tabbar a').forEach((a) => {
           const fresh = doc.querySelector('.tabbar a[data-tab="' + a.dataset.tab + '"]');
@@ -591,7 +610,7 @@ async function checkOrders() {
         document.querySelectorAll('#tab-orders .order').forEach((c) => {
           if (before.get(c.dataset.id) !== c.className) c.classList.add('flash');
         });
-        NOW = out.v;
+        if (all) NOW = out.v;
       }
     }
   } catch (e) {}
@@ -601,35 +620,37 @@ setInterval(checkOrders, 5000);
 document.addEventListener('visibilitychange', checkOrders);
 window.addEventListener('focus', checkOrders);
 
-// Approve / Reject a waiting product, or "OK, seen" on a name change; the card then shows it
-document.querySelectorAll('.check, .rename').forEach((card) => {
+// Approve / Reject a waiting product, or "OK, seen" on a name change; the card then shows it.
+// Listens on the whole page: new cards come in without a reload.
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest && e.target.closest('.check .acts button, .rename .acts button');
+  if (!b) return;
+  const card = b.closest('.check, .rename');
   const rename = card.classList.contains('rename');
-  card.addEventListener('click', async (e) => {
-    const b = e.target.closest('button');
-    if (!b) return;
-    const approve = b.dataset.ok === '1';
-    const note = card.querySelector('.msg');
-    card.querySelectorAll('button').forEach((x) => { x.disabled = true; });
-    try {
-      const res = await fetch('/admin/products/' + card.dataset.id + (rename ? '/name' : ''), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ t: TOKEN, approve }),
-      });
-      const out = await res.json().catch(() => ({}));
-      if (res.ok && out.ok) {
-        card.querySelector('.acts').remove();
-        card.classList.add(approve ? 'decided-ok' : 'decided-no');
-        if (rename) { card.classList.add('decided-ok'); note.textContent = '✅ ' + T.seenNote; return; }
-        note.textContent = (approve ? '✅ ' : '✖️ ') + (approve ? T.approvedNote : T.rejectedNote);
-        return;
-      }
-      note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
-    } catch (err) {
-      note.textContent = T.failed;
+  const approve = b.dataset.ok === '1';
+  const note = card.querySelector('.msg');
+  card.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+  try {
+    const res = await fetch('/admin/products/' + card.dataset.id + (rename ? '/name' : ''), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: TOKEN, approve }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.ok) {
+      card.querySelector('.acts').remove();
+      const chip = card.querySelector('.waitchip');
+      if (chip) chip.remove();
+      card.classList.add(approve ? 'decided-ok' : 'decided-no');
+      if (rename) { card.classList.add('decided-ok'); note.textContent = '✅ ' + T.seenNote; return; }
+      note.textContent = (approve ? '✅ ' : '✖️ ') + (approve ? T.approvedNote : T.rejectedNote);
+      return;
     }
-    card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
-  });
+    note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
+  } catch (err) {
+    note.textContent = T.failed;
+  }
+  card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
 });
 
 // Decide a payment complaint, after asking. Listens on the whole page: the cards get replaced
@@ -656,50 +677,27 @@ document.addEventListener('click', async (e) => {
   card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
 });
 
-// Warn a seller (Statistics tab), after asking; the page then loads again with the new count
-document.querySelectorAll('.warnbtn').forEach((b) => {
-  b.addEventListener('click', async () => {
-    if (!confirm(b.dataset.ask)) return;
-    const note = b.parentElement.querySelector('.msg');
-    note.textContent = '';
-    b.disabled = true;
-    try {
-      const res = await fetch('/admin/sellers/' + encodeURIComponent(b.dataset.code) + '/warn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ t: TOKEN }),
-      });
-      const out = await res.json().catch(() => ({}));
-      if (res.ok && out.ok) { location.reload(); return; }
-      note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
-    } catch (err) {
-      note.textContent = T.failed;
-    }
-    b.disabled = false;
-  });
-});
-
-// Remove a seller, after asking; the page then loads again without them
-document.querySelectorAll('.removeseller').forEach((b) => {
-  b.addEventListener('click', async () => {
-    if (!confirm(b.dataset.ask)) return;
-    const note = b.parentElement.querySelector('.msg');
-    note.textContent = '';
-    b.disabled = true;
-    try {
-      const res = await fetch('/admin/sellers/' + encodeURIComponent(b.dataset.code) + '/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ t: TOKEN }),
-      });
-      const out = await res.json().catch(() => ({}));
-      if (res.ok && out.ok) { location.reload(); return; }
-      note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
-    } catch (err) {
-      note.textContent = T.failed;
-    }
-    b.disabled = false;
-  });
+// Warn a seller (Statistics tab) or remove a seller, after asking; the page then loads again.
+// Listens on the whole page: the tabs are replaced when something changes.
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest && e.target.closest('.warnbtn, .removeseller');
+  if (!b || !confirm(b.dataset.ask)) return;
+  const note = b.parentElement.querySelector('.msg');
+  if (note) note.textContent = '';
+  b.disabled = true;
+  try {
+    const res = await fetch('/admin/sellers/' + encodeURIComponent(b.dataset.code) + (b.classList.contains('warnbtn') ? '/warn' : '/remove'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: TOKEN }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.ok) { location.reload(); return; }
+    if (note) note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
+  } catch (err) {
+    if (note) note.textContent = T.failed;
+  }
+  b.disabled = false;
 });
 
 // Add a seller, then show the Sellers tab with the new seller's ID
@@ -773,6 +771,11 @@ btn.addEventListener('click', async () => {
 
 const ADMIN_STYLE = `
 .statsub{margin:-4px 0 10px}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:12px 0 2px}
+@media (min-width:700px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{padding:14px 16px;margin:0}
+.kpi span{display:block;color:var(--muted);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+.kpi b{display:block;font-size:1.6rem;margin-top:4px;font-variant-numeric:tabular-nums}
 .charts{display:grid;grid-template-columns:1fr;gap:12px;margin:10px 0 4px}
 @media (min-width:900px){.charts{grid-template-columns:1fr 1fr}}
 .chart h4{margin:0 0 10px;font-size:.98rem}
@@ -803,7 +806,12 @@ const ADMIN_STYLE = `
 .periods a.on{background:var(--brand2);border-color:var(--brand2);color:#fff}
 .tablewrap{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .stattable{width:100%;border-collapse:collapse;font-size:.88rem}
-.stattable th,.stattable td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+.stattable th,.stattable td{padding:10px 9px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+.stattable thead th{white-space:normal;line-height:1.25;vertical-align:bottom}
+.stattable thead th.num{text-align:right}
+.stattable tbody tr:hover>*{background:#f8faff}
+.stattable .rank{color:var(--muted);width:36px}
+.stattable .scorecell{min-width:130px}
 .stattable thead th{background:#f4f6fb;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;font-weight:700}
 .stattable tbody tr:last-child>*{border-bottom:0}
 .stattable tbody th{position:sticky;left:0;background:#fff;z-index:1}
@@ -815,7 +823,7 @@ const ADMIN_STYLE = `
 .stattable .who.worst b{color:#b42318}
 .stattable tr.best th{background:#f0faf3}
 .stattable tr.worst th{background:#fff4f2}
-.warnbox{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:150px}
+.warnbox{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .warnbox .msg{flex-basis:100%;margin:2px 0 0;color:#b42318;font-size:.78rem;white-space:normal;max-width:220px}
 .warnbox .msg:empty{display:none}
 .warncount{min-width:24px;height:24px;border-radius:999px;display:inline-grid;place-items:center;font-weight:800;font-size:.8rem;padding:0 6px}
@@ -833,8 +841,6 @@ const ADMIN_STYLE = `
 .score i{display:block;height:100%;border-radius:99px}
 .score.good i{background:#1f9254}.score.mid i{background:#e08a00}.score.low i{background:#d4382c}
 .scorenum{font-variant-numeric:tabular-nums}
-.how summary{cursor:pointer;font-weight:700;color:var(--brand2)}
-.how ul{margin:10px 0 6px;padding-left:20px}.how li{margin:4px 0;font-size:.9rem}
 .account .accrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:.92rem}
 .account .accrow span{color:var(--muted)}
 .account .accrow a{color:var(--brand2);font-weight:700;word-break:break-all;text-align:right}
