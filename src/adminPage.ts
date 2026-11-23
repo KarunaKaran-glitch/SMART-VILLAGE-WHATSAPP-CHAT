@@ -50,10 +50,40 @@ export type AdminDispute = {
   proofUrl: string;
 };
 
+// Statistics tab: one row per village, and every seller with a score out of 100
+export type VillageStat = {
+  state: string;
+  village: string;
+  sellers: number;
+  orders: number;
+  sales: string;
+  best: { id: string; shop: string; score: number } | null;
+  worst: { id: string; shop: string; score: number } | null; // only with 2 or more sellers
+};
+export type SellerStat = {
+  id: string;
+  shop: string;
+  name: string;
+  state: string;
+  village: string;
+  score: number;
+  sales: string;
+  salesValue: number;
+  orders: number;
+  delivered: number;
+  speedHours: number | null; // money received -> shipped, on average
+  late: number; // orders waiting for the seller too long
+  complaints: number;
+  products: number; // approved and on sale
+  lastActiveDays: number | null;
+  badge: 'best' | 'worst' | null; // in their village
+};
+
 export function renderAdminPage(data: {
   language: string;
   token: string;
   account: { adminCode: string; hasPassword: boolean; loginUrl: string };
+  sellerStats: { period: '30' | 'all'; villages: VillageStat[]; sellers: SellerStat[] };
   waiting: AdminWaitingProduct[];
   renames: AdminRename[];
   stateKey: string; // where every order is now, in short: the page checks it for changes
@@ -272,12 +302,58 @@ export function renderAdminPage(data: {
       : `<div class="card empty">${escapeHtml(W.noOrders)}</div>`) +
     '</section>';
 
+  // ---- Statistics: villages, then every seller by score
+  const ss = data.sellerStats;
+  const level = (n: number) => (n >= 70 ? 'good' : n >= 40 ? 'mid' : 'low');
+  const periodLink = (p: '30' | 'all', label: string) =>
+    `<a class="${ss.period === p ? 'on' : ''}" href="?t=${escapeHtml(encodeURIComponent(data.token))}&amp;period=${p}#stats">${escapeHtml(label)}</a>`;
+  const pickCell = (x: VillageStat['best'], cls: string, empty: string) =>
+    x
+      ? `<td><span class="who ${cls}"><b>${escapeHtml(x.shop)}</b><small>ID ${escapeHtml(x.id)} · ${x.score}/100</small></span></td>`
+      : `<td><small class="muted">${escapeHtml(empty)}</small></td>`;
+  const villageRow = (v: VillageStat) =>
+    '<tr>' +
+    `<th scope="row"><b>${escapeHtml(v.village)}</b><small>${escapeHtml(v.state)}</small></th>` +
+    `<td class="num">${v.sellers}</td><td class="num">${v.orders}</td><td class="num">₹${escapeHtml(v.sales)}</td>` +
+    pickCell(v.best, 'best', W.noSellersYet) +
+    pickCell(v.worst, 'worst', v.sellers ? W.needTwoSellers : W.noSellersYet) +
+    '</tr>';
+  const sellerStatRow = (r: SellerStat, i: number) =>
+    `<tr class="${r.badge ?? ''}">` +
+    `<td class="num">${i + 1}</td>` +
+    `<th scope="row"><b>${escapeHtml(r.shop)}</b>` +
+    (r.badge ? ` <em class="rankchip ${r.badge}">${escapeHtml(r.badge === 'best' ? W.badgeBest : W.badgeWorst)}</em>` : '') +
+    `<small>ID ${escapeHtml(r.id)}${r.village ? ` · ${escapeHtml(r.village)}` : ''}</small></th>` +
+    `<td><span class="score ${level(r.score)}"><i style="width:${r.score}%"></i></span><b class="scorenum">${r.score}</b></td>` +
+    `<td class="num">₹${escapeHtml(r.sales)}</td><td class="num">${r.orders}</td><td class="num">${r.delivered}</td>` +
+    `<td class="num">${r.speedHours === null ? '—' : escapeHtml(W.hoursText(r.speedHours))}</td>` +
+    `<td class="num${r.late ? ' bad' : ''}">${r.late}</td><td class="num${r.complaints ? ' bad' : ''}">${r.complaints}</td>` +
+    `<td class="num">${r.products}</td><td>${escapeHtml(W.lastActive(r.lastActiveDays))}</td>` +
+    '</tr>';
+  const head = (cols: string[]) => `<thead><tr>${cols.map((x) => `<th scope="col">${escapeHtml(x)}</th>`).join('')}</tr></thead>`;
+  const statsTab =
+    '<section class="tab" id="tab-stats">' +
+    `<h3 class="sec">${escapeHtml(W.statsTitle)}</h3><p class="hint statsub">${escapeHtml(W.statsSub)}</p>` +
+    `<div class="periods">${periodLink('30', W.period30)}${periodLink('all', W.periodAll)}</div>` +
+    `<h3 class="sec">${escapeHtml(W.villagesTitle)}</h3>` +
+    `<div class="card tablewrap"><table class="stattable villages">${head([W.colVillage, W.colSellers, W.colOrders, W.colSales, W.colBest, W.colWorst])}` +
+    `<tbody>${ss.villages.map(villageRow).join('')}</tbody></table></div>` +
+    `<h3 class="sec">${escapeHtml(W.sellersByScore)} <span class="count">${ss.sellers.length}</span></h3>` +
+    (ss.sellers.length
+      ? `<div class="card tablewrap"><table class="stattable sellers">${head(['#', W.colSeller, W.colScore, W.colSales, W.colOrders, W.colDelivered, W.colSpeed, W.colLate, W.colComplaints, W.colProducts, W.colLastMsg])}` +
+        `<tbody>${ss.sellers.map(sellerStatRow).join('')}</tbody></table></div>`
+      : `<div class="card empty">${escapeHtml(W.noStatsSellers)}</div>`) +
+    `<details class="card how"><summary>${escapeHtml(W.scoreHowTitle)}</summary>` +
+    `<ul>${W.scoreParts.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul><p class="hint">${escapeHtml(W.scoreNote)}</p></details>` +
+    '</section>';
+
   const tabbar =
     '<nav class="tabbar">' +
     [
       ['home', W.tabHome, ICON.home],
       ['approve', W.tabApprove, ICON.check],
       ['addseller', W.tabAddSeller, ICON.userPlus],
+      ['stats', W.tabStats, ICON.chart],
       ['sellers', W.tabSellers, ICON.store],
       ['orders', W.tabOrders, ICON.orders],
     ]
@@ -334,7 +410,7 @@ document.getElementById('logout').addEventListener('click', async () => {
 });
 
 // Tabs: the part after # in the address, so a reload stays on the same tab
-const TABS = ['home', 'approve', 'addseller', 'sellers', 'orders'];
+const TABS = ['home', 'approve', 'addseller', 'stats', 'sellers', 'orders'];
 function showTab() {
   const t = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
   TABS.forEach((x) => { document.getElementById('tab-' + x).hidden = x !== t; });
@@ -524,13 +600,40 @@ btn.addEventListener('click', async () => {
     `<div class="avatar">${svg(ICON.check, 24)}</div>` +
     `<div class="who"><b>${escapeHtml(W.adminTitle)}</b><span>Smart Village</span></div>` +
     '</header>' +
-    `<main>${home}${approve}${sellers}${addSeller}${orders}</main>` +
+    `<main>${home}${approve}${sellers}${addSeller}${statsTab}${orders}</main>` +
     tabbar +
     `<script>${script}</script></body></html>`
   );
 }
 
 const ADMIN_STYLE = `
+.statsub{margin:-4px 0 10px}
+.periods{display:flex;gap:8px;margin-bottom:6px}
+.periods a{padding:7px 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;font-weight:700;font-size:.88rem}
+.periods a.on{background:var(--brand2);border-color:var(--brand2);color:#fff}
+.tablewrap{padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.stattable{width:100%;border-collapse:collapse;font-size:.88rem}
+.stattable th,.stattable td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
+.stattable thead th{background:#f4f6fb;color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;font-weight:700}
+.stattable tbody tr:last-child>*{border-bottom:0}
+.stattable tbody th{position:sticky;left:0;background:#fff;z-index:1}
+.stattable th small,.stattable .who small{display:block;color:var(--muted);font-weight:500;font-size:.78rem}
+.stattable .num{text-align:right;font-variant-numeric:tabular-nums}
+.stattable .bad{color:#b42318;font-weight:800}
+.stattable .muted{color:var(--muted)}
+.stattable .who.best b{color:#11683a}
+.stattable .who.worst b{color:#b42318}
+.stattable tr.best th{background:#f0faf3}
+.stattable tr.worst th{background:#fff4f2}
+.rankchip{font-style:normal;font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:999px;vertical-align:middle}
+.rankchip.best{background:#d7f5df;color:#11683a}
+.rankchip.worst{background:#fde2dd;color:#b42318}
+.score{display:inline-block;width:70px;height:8px;border-radius:99px;background:#e9edf3;vertical-align:middle;overflow:hidden;margin-right:8px}
+.score i{display:block;height:100%;border-radius:99px}
+.score.good i{background:#1f9254}.score.mid i{background:#e08a00}.score.low i{background:#d4382c}
+.scorenum{font-variant-numeric:tabular-nums}
+.how summary{cursor:pointer;font-weight:700;color:var(--brand2)}
+.how ul{margin:10px 0 6px;padding-left:20px}.how li{margin:4px 0;font-size:.9rem}
 .account .accrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:.92rem}
 .account .accrow span{color:var(--muted)}
 .account .accrow a{color:var(--brand2);font-weight:700;word-break:break-all;text-align:right}

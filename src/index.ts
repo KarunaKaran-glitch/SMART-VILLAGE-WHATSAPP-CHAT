@@ -34,7 +34,7 @@ import { PayPageState, renderPayPage, renderShopPage, renderThanksPage, simplePa
 import { rupees } from './pageKit';
 import { wt } from './webText';
 import { dt } from './dashText';
-import { renderAdminPage } from './adminPage';
+import { SellerStat, VillageStat, renderAdminPage } from './adminPage';
 import { checkPassword, hashPassword, loginBlocked, loginFailed, loginSucceeded, normalAdminCode, passwordOk, renderLoginPage } from './adminAuth';
 import { SellerOrderRow, StepTime, renderSellerPage } from './sellerPage';
 
@@ -1767,12 +1767,13 @@ function backToWhatsApp(shopCode?: string) {
 
 // The state choices for a shop (the state decides the customers' second language)
 // The states sellers come from (A to Z) and the local language their customers see first
-const SELLER_STATES: { name: string; language: 'as' | 'hi' | 'or' }[] = [
-  { name: 'Assam', language: 'as' },
-  { name: 'Himachal Pradesh', language: 'hi' },
-  { name: 'Madhya Pradesh', language: 'hi' },
-  { name: 'Odisha', language: 'or' },
-  { name: 'Rajasthan', language: 'hi' },
+// and the project's village in that state (the admin's statistics are by village)
+const SELLER_STATES: { name: string; language: 'as' | 'hi' | 'or'; village: string }[] = [
+  { name: 'Assam', language: 'as', village: 'Junakimondal' },
+  { name: 'Himachal Pradesh', language: 'hi', village: 'Jhundi' },
+  { name: 'Madhya Pradesh', language: 'hi', village: 'Janakpur' },
+  { name: 'Odisha', language: 'or', village: 'Kusunpur' },
+  { name: 'Rajasthan', language: 'hi', village: 'Sawaipura' },
 ];
 
 // A shop's languages: the state's language first, then Hindi and English (both always offered).
@@ -1798,7 +1799,7 @@ function sellerStateName(seller: { sellerState: string | null; shopLanguage: str
 
 // The state choices on the admin and seller pages, each with its customer languages
 function stateChoices() {
-  return SELLER_STATES.map((s) => ({ value: s.name, label: s.name, languages: shopLanguagesText(s.language) }));
+  return SELLER_STATES.map((s) => ({ value: s.name, label: `${s.name} · ${s.village}`, languages: shopLanguagesText(s.language) }));
 }
 
 // Admin dashboard: add a seller, list all sellers
@@ -1888,6 +1889,122 @@ app.post('/admin/password', async (req: Request, res: Response) => {
   }
 });
 
+// ---- Seller statistics for the admin (Statistics tab): a score out of 100 for every seller,
+// and the best and worst seller in each village
+const LATE_HOURS = 48; // the seller's turn and nothing done for 2 days...
+const LATE_SHIPPED_HOURS = 7 * 24; // ...or shipped and not delivered for 7 days
+const FAST_SEND_HOURS = 24; // money received -> shipped in a day: full points
+const SLOW_SEND_HOURS = 120; // 5 days or more: no points
+
+async function sellerStatistics(period: '30' | 'all') {
+  const since = period === '30' ? new Date(Date.now() - 30 * 24 * 3600 * 1000) : null;
+  const sellers = await prisma.user.findMany({
+    where: { role: 'SELLER' },
+    select: {
+      id: true, name: true, shopName: true, shopCode: true, sellerState: true, lastMessageAt: true,
+      products: { where: { approval: 'APPROVED', isActive: true }, select: { id: true } },
+    },
+    orderBy: { id: 'asc' },
+  });
+  const items = await prisma.orderItem.findMany({
+    where: { sellerId: { in: sellers.map((x) => x.id) } },
+    include: { order: { include: { payments: { orderBy: { id: 'desc' }, take: 1 } } } },
+  });
+  const now = Date.now();
+  const hoursSince = (d: Date | null) => (d ? (now - d.getTime()) / 3600000 : 0);
+
+  const raw = sellers.map((seller) => {
+    const byOrder = new Map<number, typeof items>();
+    for (const i of items) if (i.sellerId === seller.id) byOrder.set(i.orderId, [...(byOrder.get(i.orderId) ?? []), i]);
+    let orders = 0, delivered = 0, sales = 0, complaints = 0, late = 0;
+    const sendHours: number[] = [];
+    for (const list of byOrder.values()) {
+      const o = list[0].order;
+      const status = o.status === 'CANCELLED' ? 'CANCELLED' : list[0].status;
+      const pay = o.payments[0];
+      if ((!since || o.createdAt >= since) && status !== 'CANCELLED') {
+        orders++;
+        if (status === 'DELIVERED') {
+          delivered++;
+          sales += list.reduce((n, i) => n + Number(i.unitPrice) * i.quantity, 0);
+        }
+        if (o.paidAt && o.shippedAt) sendHours.push((o.shippedAt.getTime() - o.paidAt.getTime()) / 3600000);
+        // the admin decided the customer really paid: the seller had said it did not arrive
+        if (pay?.disputeResult === 'PAID') complaints++;
+      }
+      // Orders waiting for this seller right now, from any date. (A reported payment is not
+      // counted: the app does not keep when the customer reported it.)
+      if (status === 'CANCELLED' || status === 'DELIVERED') continue;
+      const upi = pay?.method === 'UPI_DIRECT';
+      if (upi && pay.status === 'AWAITING_CONFIRMATION') continue;
+      if ((status === 'PENDING' || status === 'PAID') && (!upi || pay.status === 'SUCCESS')) {
+        if (hoursSince(o.paidAt ?? o.createdAt) > LATE_HOURS) late++;
+      } else if (status === 'CONFIRMED') {
+        if (hoursSince(o.confirmedAt) > LATE_HOURS) late++;
+      } else if (status === 'SHIPPED') {
+        if (hoursSince(o.shippedAt) > LATE_SHIPPED_HOURS) late++;
+      }
+    }
+    const speed = sendHours.length ? sendHours.reduce((a, b) => a + b, 0) / sendHours.length : null;
+    return { seller, orders, delivered, sales, complaints, late, speed };
+  });
+
+  const maxSales = Math.max(0, ...raw.map((r) => r.sales));
+  const maxDelivered = Math.max(0, ...raw.map((r) => r.delivered));
+  const score = (r: (typeof raw)[number]) =>
+    Math.round(
+      (maxSales > 0 ? (30 * r.sales) / maxSales : 0) +
+        (maxDelivered > 0 ? (25 * r.delivered) / maxDelivered : 0) +
+        // no paid order yet: half the speed points
+        (r.speed === null ? 10 : 20 * Math.min(1, Math.max(0, (SLOW_SEND_HOURS - r.speed) / (SLOW_SEND_HOURS - FAST_SEND_HOURS)))) +
+        Math.max(0, 15 - 5 * r.late) +
+        Math.max(0, 10 - 5 * r.complaints)
+    );
+  const rows: SellerStat[] = raw
+    .map((r) => {
+      const place = SELLER_STATES.find((x) => x.name === r.seller.sellerState);
+      return {
+        id: r.seller.shopCode ?? '-',
+        shop: r.seller.shopName ?? r.seller.name ?? '-',
+        name: r.seller.name ?? '',
+        state: r.seller.sellerState ?? '',
+        village: place?.village ?? '',
+        score: score(r),
+        sales: rupees(r.sales),
+        salesValue: r.sales,
+        orders: r.orders,
+        delivered: r.delivered,
+        speedHours: r.speed,
+        late: r.late,
+        complaints: r.complaints,
+        products: r.seller.products.length,
+        lastActiveDays: r.seller.lastMessageAt ? Math.floor((now - r.seller.lastMessageAt.getTime()) / 86400000) : null,
+        badge: null as SellerStat['badge'],
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.salesValue - a.salesValue || a.shop.localeCompare(b.shop));
+
+  // Best and worst inside each village (a worst needs 2 or more sellers)
+  const villages: VillageStat[] = SELLER_STATES.map((place) => {
+    const here = rows.filter((r) => r.state === place.name);
+    const best = here[0] ?? null;
+    const worst = here.length >= 2 ? here[here.length - 1] : null;
+    if (best) best.badge = 'best';
+    if (worst) worst.badge = 'worst';
+    const pick = (r: SellerStat | null) => (r ? { id: r.id, shop: r.shop, score: r.score } : null);
+    return {
+      state: place.name,
+      village: place.village,
+      sellers: here.length,
+      orders: here.reduce((n, r) => n + r.orders, 0),
+      sales: rupees(here.reduce((n, r) => n + r.salesValue, 0)),
+      best: pick(best),
+      worst: pick(worst),
+    };
+  });
+  return { period, villages, sellers: rows };
+}
+
 app.get('/admin', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
   res.set('X-Content-Type-Options', 'nosniff');
@@ -1930,6 +2047,7 @@ app.get('/admin', async (req: Request, res: Response) => {
       language: lang,
       token: String(req.query.t),
       account: { adminCode: admin.adminCode ?? '', hasPassword: Boolean(admin.passwordHash), loginUrl: publicUrl('/admin/login') },
+      sellerStats: await sellerStatistics(req.query.period === 'all' ? 'all' : '30'),
       stateKey: await adminStateKey(),
       stats: {
         sellers: sellers.length,

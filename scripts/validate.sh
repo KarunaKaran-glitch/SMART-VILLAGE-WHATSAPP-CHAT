@@ -331,6 +331,21 @@ ok $(has "$(post /admin/sellers/$IDB/remove "{\"t\":\"$AT\"}")" ' 404') "admin: 
 r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"Back Again\",\"phone\":\"$SB\",\"shopName\":\"Shop B2\",\"sellerState\":\"Assam\",\"categoryId\":2}")
 ok $(has "$r" '"ok":true') "admin: a removed seller's phone can be added again"
 
+echo "== Statistics (best and worst seller in each village)"
+r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"Quiet Maker\",\"phone\":\"9500000076\",\"shopName\":\"Shop Quiet\",\"sellerState\":\"Rajasthan\",\"categoryId\":2}")
+ok $(has "$r" '"ok":true') "stats setup: a second Rajasthan seller, with no orders"
+SPG=$(curl -s "$B/admin?t=$AT")
+ok $(for v in Kusunpur Junakimondal Sawaipura Janakpur Jhundi; do echo "$SPG" | grep -q "<b>$v</b>" || exit 1; done && echo 1 || echo 0) "statistics: all 5 villages are listed"
+ok $(has "$SPG" 'Rajasthan · Sawaipura') "add seller: the state list shows the village"
+ROW=$(echo "$SPG" | grep -oP '<b>Sawaipura</b>.*?</tr>')
+ok $(echo "$ROW" | grep -q 'who best"><b>Shop A</b>' && echo "$ROW" | grep -q 'who worst"><b>Shop Quiet</b>' && echo 1 || echo 0) "Sawaipura: Shop A (has sales) is best, Shop Quiet (no orders) is worst"
+ok $(echo "$SPG" | grep -oP '<tr class="best">.*?</tr>' | grep -q 'Shop A' && echo "$SPG" | grep -oP '<tr class="worst">.*?</tr>' | grep -q 'Shop Quiet' && echo 1 || echo 0) "seller table: best and worst rows are marked"
+ok $(echo "$SPG" | grep -oP '<tr class="worst">.*?</tr>' | grep -q 'class="scorenum">35<' && echo 1 || echo 0) "a seller with no orders scores 35 of 100 (speed 10 + nothing waiting 15 + no complaints 10)"
+ok $(echo "$SPG" | grep -oP '<b>Junakimondal</b>.*?</tr>' | grep -q 'Needs 2+ sellers' && echo 1 || echo 0) "a village with one seller has a best but no worst"
+ok $(echo "$SPG" | grep -oP '<b>Kusunpur</b>.*?</tr>' | grep -q 'No sellers yet' && echo 1 || echo 0) "a village with no sellers says so"
+ok $(curl -s "$B/admin?t=$AT&period=all" | grep -q 'class="on" href="[^"]*period=all' && echo 1 || echo 0) "statistics: All time can be chosen"
+ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin?t=$ST")" = "302" ] && echo 1 || echo 0) "a seller link cannot open the admin page or its statistics"
+
 echo "== Admin login on the website"
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin/login")" = "200" ] && curl -s "$B/admin/login" | grep -q 'autocomplete="current-password"' && echo 1 || echo 0) "login page opens"
 ACODE=$(sql "select \"adminCode\" from \"User\" where phone='$ADM'")

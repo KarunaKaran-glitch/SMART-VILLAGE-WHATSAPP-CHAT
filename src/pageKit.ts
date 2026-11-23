@@ -40,6 +40,7 @@ export const ICON = {
   plus: '<path d="M12 5v14M5 12h14"/>',
   heart: '<path d="M12 20s-7.5-4.6-9.2-9.3A4.9 4.9 0 0 1 12 6.3a4.9 4.9 0 0 1 9.2 4.4C19.5 15.4 12 20 12 20z"/>',
   chevron: '<path d="M9 6l6 6-6 6"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   chat: '<path d="M4 20l1.4-4A8 8 0 1 1 8.3 19z"/><path d="M9 10.5h.01M12 10.5h.01M15 10.5h.01"/>',
 };
 export const svg = (paths: string, size = 22) =>
