@@ -294,7 +294,12 @@ sleep 0.5
 ok $([ "$(sql "select p.status || ' ' || (p.\"proofKey\" is null) || ' ' || (p.\"disputeProofKey\" is not null) || ' ' || (p.\"disputedAt\" is not null) from \"Payment\" p where p.\"orderId\" = $K1")" = "INITIATED true true true" ] && echo 1 || echo 0) "complaint: payment back to waiting, the screenshot kept for the admin"
 ok $(has "$(curl -s "$B/admin?t=$AT")" "disputecard\" data-id=\"$K1\"") "complaint: shows on the admin page"
 ok $([ "$(curl -s "$B/admin/state?t=$AT")" != "$AV" ] && echo 1 || echo 0) "complaint: the admin page notices it by itself"
-ok $(grep -A4 ">> Buttons to $C:" "$LOG" | grep -q "Your payment screenshot has gone to the Smart Village admin" && echo 1 || echo 0) "complaint: customer is told the admin will check"
+ok $(grep -A4 ">> Link button to $C:" "$LOG" | grep -q "Your payment screenshot has gone to the Smart Village admin" && echo 1 || echo 0) "complaint: customer is told the admin will check"
+ok $(grep -A6 ">> Link button to $C:" "$LOG" | grep -q "\[Pay again\] -> http://localhost:3001/shop/$IDA/order/$K1?t=" && echo 1 || echo 0) "not received: the customer gets Pay again, which opens the payment page (screenshot needed)"
+ok $(! grep -A6 "The seller has not received your payment for order #$K1" "$LOG" | grep -q "\-> PAID $K1" && echo 1 || echo 0) "not received: no chat 'I have paid' button that skips the screenshot"
+msg $C "PAID $K1"
+ok $(last | grep -q "Open payment page\] -> http://localhost:3001/shop/$IDA/order/$K1?t=" && echo 1 || echo 0) "chat PAID n: sends the payment page link"
+ok $([ "$(sql "select status from \"Payment\" where \"orderId\" = $K1")" = "INITIATED" ] && echo 1 || echo 0) "chat PAID n: does not report a payment without a screenshot"
 ok $(grep -A1 ">> Reply to $ADM:" "$LOG" | grep -q "Payment complaint on order #$K1" && echo 1 || echo 0) "complaint: admin is told on WhatsApp"
 ok $(has "$(post /admin/orders/$K1/complaint "{\"t\":\"$ST\",\"paid\":true}")" ' 403') "complaint: a seller link cannot decide"
 post /admin/orders/$K1/complaint "{\"t\":\"$AT\",\"paid\":true}" > "$SP/k1" & post /admin/orders/$K1/complaint "{\"t\":\"$AT\",\"paid\":true}" > "$SP/k2"; wait $!; sleep 0.5
@@ -307,7 +312,8 @@ ok $(has "$(post /seller/orders/$K1 "{\"t\":\"$ST\",\"action\":\"CONFIRM\"}")" '
 K2=$(neworder); post /shop/$IDA/order/$K2/paid "@$SP/pq.json" >/dev/null; sleep 0.3; post /seller/orders/$K2 "{\"t\":\"$ST\",\"action\":\"NOTRECEIVED\"}" >/dev/null; sleep 0.5
 ok $(has "$(post /admin/orders/$K2/complaint "{\"t\":\"$AT\",\"paid\":false}")" '"ok":true') "complaint: admin says not paid"
 sleep 0.5; ok $([ "$(sql "select o.status || ' ' || p.status || ' ' || p.\"disputeResult\" from \"Order\" o join \"Payment\" p on p.\"orderId\" = o.id where o.id = $K2")" = "PENDING INITIATED NOT_PAID" ] && echo 1 || echo 0) "complaint, not paid: the order keeps waiting for payment"
-ok $(grep -A2 ">> Buttons to $C:" "$LOG" | grep -q "admin checked your payment for order #$K2 and could not confirm" && echo 1 || echo 0) "complaint, not paid: customer is told"
+ok $(grep -A2 ">> Link button to $C:" "$LOG" | grep -q "admin checked your payment for order #$K2 and could not confirm" && echo 1 || echo 0) "complaint, not paid: customer is told"
+ok $(grep -A4 "admin checked your payment for order #$K2 and could not confirm" "$LOG" | grep -q "\[Pay again\] -> http://localhost:3001/shop/$IDA/order/$K2?t=" && echo 1 || echo 0) "complaint, not paid: the customer gets Pay again (payment page with the screenshot)"
 ok $(has "$(post /admin/orders/$K2/complaint "{\"t\":\"$AT\",\"paid\":true}")" ' 409') "complaint: cannot be decided a second time"
 post /shop/$IDA/order/$K2/paid "@$SP/pq.json" >/dev/null; sleep 0.3
 ok $(has "$(post /seller/orders/$K2 "{\"t\":\"$ST\",\"action\":\"RECEIVED\"}")" '"ok":true') "complaint, not paid: the customer can pay again and the seller can accept"

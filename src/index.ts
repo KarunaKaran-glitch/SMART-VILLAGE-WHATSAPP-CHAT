@@ -82,6 +82,8 @@ function clip(text: string, max: number): string {
 
 // Prints the reply (long numbers hidden) and, when WhatsApp is set up in .env, sends it
 async function sendReply(to: string, reply: Reply): Promise<void> {
+  // A website-only admin has no WhatsApp number ("web-svadmin"): nothing to send
+  if (!/^\d{8,15}$/.test(to)) return;
   if (Array.isArray(reply)) {
     for (const r of reply) await sendReply(to, r);
     return;
@@ -738,7 +740,6 @@ async function decidePayment(
     if (order) {
       const lang = order.customer.language;
       const U = uf(lang);
-      const B = bt(lang);
       await sendReply(
         order.customer.phone,
         received
@@ -754,10 +755,7 @@ async function decidePayment(
             }
           : {
               text: U.notReceived(orderId) + (payment.proofKey ? `\n\n${U.sentToAdmin}` : ''),
-              buttons: [
-                { id: `QR ${orderId}`, title: B.showQr },
-                { id: `PAID ${orderId}`, title: B.paid },
-              ],
+              ...(await payAgainPart(order.customer.id, lang, orderId)),
             }
       );
     }
@@ -964,7 +962,6 @@ async function decideComplaint(orderId: number, paid: boolean): Promise<boolean>
     });
     if (order) {
       const lang = order.customer.language;
-      const B = bt(lang);
       await sendReply(
         order.customer.phone,
         paid
@@ -975,10 +972,7 @@ async function decideComplaint(orderId: number, paid: boolean): Promise<boolean>
             }
           : {
               text: uf(lang).disputeNotPaid(orderId),
-              buttons: [
-                { id: `QR ${orderId}`, title: B.showQr },
-                { id: `PAID ${orderId}`, title: B.paid },
-              ],
+              ...(await payAgainPart(order.customer.id, lang, orderId)),
             }
       );
       for (const s of sellersOf(order.items)) {
@@ -1618,6 +1612,34 @@ app.get('/images/:key', async (req: Request, res: Response) => {
 // ---- Shop web page (opened from the [Click here] button) ----
 
 const WEB_TOKEN_HOURS = 24;
+
+// The payment page of a customer's order, as a link for WhatsApp. "I have paid" happens only
+// there, so the payment screenshot is always required. Uses the customer's current link secret
+// while it has 4+ hours left (an open shop page keeps working), otherwise a new one.
+async function payPageLink(customerId: number, orderId: number): Promise<string | null> {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, customerId },
+    include: { items: { include: { seller: true }, take: 1 } },
+  });
+  const seller = order?.items[0]?.seller;
+  if (!order || !seller?.shopCode || seller.role !== 'SELLER') return null;
+  const customer = await prisma.user.findUnique({ where: { id: customerId }, select: { webToken: true, webTokenAt: true } });
+  const hoursLeft = customer?.webTokenAt ? WEB_TOKEN_HOURS - (Date.now() - customer.webTokenAt.getTime()) / 3600000 : 0;
+  const keep = Boolean(customer?.webToken) && hoursLeft >= 4;
+  const token = keep ? customer!.webToken! : crypto.randomBytes(18).toString('base64url');
+  // the page belongs to this order's shop
+  await prisma.user.update({
+    where: { id: customerId },
+    data: { shopId: seller.id, ...(keep ? {} : { webToken: token, webTokenAt: new Date() }) },
+  });
+  return publicUrl(`/shop/${seller.shopCode}/order/${orderId}?t=${token}`);
+}
+
+// Pay again: the payment page link (or the QR code, if there is no page to open)
+async function payAgainPart(customerId: number, language: string, orderId: number): Promise<Partial<RichReply>> {
+  const url = await payPageLink(customerId, orderId);
+  return url ? { link: { title: uf(language).payAgainBtn, url } } : { buttons: [{ id: `QR ${orderId}`, title: bt(language).showQr }] };
+}
 
 // The customer who owns this link, if the secret is right and not older than 24 hours
 async function shopVisitor(code: string, token: unknown) {
@@ -4151,15 +4173,31 @@ async function handleWebhook(body: any) {
       return;
     }
 
-    // PAID n (the "I have paid" button) or PAID n <transaction number>; plain PAID shows how
+    // PAID n (the "I have paid" button in older messages, or typed): a payment is reported only
+    // on the payment page, with the screenshot, so this sends that page; plain PAID shows how
     if (/^PAID(\s|$)/.test(command)) {
-      const paidMatch = text.match(/^PAID\s+#?(\d+)(?:\s+(\S+))?$/i);
-      await sendReply(
-        phone,
-        paidMatch
-          ? await reportPaid(user.id, user.language, Number(paidMatch[1]), paidMatch[2])
-          : uf(user.language).paidUsage
-      );
+      const U = uf(user.language);
+      const paidMatch = text.match(/^PAID\s+#?(\d+)/i);
+      if (!paidMatch) {
+        await sendReply(phone, U.paidUsage);
+        return;
+      }
+      const orderId = Number(paidMatch[1]);
+      const payment = await prisma.payment.findFirst({
+        where: { orderId, order: { customerId: user.id } },
+        include: { order: true },
+        orderBy: { id: 'desc' },
+      });
+      if (!payment) {
+        await sendReply(phone, U.notFound(orderId));
+        return;
+      }
+      if (payment.method !== 'UPI_DIRECT' || payment.status !== 'INITIATED' || payment.order.status === 'CANCELLED') {
+        await sendReply(phone, U.nothingToPay(orderId));
+        return;
+      }
+      const url = await payPageLink(user.id, orderId);
+      await sendReply(phone, url ? { text: U.payOnPage(orderId), link: { title: U.openPayPage, url } } : U.nothingToPay(orderId));
       return;
     }
 

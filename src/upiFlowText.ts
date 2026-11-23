@@ -1,8 +1,7 @@
 // Customer messages for reporting a UPI payment (PAID) and the seller's answer
 export const UPI_FLOW_TEXT = {
   en: {
-    paidUsage:
-      'After paying by UPI, send PAID <order number> <transaction number>, for example: PAID 8 123456789012. The transaction number is in your UPI app.',
+    paidUsage: 'To report a payment, send MYORDERS, choose your order and open its payment page. There you upload the payment screenshot.',
     invalidRef:
       'That transaction number does not look right. It has 8 to 24 letters or digits (usually 12 digits). Check your UPI app and send it again.',
     notFound: (id: number) => `Order #${id} was not found. Send MYORDERS to see your orders.`,
@@ -15,12 +14,14 @@ export const UPI_FLOW_TEXT = {
     disputePaid: (id: number) => `The Smart Village admin checked your payment for order #${id} and accepted it. The seller will now prepare your order.`,
     disputeNotPaid: (id: number) => `The Smart Village admin checked your payment for order #${id} and could not confirm it. If you have not paid, please pay again. If money left your account, please contact your bank.`,
     notReceived: (id: number) =>
-      `The seller has not received your payment for order #${id}. Please check your UPI app. If the money left your account, send PAID ${id} <transaction number> again.`,
+      `The seller has not received your payment for order #${id}. Please check your UPI app. If the money left your account, tap Pay again and upload your payment screenshot.`,
     qrHint: 'Prefer a QR code? Send QR <order number>, for example: QR 8.',
+    payAgainBtn: 'Pay again',
+    openPayPage: 'Open payment page',
+    payOnPage: (id: number) => `To report your payment for order #${id}, open the payment page, upload your payment screenshot and tap I have paid.`,
   },
   hi: {
-    paidUsage:
-      'UPI से भुगतान के बाद PAID <ऑर्डर नंबर> <ट्रांजैक्शन नंबर> भेजें, जैसे: PAID 8 123456789012। ट्रांजैक्शन नंबर आपके UPI ऐप में मिलेगा।',
+    paidUsage: 'भुगतान बताने के लिए MYORDERS भेजें, अपना ऑर्डर चुनें और उसका भुगतान पेज खोलें। वहाँ भुगतान का स्क्रीनशॉट अपलोड करें।',
     invalidRef:
       'यह ट्रांजैक्शन नंबर सही नहीं लगता। इसमें 8 से 24 अक्षर या अंक होते हैं (आमतौर पर 12 अंक)। अपना UPI ऐप देखकर फिर से भेजें।',
     notFound: (id: number) => `ऑर्डर #${id} नहीं मिला। अपने ऑर्डर देखने के लिए MYORDERS भेजें।`,
@@ -33,12 +34,14 @@ export const UPI_FLOW_TEXT = {
     disputePaid: (id: number) => `Smart Village एडमिन ने ऑर्डर #${id} के आपके भुगतान की जाँच करके उसे स्वीकार किया। विक्रेता अब आपका ऑर्डर तैयार करेगा।`,
     disputeNotPaid: (id: number) => `Smart Village एडमिन ने ऑर्डर #${id} के आपके भुगतान की जाँच की, पर उसकी पुष्टि नहीं हो सकी। अगर आपने भुगतान नहीं किया है, तो कृपया फिर से भुगतान करें। अगर आपके खाते से पैसा कट गया है, तो कृपया अपने बैंक से संपर्क करें।`,
     notReceived: (id: number) =>
-      `विक्रेता को ऑर्डर #${id} का आपका भुगतान नहीं मिला है। कृपया अपना UPI ऐप देखें। अगर पैसे आपके खाते से कट गए हैं, तो PAID ${id} <ट्रांजैक्शन नंबर> फिर से भेजें।`,
+      `विक्रेता को ऑर्डर #${id} का आपका भुगतान नहीं मिला है। कृपया अपना UPI ऐप देखें। अगर पैसे आपके खाते से कट गए हैं, तो "फिर से भुगतान" दबाएँ और भुगतान का स्क्रीनशॉट अपलोड करें।`,
     qrHint: 'QR कोड चाहिए? QR <ऑर्डर नंबर> भेजें, जैसे: QR 8।',
+    payAgainBtn: 'फिर से भुगतान',
+    openPayPage: 'भुगतान पेज खोलें',
+    payOnPage: (id: number) => `ऑर्डर #${id} का भुगतान बताने के लिए भुगतान पेज खोलें, भुगतान का स्क्रीनशॉट अपलोड करें और पुष्टि करें।`,
   },
   or: {
-    paidUsage:
-      'UPI ରେ ପଇସା ଦେବା ପରେ PAID <ଅର୍ଡର ନମ୍ବର> ପଠାନ୍ତୁ, କିମ୍ବା "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରନ୍ତୁ। ଉଦାହରଣ: PAID 8',
+    paidUsage: 'ପେମେଣ୍ଟ ଜଣାଇବାକୁ MYORDERS ପଠାନ୍ତୁ, ଆପଣଙ୍କ ଅର୍ଡର ବାଛନ୍ତୁ ଏବଂ ତାର ପେମେଣ୍ଟ ପେଜ୍ ଖୋଲନ୍ତୁ। ସେଠାରେ ପେମେଣ୍ଟ ସ୍କ୍ରିନସଟ୍ ଅପଲୋଡ୍ କରନ୍ତୁ।',
     invalidRef:
       'ଏହି ଟ୍ରାନଜାକସନ ନମ୍ବର ଠିକ୍ ଲାଗୁନାହିଁ। ଏଥିରେ 8 ରୁ 24 ଅକ୍ଷର ବା ଅଙ୍କ ଥାଏ (ସାଧାରଣତଃ 12 ଅଙ୍କ)। ଆପଣଙ୍କ UPI ଆପ ଦେଖି ପୁଣି ପଠାନ୍ତୁ।',
     notFound: (id: number) => `ଅର୍ଡର #${id} ମିଳିଲା ନାହିଁ। ଆପଣଙ୍କ ଅର୍ଡର ଦେଖିବା ପାଇଁ MYORDERS ପଠାନ୍ତୁ।`,
@@ -51,12 +54,14 @@ export const UPI_FLOW_TEXT = {
     disputePaid: (id: number) => `Smart Village ଆଡମିନ ଅର୍ଡର #${id} ପାଇଁ ଆପଣଙ୍କ ପେମେଣ୍ଟ ଯାଞ୍ଚ କରି ସ୍ୱୀକାର କରିଛନ୍ତି। ବିକ୍ରେତା ଏବେ ଆପଣଙ୍କ ଅର୍ଡର ପ୍ରସ୍ତୁତ କରିବେ।`,
     disputeNotPaid: (id: number) => `Smart Village ଆଡମିନ ଅର୍ଡର #${id} ପାଇଁ ଆପଣଙ୍କ ପେମେଣ୍ଟ ଯାଞ୍ଚ କଲେ, କିନ୍ତୁ ନିଶ୍ଚିତ କରିପାରିଲେ ନାହିଁ। ଯଦି ଆପଣ ପଇସା ଦେଇନାହାନ୍ତି, ଦୟାକରି ପୁଣି ଦିଅନ୍ତୁ। ଯଦି ଆପଣଙ୍କ ଖାତାରୁ ପଇସା କଟିଛି, ଦୟାକରି ନିଜ ବ୍ୟାଙ୍କ ସହ ଯୋଗାଯୋଗ କରନ୍ତୁ।`,
     notReceived: (id: number) =>
-      `ଅର୍ଡର #${id} ପାଇଁ ଆପଣଙ୍କ ପଇସା ବିକ୍ରେତାଙ୍କ ପାଖରେ ପହଞ୍ଚିନାହିଁ। ଦୟାକରି ଆପଣଙ୍କ UPI ଆପ ଦେଖନ୍ତୁ। ପଇସା ଆପଣଙ୍କ ଖାତାରୁ କଟିଥିଲେ, ପୁଣି "ମୁଁ ପଇସା ଦେଲି" ଟ୍ୟାପ୍ କରନ୍ତୁ।`,
+      `ବିକ୍ରେତା ଅର୍ଡର #${id} ପାଇଁ ଆପଣଙ୍କ ପେମେଣ୍ଟ ପାଇନାହାଁନ୍ତି। ଦୟାକରି ଆପଣଙ୍କ UPI ଆପ୍ ଦେଖନ୍ତୁ। ଯଦି ଆପଣଙ୍କ ଆକାଉଣ୍ଟରୁ ଟଙ୍କା କଟିଛି, "ପୁଣି ପେମେଣ୍ଟ" ଦବାନ୍ତୁ ଏବଂ ପେମେଣ୍ଟ ସ୍କ୍ରିନସଟ୍ ଅପଲୋଡ୍ କରନ୍ତୁ।`,
     qrHint: 'QR କୋଡ୍ ଦରକାର? QR <ଅର୍ଡର ନମ୍ବର> ପଠାନ୍ତୁ, ଉଦାହରଣ: QR 8।',
+    payAgainBtn: 'ପୁଣି ପେମେଣ୍ଟ',
+    openPayPage: 'ପେମେଣ୍ଟ ପେଜ୍ ଖୋଲନ୍ତୁ',
+    payOnPage: (id: number) => `ଅର୍ଡର #${id} ର ପେମେଣ୍ଟ ଜଣାଇବାକୁ ପେମେଣ୍ଟ ପେଜ୍ ଖୋଲନ୍ତୁ, ପେମେଣ୍ଟ ସ୍କ୍ରିନସଟ୍ ଅପଲୋଡ୍ କରି ନିଶ୍ଚିତ କରନ୍ତୁ।`,
   },
   as: {
-    paidUsage:
-      'UPI ৰে ধন দিয়াৰ পিছত PAID <অৰ্ডাৰ নম্বৰ> পঠিয়াওক, নহয় "মই ধন দিলোঁ" টিপক। উদাহৰণ: PAID 8',
+    paidUsage: 'পেমেণ্ট জনাবলৈ MYORDERS পঠিয়াওক, আপোনাৰ অৰ্ডাৰ বাছক আৰু ইয়াৰ পেমেণ্ট পেজ খোলক। তাত পেমেণ্টৰ স্ক্ৰীণশ্বট আপল’ড কৰক।',
     invalidRef:
       'এই লেনদেন নম্বৰটো শুদ্ধ যেন লগা নাই। ইয়াত 8 ৰ পৰা 24 টা আখৰ বা অংক থাকে (সাধাৰণতে 12 টা অংক)। আপোনাৰ UPI এপ চাই আকৌ পঠিয়াওক।',
     notFound: (id: number) => `অৰ্ডাৰ #${id} পোৱা নগ'ল। আপোনাৰ অৰ্ডাৰ চাবলৈ MYORDERS পঠিয়াওক।`,
@@ -69,8 +74,11 @@ export const UPI_FLOW_TEXT = {
     disputePaid: (id: number) => `Smart Village এডমিনে অৰ্ডাৰ #${id} ৰ আপোনাৰ পেমেণ্ট পৰীক্ষা কৰি গ্ৰহণ কৰিছে। বিক্ৰেতাই এতিয়া আপোনাৰ অৰ্ডাৰ সাজু কৰিব।`,
     disputeNotPaid: (id: number) => `Smart Village এডমিনে অৰ্ডাৰ #${id} ৰ আপোনাৰ পেমেণ্ট পৰীক্ষা কৰিলে, কিন্তু নিশ্চিত কৰিব নোৱাৰিলে। যদি আপুনি ধন দিয়া নাই, অনুগ্ৰহ কৰি পুনৰ দিয়ক। যদি আপোনাৰ একাউণ্টৰ পৰা ধন কাটিছে, অনুগ্ৰহ কৰি আপোনাৰ বেংকৰ সৈতে যোগাযোগ কৰক।`,
     notReceived: (id: number) =>
-      `অৰ্ডাৰ #${id} ৰ বাবে আপোনাৰ ধন বিক্ৰেতাই পোৱা নাই। অনুগ্ৰহ কৰি আপোনাৰ UPI এপ চাওক। ধন আপোনাৰ একাউণ্টৰ পৰা কাটিলে, আকৌ "মই ধন দিলোঁ" টিপক।`,
+      `বিক্ৰেতাই অৰ্ডাৰ #${id} ৰ আপোনাৰ পেমেণ্ট পোৱা নাই। অনুগ্ৰহ কৰি আপোনাৰ UPI এপ চাওক। যদি আপোনাৰ একাউণ্টৰ পৰা ধন কাটিছে, "পুনৰ পেমেণ্ট" টিপক আৰু পেমেণ্টৰ স্ক্ৰীণশ্বট আপল’ড কৰক।`,
     qrHint: 'QR ক\'ড লাগে? QR <অৰ্ডাৰ নম্বৰ> পঠিয়াওক, উদাহৰণ: QR 8।',
+    payAgainBtn: 'পুনৰ পেমেণ্ট',
+    openPayPage: 'পেমেণ্ট পেজ খোলক',
+    payOnPage: (id: number) => `অৰ্ডাৰ #${id} ৰ পেমেণ্ট জনাবলৈ পেমেণ্ট পেজ খোলক, পেমেণ্টৰ স্ক্ৰীণশ্বট আপল’ড কৰি নিশ্চিত কৰক।`,
   },
 };
 
