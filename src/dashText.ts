@@ -245,6 +245,20 @@ const en = {
     'Orders left waiting (15): minus 5 for each order the seller has not moved for 2 days (shipped: 7 days)',
     'Payment complaints (10): minus 5 each time the admin decided the customer really paid',
   ],
+  // Warning a seller (admin Statistics tab, and the WhatsApp message to the seller)
+  colWarnings: 'Warnings',
+  sendWarning: 'Warn',
+  warnAsk: (shop: string, n: number) => `Send warning ${n} to ${shop} on WhatsApp? The seller is told their score and what to fix.`,
+  warnTooSoon: 'This seller was already warned in the last 24 hours.',
+  warnRule: 'Warn sends the seller a WhatsApp message with their score and what to fix (at most once a day). After 2 warnings, the Remove seller button shows in red: the admin decides.',
+  warnMessage: (n: number, score: number, problems: string) =>
+    `⚠️ Warning ${n} from the Smart Village admin\n\nYour shop score is ${score} out of 100.\nProblems: ${problems}.\n\nPlease open your dashboard and fix them. If nothing improves, your shop may be removed.`,
+  probLate: (n: number) => `${n} order(s) waiting too long`,
+  probSlow: (d: number) => `orders sent slowly (about ${d} days)`,
+  probComplaints: (n: number) => `${n} payment complaint(s)`,
+  probNoProducts: 'no products on sale',
+  probNoOrders: 'no orders in the last 30 days',
+  probLow: 'low activity',
 };
 
 const hi: typeof en = {
@@ -485,6 +499,20 @@ const hi: typeof en = {
     'रुके हुए ऑर्डर (15): हर उस ऑर्डर पर 5 कम जिसे विक्रेता ने 2 दिन से आगे नहीं बढ़ाया (भेजे गए: 7 दिन)',
     'पेमेंट शिकायतें (10): हर बार 5 कम जब एडमिन ने तय किया कि ग्राहक ने सच में पैसे दिए',
   ],
+  // Warning a seller (admin Statistics tab, and the WhatsApp message to the seller)
+  colWarnings: 'चेतावनियाँ',
+  sendWarning: 'चेतावनी दें',
+  warnAsk: (shop: string, n: number) => `${shop} को WhatsApp पर चेतावनी ${n} भेजें? विक्रेता को उनका स्कोर और क्या सुधारना है, बताया जाएगा।`,
+  warnTooSoon: 'इस विक्रेता को पिछले 24 घंटों में पहले ही चेतावनी दी जा चुकी है।',
+  warnRule: 'चेतावनी देने पर विक्रेता को WhatsApp पर उनका स्कोर और क्या सुधारना है, भेजा जाता है (दिन में अधिकतम एक बार)। 2 चेतावनियों के बाद हटाने का बटन लाल दिखता है: फैसला एडमिन करता है।',
+  warnMessage: (n: number, score: number, problems: string) =>
+    `⚠️ Smart Village एडमिन की ओर से चेतावनी ${n}\n\nआपकी दुकान का स्कोर 100 में से ${score} है।\nसमस्याएँ: ${problems}।\n\nकृपया अपना डैशबोर्ड खोलें और इन्हें ठीक करें। सुधार न होने पर आपकी दुकान हटाई जा सकती है।`,
+  probLate: (n: number) => `${n} ऑर्डर बहुत देर से रुके हैं`,
+  probSlow: (d: number) => `ऑर्डर देर से भेजे गए (लगभग ${d} दिन)`,
+  probComplaints: (n: number) => `${n} पेमेंट शिकायतें`,
+  probNoProducts: 'बिक्री के लिए कोई उत्पाद नहीं',
+  probNoOrders: 'पिछले 30 दिनों में कोई ऑर्डर नहीं',
+  probLow: 'कम गतिविधि',
 };
 
 const or: typeof en = {
@@ -725,6 +753,20 @@ const or: typeof en = {
     'ଅପେକ୍ଷାରେ ଥିବା ଅର୍ଡର (15): ବିକ୍ରେତା 2 ଦିନ ଧରି ଆଗକୁ ବଢାଇନଥିବା ପ୍ରତି ଅର୍ଡର ପାଇଁ 5 କମ୍ (ପଠାଯାଇଥିବା: 7 ଦିନ)',
     'ପେମେଣ୍ଟ ଅଭିଯୋଗ (10): ଗ୍ରାହକ ପ୍ରକୃତରେ ଦେଇଥିଲେ ବୋଲି ଆଡମିନ୍ ସ୍ଥିର କରିବା ପ୍ରତି ଥର 5 କମ୍',
   ],
+  // Warning a seller (admin Statistics tab, and the WhatsApp message to the seller)
+  colWarnings: 'ଚେତାବନୀ',
+  sendWarning: 'ଚେତାବନୀ ଦିଅନ୍ତୁ',
+  warnAsk: (shop: string, n: number) => `${shop}କୁ WhatsAppରେ ଚେତାବନୀ ${n} ପଠାଇବେ? ବିକ୍ରେତାଙ୍କୁ ତାଙ୍କ ସ୍କୋର ଓ କଣ ସୁଧାରିବାକୁ ହେବ ଜଣାଯିବ।`,
+  warnTooSoon: 'ଏହି ବିକ୍ରେତାଙ୍କୁ ଗତ 24 ଘଣ୍ଟାରେ ଚେତାବନୀ ଦିଆଯାଇସାରିଛି।',
+  warnRule: 'ଚେତାବନୀ ଦେଲେ ବିକ୍ରେତାଙ୍କୁ WhatsAppରେ ତାଙ୍କ ସ୍କୋର ଓ କଣ ସୁଧାରିବାକୁ ହେବ ପଠାଯାଏ (ଦିନକୁ ସର୍ବାଧିକ ଥରେ)। 2ଟି ଚେତାବନୀ ପରେ ହଟାଇବା ବଟନ୍ ଲାଲ ଦେଖାଯାଏ: ଆଡମିନ୍ ସ୍ଥିର କରନ୍ତି।',
+  warnMessage: (n: number, score: number, problems: string) =>
+    `⚠️ Smart Village ଆଡମିନ୍‌ଙ୍କ ଠାରୁ ଚେତାବନୀ ${n}\n\nଆପଣଙ୍କ ଦୋକାନର ସ୍କୋର 100 ମଧ୍ୟରୁ ${score}।\nସମସ୍ୟା: ${problems}।\n\nଦୟାକରି ଆପଣଙ୍କ ଡ୍ୟାସବୋର୍ଡ ଖୋଲି ଏଗୁଡ଼ିକ ଠିକ୍ କରନ୍ତୁ। ସୁଧାର ନହେଲେ ଆପଣଙ୍କ ଦୋକାନ ହଟାଯାଇପାରେ।`,
+  probLate: (n: number) => `${n}ଟି ଅର୍ଡର ବହୁତ ଦିନ ଅପେକ୍ଷାରେ`,
+  probSlow: (d: number) => `ଅର୍ଡର ଡେରିରେ ପଠାଯାଉଛି (ପ୍ରାୟ ${d} ଦିନ)`,
+  probComplaints: (n: number) => `${n}ଟି ପେମେଣ୍ଟ ଅଭିଯୋଗ`,
+  probNoProducts: 'ବିକ୍ରି ପାଇଁ କୌଣସି ଉତ୍ପାଦ ନାହିଁ',
+  probNoOrders: 'ଗତ 30 ଦିନରେ କୌଣସି ଅର୍ଡର ନାହିଁ',
+  probLow: 'କମ୍ କାର୍ଯ୍ୟକଳାପ',
 };
 
 const as: typeof en = {
@@ -965,6 +1007,20 @@ const as: typeof en = {
     'অপেক্ষাত থকা অৰ্ডাৰ (15): বিক্ৰেতাই 2 দিন ধৰি আগবঢ়োৱা নাই এনে প্ৰতিটো অৰ্ডাৰৰ বাবে 5 কম (পঠোৱা: 7 দিন)',
     'পেমেণ্ট অভিযোগ (10): গ্ৰাহকে সঁচাকৈ ধন দিছিল বুলি এডমিনে সিদ্ধান্ত লোৱা প্ৰতিবাৰ 5 কম',
   ],
+  // Warning a seller (admin Statistics tab, and the WhatsApp message to the seller)
+  colWarnings: 'সতৰ্কবাণী',
+  sendWarning: 'সতৰ্ক কৰক',
+  warnAsk: (shop: string, n: number) => `${shop}লৈ WhatsAppত সতৰ্কবাণী ${n} পঠিয়াব নেকি? বিক্ৰেতাক তেওঁৰ স্ক’ৰ আৰু কি ঠিক কৰিব লাগে জনোৱা হ’ব।`,
+  warnTooSoon: 'এই বিক্ৰেতাক যোৱা 24 ঘণ্টাত ইতিমধ্যে সতৰ্ক কৰা হৈছে।',
+  warnRule: 'সতৰ্ক কৰিলে বিক্ৰেতাক WhatsAppত তেওঁৰ স্ক’ৰ আৰু কি ঠিক কৰিব লাগে পঠিওৱা হয় (দিনত বেছি এবাৰ)। 2টা সতৰ্কবাণীৰ পিছত আঁতৰোৱা বুটাম ৰঙা দেখা যায়: এডমিনে সিদ্ধান্ত লয়।',
+  warnMessage: (n: number, score: number, problems: string) =>
+    `⚠️ Smart Village এডমিনৰ পৰা সতৰ্কবাণী ${n}\n\nআপোনাৰ দোকানৰ স্ক’ৰ 100 ৰ ভিতৰত ${score}।\nসমস্যা: ${problems}।\n\nঅনুগ্ৰহ কৰি আপোনাৰ ডেশ্বব’ৰ্ড খুলি এইবোৰ ঠিক কৰক। উন্নতি নহ’লে আপোনাৰ দোকান আঁতৰোৱা হ’ব পাৰে।`,
+  probLate: (n: number) => `${n}টা অৰ্ডাৰ বহুত দিন অপেক্ষাত`,
+  probSlow: (d: number) => `অৰ্ডাৰ পলমকৈ পঠোৱা হৈছে (প্ৰায় ${d} দিন)`,
+  probComplaints: (n: number) => `${n}টা পেমেণ্ট অভিযোগ`,
+  probNoProducts: 'বিক্ৰীৰ বাবে কোনো সামগ্ৰী নাই',
+  probNoOrders: 'যোৱা 30 দিনত কোনো অৰ্ডাৰ নাই',
+  probLow: 'কম কাৰ্যকলাপ',
 };
 
 const DASH_TEXT: Record<string, typeof en> = { en, hi, or, as };

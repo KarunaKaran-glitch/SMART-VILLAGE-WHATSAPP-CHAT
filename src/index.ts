@@ -1213,6 +1213,7 @@ async function blockSeller(sellerId: number): Promise<string> {
       },
     }),
     prisma.product.updateMany({ where: { sellerId }, data: { isActive: false } }),
+    prisma.sellerWarning.deleteMany({ where: { sellerId } }),
     // Customers who were in this shop start again from a shop ID
     prisma.user.updateMany({ where: { shopId: sellerId }, data: { shopId: null, webToken: null } }),
   ]);
@@ -1903,6 +1904,7 @@ async function sellerStatistics(period: '30' | 'all') {
     select: {
       id: true, name: true, shopName: true, shopCode: true, sellerState: true, lastMessageAt: true,
       products: { where: { approval: 'APPROVED', isActive: true }, select: { id: true } },
+      warnings: { select: { createdAt: true }, orderBy: { createdAt: 'desc' } },
     },
     orderBy: { id: 'asc' },
   });
@@ -1979,6 +1981,8 @@ async function sellerStatistics(period: '30' | 'all') {
         complaints: r.complaints,
         products: r.seller.products.length,
         lastActiveDays: r.seller.lastMessageAt ? Math.floor((now - r.seller.lastMessageAt.getTime()) / 86400000) : null,
+        warnings: r.seller.warnings.length,
+        lastWarningDays: r.seller.warnings[0] ? Math.floor((now - r.seller.warnings[0].createdAt.getTime()) / 86400000) : null,
         badge: null as SellerStat['badge'],
       };
     })
@@ -2004,6 +2008,79 @@ async function sellerStatistics(period: '30' | 'all') {
   });
   return { period, villages, sellers: rows };
 }
+
+// ---- Warning a seller (Statistics tab): a WhatsApp message with their score and what to fix.
+// At most one a day per seller. After 2, the page shows Remove seller in red; the admin decides.
+const WARN_GAP_HOURS = 24;
+
+// "2 order(s) waiting too long; no products on sale", in the given language
+function warningProblems(r: SellerStat | undefined, language: string): string {
+  const D = dt(language);
+  if (!r) return D.probLow;
+  const list: string[] = [];
+  if (r.late) list.push(D.probLate(r.late));
+  if (r.speedHours !== null && r.speedHours > 72) list.push(D.probSlow(Math.round(r.speedHours / 24)));
+  if (r.complaints) list.push(D.probComplaints(r.complaints));
+  if (r.products === 0) list.push(D.probNoProducts);
+  if (r.orders === 0) list.push(D.probNoOrders);
+  return list.length ? list.join('; ') : D.probLow;
+}
+
+// A seller quiet for 23+ hours can only get an approved template (Meta's 24-hour rule)
+async function sendWarning(
+  seller: { id: number; phone: string; language: string; lastMessageAt: Date | null },
+  count: number,
+  score: number,
+  row: SellerStat | undefined
+) {
+  const quiet = !seller.lastMessageAt || Date.now() - seller.lastMessageAt.getTime() >= 23 * 3600 * 1000;
+  if (quiet) {
+    // Meta has no Odia or Assamese templates: those sellers get English
+    const language = seller.language === 'hi' ? 'hi' : 'en';
+    const values = [String(count), String(score), warningProblems(row, language)];
+    console.log(`>> Template seller_warning to ${seller.phone}: ${values.join(' / ')}`);
+    await sendWhatsAppTemplate(seller.phone, 'seller_warning', language, values, 'DASHBOARD');
+    return;
+  }
+  const text = dt(seller.language).warnMessage(count, score, warningProblems(row, seller.language));
+  await sendReply(seller.phone, await sellerDashboardReply(seller.id, seller.language, text));
+}
+
+app.post('/admin/sellers/:code/warn', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const admin = await dashVisitor(req.body?.t, 'ADMIN');
+    if (!admin) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const D = dt(admin.language);
+    const seller = await prisma.user.findFirst({ where: { shopCode: String(req.params.code), role: 'SELLER' } });
+    if (!seller) {
+      res.status(404).json({ ok: false, error: D.failed });
+      return;
+    }
+    const last = await prisma.sellerWarning.findFirst({ where: { sellerId: seller.id }, orderBy: { createdAt: 'desc' } });
+    if (last && Date.now() - last.createdAt.getTime() < WARN_GAP_HOURS * 3600 * 1000) {
+      res.status(409).json({ ok: false, error: D.warnTooSoon });
+      return;
+    }
+    const row = (await sellerStatistics('30')).sellers.find((r) => r.id === seller.shopCode);
+    const score = row?.score ?? 0;
+    const count = (await prisma.sellerWarning.count({ where: { sellerId: seller.id } })) + 1;
+    await prisma.sellerWarning.create({ data: { sellerId: seller.id, score, problems: warningProblems(row, 'en') } });
+    console.log(`Admin ${admin.adminCode ?? admin.id} warned seller ${seller.shopCode} (warning ${count}, score ${score})`);
+    try {
+      await sendWarning(seller, count, score, row);
+    } catch (err) {
+      console.error('Warning message failed:', err);
+    }
+    res.json({ ok: true, count });
+  } catch (err) {
+    console.error('Warning failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
 
 app.get('/admin', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');

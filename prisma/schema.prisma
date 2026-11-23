@@ -127,6 +127,7 @@ model User {
   products           Product[]
   orders             Order[]      @relation("CustomerOrders")
   soldItems          OrderItem[]  @relation("SellerOrderItems")
+  warnings           SellerWarning[]
   cart               Cart?
 }
 
@@ -240,4 +241,16 @@ model Payment {
 model ProcessedMessage {
   id        String   @id
   createdAt DateTime @default(now())
+}
+
+// A warning the admin sent to a seller from the Statistics tab (cleared when the seller is removed)
+model SellerWarning {
+  id        Int      @id @default(autoincrement())
+  sellerId  Int
+  seller    User     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  score     Int // the seller's score out of 100 at that time
+  problems  String // what was wrong, in English (for example "no products on sale")
+  createdAt DateTime @default(now())
+
+  @@index([sellerId])
 }

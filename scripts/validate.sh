@@ -346,6 +346,25 @@ ok $(echo "$SPG" | grep -oP '<b>Kusunpur</b>.*?</tr>' | grep -q 'No sellers yet'
 ok $(curl -s "$B/admin?t=$AT&period=all" | grep -q 'class="on" href="[^"]*period=all' && echo 1 || echo 0) "statistics: All time can be chosen"
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin?t=$ST")" = "302" ] && echo 1 || echo 0) "a seller link cannot open the admin page or its statistics"
 
+echo "== Warning a seller"
+SQ=$(sql "select \"shopCode\" from \"User\" where phone='919500000076'")
+ok $(has "$(post /admin/sellers/$SQ/warn "{\"t\":\"$ST\"}")" ' 403') "a seller link cannot send a warning"
+ok $(has "$(post /admin/sellers/0000/warn "{\"t\":\"$AT\"}")" ' 404') "warning a shop ID that does not exist -> not found"
+ok $(has "$(post /admin/sellers/$SQ/warn "{\"t\":\"$AT\"}")" '"count":1') "admin warns Shop Quiet -> warning 1"
+sleep 0.5; ok $(grep -q ">> Template seller_warning to 919500000076: 1 / 35 / बिक्री के लिए कोई उत्पाद नहीं; पिछले 30 दिनों में कोई ऑर्डर नहीं" "$LOG" && echo 1 || echo 0) "seller quiet for 24+ hours: the warning goes as a template with the score and the problems, in the seller's language (Hindi)"
+ok $(has "$(post /admin/sellers/$SQ/warn "{\"t\":\"$AT\"}")" 'already warned') "a second warning the same day is refused"
+ok $([ "$(sql "select count(*) from \"SellerWarning\" w join \"User\" u on u.id = w.\"sellerId\" where u.phone='919500000076'")" = "1" ] && echo 1 || echo 0) "only one warning saved"
+ok $(curl -s "$B/admin?t=$AT" | grep -oP '<tr class="worst">.*?</tr>' | grep -q 'warncount w1"[^>]*>1<' && echo 1 || echo 0) "statistics: the seller's row shows 1 warning"
+ok $(! curl -s "$B/admin?t=$AT" | grep -oP '<tr class="worst">.*?</tr>' | grep -q 'rmbtn' && echo 1 || echo 0) "after 1 warning: no red Remove seller yet"
+sql "update \"SellerWarning\" set \"createdAt\" = \"createdAt\" - interval '25 hours' where \"sellerId\" = (select id from \"User\" where phone='919500000076')" >/dev/null
+ok $(has "$(post /admin/sellers/$SQ/warn "{\"t\":\"$AT\"}")" '"count":2') "next day: warning 2"
+ok $(curl -s "$B/admin?t=$AT" | grep -oP '<tr class="worst">.*?</tr>' | grep -q "rmbtn removeseller\" data-code=\"$SQ\"" && echo 1 || echo 0) "after 2 warnings: the red Remove seller button shows"
+msg $SA DASHBOARD
+ok $(has "$(post /admin/sellers/$IDA/warn "{\"t\":\"$AT\"}")" '"count":1') "admin warns Shop A (wrote to the bot today)"
+sleep 0.5; ok $(grep -A2 ">> Link button to $SA:" "$LOG" | grep -q "Warning 1 from the Smart Village admin" && echo 1 || echo 0) "seller active today: a normal WhatsApp message with a dashboard button"
+ok $(has "$(post /admin/sellers/$SQ/remove "{\"t\":\"$AT\"}")" '"ok":true') "admin removes the twice-warned seller"
+ok $([ "$(sql "select count(*) from \"SellerWarning\" w join \"User\" u on u.id = w.\"sellerId\" where u.phone='919500000076'")" = "0" ] && echo 1 || echo 0) "removing a seller clears their warnings"
+
 echo "== Admin login on the website"
 ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin/login")" = "200" ] && curl -s "$B/admin/login" | grep -q 'autocomplete="current-password"' && echo 1 || echo 0) "login page opens"
 ACODE=$(sql "select \"adminCode\" from \"User\" where phone='$ADM'")

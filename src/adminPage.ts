@@ -77,6 +77,8 @@ export type SellerStat = {
   products: number; // approved and on sale
   lastActiveDays: number | null;
   badge: 'best' | 'worst' | null; // in their village
+  warnings: number; // sent by the admin
+  lastWarningDays: number | null;
 };
 
 export function renderAdminPage(data: {
@@ -325,6 +327,14 @@ export function renderAdminPage(data: {
     (r.badge ? ` <em class="rankchip ${r.badge}">${escapeHtml(r.badge === 'best' ? W.badgeBest : W.badgeWorst)}</em>` : '') +
     `<small>ID ${escapeHtml(r.id)}${r.village ? ` · ${escapeHtml(r.village)}` : ''}</small></th>` +
     `<td><span class="score ${level(r.score)}"><i style="width:${r.score}%"></i></span><b class="scorenum">${r.score}</b></td>` +
+    // Warnings: how many, Warn, and Remove seller in red after 2
+    '<td><div class="warnbox">' +
+    `<span class="warncount w${Math.min(r.warnings, 2)}" title="${escapeHtml(r.lastWarningDays === null ? '' : W.lastActive(r.lastWarningDays))}">${r.warnings}</span>` +
+    `<button type="button" class="warnbtn" data-code="${escapeHtml(r.id)}" data-ask="${escapeHtml(W.warnAsk(r.shop, r.warnings + 1))}">⚠️ ${escapeHtml(W.sendWarning)}</button>` +
+    (r.warnings >= 2
+      ? `<button type="button" class="rmbtn removeseller" data-code="${escapeHtml(r.id)}" data-ask="${escapeHtml(W.removeSellerAsk(r.shop))}">${escapeHtml(W.removeSeller)}</button>`
+      : '') +
+    '<p class="msg"></p></div></td>' +
     `<td class="num">₹${escapeHtml(r.sales)}</td><td class="num">${r.orders}</td><td class="num">${r.delivered}</td>` +
     `<td class="num">${r.speedHours === null ? '—' : escapeHtml(W.hoursText(r.speedHours))}</td>` +
     `<td class="num${r.late ? ' bad' : ''}">${r.late}</td><td class="num${r.complaints ? ' bad' : ''}">${r.complaints}</td>` +
@@ -340,11 +350,12 @@ export function renderAdminPage(data: {
     `<tbody>${ss.villages.map(villageRow).join('')}</tbody></table></div>` +
     `<h3 class="sec">${escapeHtml(W.sellersByScore)} <span class="count">${ss.sellers.length}</span></h3>` +
     (ss.sellers.length
-      ? `<div class="card tablewrap"><table class="stattable sellers">${head(['#', W.colSeller, W.colScore, W.colSales, W.colOrders, W.colDelivered, W.colSpeed, W.colLate, W.colComplaints, W.colProducts, W.colLastMsg])}` +
+      ? `<div class="card tablewrap"><table class="stattable sellers">${head(['#', W.colSeller, W.colScore, W.colWarnings, W.colSales, W.colOrders, W.colDelivered, W.colSpeed, W.colLate, W.colComplaints, W.colProducts, W.colLastMsg])}` +
         `<tbody>${ss.sellers.map(sellerStatRow).join('')}</tbody></table></div>`
       : `<div class="card empty">${escapeHtml(W.noStatsSellers)}</div>`) +
     `<details class="card how"><summary>${escapeHtml(W.scoreHowTitle)}</summary>` +
-    `<ul>${W.scoreParts.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul><p class="hint">${escapeHtml(W.scoreNote)}</p></details>` +
+    `<ul>${W.scoreParts.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul><p class="hint">${escapeHtml(W.scoreNote)}</p>` +
+    `<p class="hint">${escapeHtml(W.warnRule)}</p></details>` +
     '</section>';
 
   const tabbar =
@@ -514,6 +525,29 @@ document.addEventListener('click', async (e) => {
   card.querySelectorAll('button').forEach((x) => { x.disabled = false; });
 });
 
+// Warn a seller (Statistics tab), after asking; the page then loads again with the new count
+document.querySelectorAll('.warnbtn').forEach((b) => {
+  b.addEventListener('click', async () => {
+    if (!confirm(b.dataset.ask)) return;
+    const note = b.parentElement.querySelector('.msg');
+    note.textContent = '';
+    b.disabled = true;
+    try {
+      const res = await fetch('/admin/sellers/' + encodeURIComponent(b.dataset.code) + '/warn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ t: TOKEN }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (res.ok && out.ok) { location.reload(); return; }
+      note.textContent = res.status === 403 ? T.expired : (out.error || T.failed);
+    } catch (err) {
+      note.textContent = T.failed;
+    }
+    b.disabled = false;
+  });
+});
+
 // Remove a seller, after asking; the page then loads again without them
 document.querySelectorAll('.removeseller').forEach((b) => {
   b.addEventListener('click', async () => {
@@ -625,6 +659,17 @@ const ADMIN_STYLE = `
 .stattable .who.worst b{color:#b42318}
 .stattable tr.best th{background:#f0faf3}
 .stattable tr.worst th{background:#fff4f2}
+.warnbox{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:150px}
+.warnbox .msg{flex-basis:100%;margin:2px 0 0;color:#b42318;font-size:.78rem;white-space:normal;max-width:220px}
+.warnbox .msg:empty{display:none}
+.warncount{min-width:24px;height:24px;border-radius:999px;display:inline-grid;place-items:center;font-weight:800;font-size:.8rem;padding:0 6px}
+.warncount.w0{background:#eef1f5;color:var(--muted)}
+.warncount.w1{background:#fff1d6;color:#a35c00}
+.warncount.w2{background:#fde2dd;color:#b42318}
+.warnbtn,.rmbtn{border-radius:999px;padding:5px 11px;font:inherit;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.warnbtn{border:1.5px solid #e0a100;background:#fffaf0;color:#8a5a00}
+.rmbtn{border:1.5px solid #d4382c;background:#d4382c;color:#fff}
+.warnbtn:disabled,.rmbtn:disabled{opacity:.55}
 .rankchip{font-style:normal;font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:999px;vertical-align:middle}
 .rankchip.best{background:#d7f5df;color:#11683a}
 .rankchip.worst{background:#fde2dd;color:#b42318}
