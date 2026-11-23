@@ -28,7 +28,7 @@ stop_server() {
 ADMIN_TOKEN=""
 restore_admin() {
   [ -n "$ADMIN_TOKEN" ] || return 0
-  "$PSQL" "$DB" -qtAc "update \"User\" set \"dashToken\" = nullif(split_part('$ADMIN_TOKEN','|',1),''), \"dashTokenAt\" = nullif(split_part('$ADMIN_TOKEN','|',2),'')::timestamp where phone='919000000000'" >/dev/null
+  "$PSQL" "$DB" -qtAc "update \"User\" set \"dashToken\" = nullif(split_part('$ADMIN_TOKEN','|',1),''), \"dashTokenAt\" = nullif(split_part('$ADMIN_TOKEN','|',2),'')::timestamp, \"adminCode\" = nullif(split_part('$ADMIN_TOKEN','|',3),''), \"passwordHash\" = nullif(split_part('$ADMIN_TOKEN','|',4),'') where phone='919000000000'" >/dev/null
 }
 # KEEP_LOG=<file> keeps the test server's log there (to see what the bot answered)
 # HOLD=<command> runs that command at the end while the test server and data still exist
@@ -38,7 +38,9 @@ trap '[ -n "$HOLD" ] && B="$B" ST="$ST" AT="$AT" OID="$OID" bash -c "$HOLD"; sto
 if [ "$("$PSQL" "$DB" -tAc "select role from \"User\" where phone='919000000000'")" != "ADMIN" ]; then
   echo "The fake admin 919000000000 is missing or not an ADMIN. Make it an admin first."; exit 1
 fi
-ADMIN_TOKEN=$("$PSQL" "$DB" -tAc "select coalesce(\"dashToken\",'') || '|' || coalesce(\"dashTokenAt\"::text,'') from \"User\" where phone='919000000000'")
+ADMIN_TOKEN=$("$PSQL" "$DB" -tAc "select coalesce(\"dashToken\",'') || '|' || coalesce(\"dashTokenAt\"::text,'') || '|' || coalesce(\"adminCode\",'') || '|' || coalesce(\"passwordHash\",'') from \"User\" where phone='919000000000'")
+# Without a password, DASHBOARD on WhatsApp gives the admin page link the test uses (put back at the end)
+"$PSQL" "$DB" -qtAc "update \"User\" set \"passwordHash\" = null where phone='919000000000'" >/dev/null
 cleanup
 echo "Starting a test server on port 3001 (sending off) ..."
 PORT=3001 WHATSAPP_TOKEN= WHATSAPP_PHONE_NUMBER_ID= WHATSAPP_APP_SECRET= WHATSAPP_BOT_NUMBER=15556478208 \
@@ -328,6 +330,32 @@ ok $(! curl -s "$B/admin?t=$AT" | grep -q "data-code=\"$IDB\"" && echo 1 || echo
 ok $(has "$(post /admin/sellers/$IDB/remove "{\"t\":\"$AT\"}")" ' 404') "admin: removing the same seller twice -> not found"
 r=$(post /admin/sellers "{\"t\":\"$AT\",\"name\":\"Back Again\",\"phone\":\"$SB\",\"shopName\":\"Shop B2\",\"sellerState\":\"Assam\",\"categoryId\":2}")
 ok $(has "$r" '"ok":true') "admin: a removed seller's phone can be added again"
+
+echo "== Admin login on the website"
+ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin/login")" = "200" ] && curl -s "$B/admin/login" | grep -q 'autocomplete="current-password"' && echo 1 || echo 0) "login page opens"
+ACODE=$(sql "select \"adminCode\" from \"User\" where phone='$ADM'")
+ok $(echo "$ACODE" | grep -qE '^ADM-[0-9]{4}$' && echo 1 || echo 0) "admin has a unique Admin ID (ADM-1234)"
+ok $(has "$(curl -s "$B/admin?t=$AT")" "$ACODE") "admin page shows the Admin ID"
+ok $(has "$(post /admin/password "{\"t\":\"$AT\",\"password\":\"short\"}")" ' 400') "password shorter than 8 refused"
+ok $(has "$(post /admin/password "{\"t\":\"$ST\",\"password\":\"testpass123\"}")" ' 403') "a seller link cannot set an admin password"
+ok $(has "$(post /admin/password "{\"t\":\"$AT\",\"password\":\"testpass123\"}")" '"ok":true') "admin sets the first password"
+ok $(sql "select \"passwordHash\" like 'scrypt\$%' and \"passwordHash\" not like '%testpass123%' from \"User\" where phone='$ADM'" | grep -q t && echo 1 || echo 0) "password stored only as a hash"
+ok $(has "$(post /admin/password "{\"t\":\"$AT\",\"old\":\"wrongpass1\",\"password\":\"newpass456\"}")" ' 401') "changing needs the right current password"
+msg $ADM DASHBOARD; ok $(last | grep -q 'localhost:3001/admin/login' && ! last | grep -q 'admin?t=' && last | grep -q "$ACODE" && echo 1 || echo 0) "with a password, WhatsApp DASHBOARD only gives the login page and the Admin ID"
+ok $(has "$(post /admin/login "{\"id\":\"$ACODE\",\"password\":\"wrongpass1\"}")" ' 401') "login: wrong password refused"
+ok $(has "$(post /admin/login "{\"id\":\"ADM-0000\",\"password\":\"testpass123\"}")" ' 401') "login: unknown Admin ID refused"
+ok $(has "$(post /admin/login "{\"id\":\"$IDA\",\"password\":\"testpass123\"}")" ' 401') "login: a seller ID cannot log in as admin"
+r=$(post /admin/login "{\"id\":\" $(echo "$ACODE" | tr 'A-Z' 'a-z') \",\"password\":\"testpass123\"}")
+ok $(has "$r" '"url":"/admin?t=') "login: right ID (small letters, spaces) and password -> admin page link"
+AT2=$(echo "$r" | grep -o 't=[^"]*' | sed 's/t=//')
+ok $(has "$(curl -s "$B/admin?t=$AT2")" 'id="tab-home"') "the login link opens the admin page"
+ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin?t=$AT")" = "302" ] && echo 1 || echo 0) "a new login ends the older admin link (it goes to the login page)"
+ok $(has "$(post /admin/password "{\"t\":\"$AT2\",\"old\":\"testpass123\",\"password\":\"newpass456\"}")" '"ok":true') "admin changes the password with the current one"
+ok $(has "$(post /admin/login "{\"id\":\"$ACODE\",\"password\":\"testpass123\"}")" ' 401') "after the change, the old password no longer works"
+post /admin/logout "{\"t\":\"$AT2\"}" >/dev/null
+ok $([ "$(curl -s -o /dev/null -w '%{http_code}' "$B/admin?t=$AT2")" = "302" ] && echo 1 || echo 0) "log out: the admin link stops working at once"
+for i in 1 2 3 4 5; do post /admin/login "{\"id\":\"$ACODE\",\"password\":\"wrongpass$i\"}" >/dev/null; done
+ok $(has "$(post /admin/login "{\"id\":\"$ACODE\",\"password\":\"newpass456\"}")" ' 429') "after 5 more wrong tries, even the right password must wait 15 minutes"
 
 echo "== Old links"
 sql "update \"User\" set \"webTokenAt\" = (now() at time zone 'utc') - interval '25 hours' where phone='$D'" >/dev/null

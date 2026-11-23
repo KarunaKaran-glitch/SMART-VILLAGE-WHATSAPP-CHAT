@@ -120,6 +120,9 @@ model User {
   // Seller's or admin's secret for their dashboard page link (valid 24 hours)
   dashToken          String?      @unique
   dashTokenAt        DateTime?
+  // Admin login on the website: unique Admin ID (like ADM-4821) and the password as a scrypt hash
+  adminCode          String?      @unique
+  passwordHash       String?
   createdAt          DateTime     @default(now())
   products           Product[]
   orders             Order[]      @relation("CustomerOrders")

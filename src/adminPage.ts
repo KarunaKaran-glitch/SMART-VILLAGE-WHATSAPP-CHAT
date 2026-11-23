@@ -53,6 +53,7 @@ export type AdminDispute = {
 export function renderAdminPage(data: {
   language: string;
   token: string;
+  account: { adminCode: string; hasPassword: boolean; loginUrl: string };
   waiting: AdminWaitingProduct[];
   renames: AdminRename[];
   stateKey: string; // where every order is now, in short: the page checks it for changes
@@ -131,6 +132,24 @@ export function renderAdminPage(data: {
     `<div class="omid"><b>${escapeHtml(s.shopName)}</b><span>${escapeHtml(s.name)} · ${escapeHtml(W.productCount(s.products, s.waiting))}</span></div>` +
     `<div class="oright"><span class="idchip">ID ${escapeHtml(s.id)}</span></div></a>`;
 
+  // ---- My account: Admin ID, website login, password, log out
+  const ac = data.account;
+  const pwField = (id: string, label: string, auto: string) =>
+    `<label for="${id}">${escapeHtml(label)}</label><input id="${id}" type="password" maxlength="72" autocomplete="${auto}">`;
+  const account =
+    `<h3 class="sec">${escapeHtml(W.accountTitle)}</h3>` +
+    '<div class="card form account">' +
+    `<div class="accrow"><span>${escapeHtml(W.adminIdLabel)}</span><b id="admincode">${escapeHtml(ac.adminCode)}</b></div>` +
+    `<div class="accrow"><span>${escapeHtml(W.loginAtLabel)}</span><a href="${escapeHtml(ac.loginUrl)}" target="_blank" rel="noopener">${escapeHtml(ac.loginUrl.replace(/^https?:\/\//, ''))}</a></div>` +
+    `<details id="pwbox"${ac.hasPassword ? '' : ' open'}><summary>${escapeHtml(ac.hasPassword ? W.changePasswordTitle : W.setPasswordTitle)}</summary>` +
+    (ac.hasPassword ? '' : `<p class="hint">${escapeHtml(W.setPasswordHint)}</p>`) +
+    (ac.hasPassword ? pwField('pwold', W.oldPassword, 'current-password') : '') +
+    pwField('pwnew', W.newPassword, 'new-password') +
+    pwField('pwnew2', W.repeatPassword, 'new-password') +
+    `<p class="msg" id="pwmsg"></p><button type="button" class="btn primary block" id="pwsave">${escapeHtml(W.savePassword)}</button></details>` +
+    `<button type="button" class="btn outline block" id="logout">${escapeHtml(W.logout)}</button>` +
+    '</div>';
+
   const home =
     '<section class="tab" id="tab-home">' +
     (data.disputes.length
@@ -171,6 +190,7 @@ export function renderAdminPage(data: {
         `<a href="#sellers">${escapeHtml(W.seeMore)} ${svg(ICON.chevron, 16)}</a></div>` +
         `<div class="card list">${data.sellers.slice(0, 4).map(sellerRow).join('')}</div>`
       : '') +
+    account +
     '</section>';
 
   const approve =
@@ -282,7 +302,36 @@ const T = ${scriptJson({
     approvedNote: W.approvedNote,
     rejectedNote: W.rejectedNote,
     seenNote: W.seenNote,
+    passwordShort: W.passwordShort,
+    passwordMismatch: W.passwordMismatch,
+    passwordSaved: W.passwordSaved,
   })};
+
+// My account: set or change the password, log out
+document.getElementById('pwsave').addEventListener('click', async () => {
+  const btn = document.getElementById('pwsave'), note = document.getElementById('pwmsg');
+  const old = document.getElementById('pwold'), pw = document.getElementById('pwnew').value, pw2 = document.getElementById('pwnew2').value;
+  note.className = 'msg';
+  if (pw.length < 8 || pw.length > 72) { note.textContent = T.passwordShort; return; }
+  if (pw !== pw2) { note.textContent = T.passwordMismatch; return; }
+  btn.disabled = true;
+  try {
+    const res = await fetch('/admin/password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: TOKEN, old: old ? old.value : undefined, password: pw }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (res.ok) {
+      note.className = 'msg ok'; note.textContent = T.passwordSaved;
+      document.querySelectorAll('#pwbox input').forEach((i) => { i.value = ''; });
+    } else note.textContent = res.status === 403 ? T.expired : j.error || T.failed;
+  } catch { note.textContent = T.failed; }
+  btn.disabled = false;
+});
+document.getElementById('logout').addEventListener('click', async () => {
+  try { await fetch('/admin/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: TOKEN }) }); } catch {}
+  location.replace('/admin/login?out=1');
+});
 
 // Tabs: the part after # in the address, so a reload stays on the same tab
 const TABS = ['home', 'approve', 'addseller', 'sellers', 'orders'];
@@ -482,6 +531,14 @@ btn.addEventListener('click', async () => {
 }
 
 const ADMIN_STYLE = `
+.account .accrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:.92rem}
+.account .accrow span{color:var(--muted)}
+.account .accrow a{color:var(--brand2);font-weight:700;word-break:break-all;text-align:right}
+#admincode{font-size:1.1rem;letter-spacing:.05em}
+.account details{margin:12px 0}
+.account summary{cursor:pointer;font-weight:700;color:var(--brand2);padding:6px 0}
+.account .msg.ok{color:#11683a;font-weight:700}
+#logout{margin-top:6px}
 .langbox{background:#f8fafc;border:1.5px dashed #d6dce5;border-radius:12px;padding:10px 12px}
 .langs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
 .langs[hidden]{display:none}

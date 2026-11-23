@@ -190,6 +190,23 @@ const en = {
   disputeNotice: (id: number, shop: string) => `Payment complaint on order #${id} (${shop}): the customer uploaded a screenshot, the seller says the money did not arrive. Please check it on the Orders tab of the admin page.`,
   tellId: (shop: string, id: string, bot: string) =>
     `Hello! Your seller ID for ${shop} is ${id}. Send ${id} to ${bot || 'the Smart Village bot'} on WhatsApp to open your seller dashboard.`,
+  // Admin account (website login)
+  openAdminLogin: (code: string) => `Open the admin page on the website and log in with your Admin ID ${code} and your password 👇`,
+  accountTitle: 'My account',
+  adminIdLabel: 'Your Admin ID',
+  loginAtLabel: 'Website login page',
+  setPasswordTitle: 'Set your password',
+  setPasswordHint: 'Set a password to log in on the website with your Admin ID. After that, the WhatsApp link only opens the login page.',
+  changePasswordTitle: 'Change password',
+  oldPassword: 'Current password',
+  newPassword: 'New password (at least 8 characters)',
+  repeatPassword: 'New password again',
+  savePassword: 'Save password',
+  passwordSaved: 'Password saved. From now on, log in with your Admin ID and this password.',
+  passwordShort: 'The password must be 8 to 72 characters.',
+  passwordWrong: 'The current password is wrong.',
+  passwordMismatch: 'The two new passwords are not the same.',
+  logout: 'Log out',
 };
 
 const hi: typeof en = {
@@ -375,6 +392,23 @@ const hi: typeof en = {
   disputeNotice: (id: number, shop: string) => `ऑर्डर #${id} (${shop}) पर भुगतान की शिकायत: ग्राहक ने स्क्रीनशॉट भेजा, विक्रेता कहता है कि पैसा नहीं आया। कृपया एडमिन पेज के ऑर्डर टैब पर देखें।`,
   tellId: (shop: string, id: string, bot: string) =>
     `नमस्ते! ${shop} के लिए आपकी विक्रेता आईडी ${id} है। अपना डैशबोर्ड खोलने के लिए WhatsApp पर ${bot || 'Smart Village बॉट'} को ${id} भेजें।`,
+  // Admin account (website login)
+  openAdminLogin: (code: string) => `वेबसाइट पर एडमिन पेज खोलें और अपनी एडमिन आईडी ${code} और पासवर्ड से लॉग इन करें 👇`,
+  accountTitle: 'मेरा खाता',
+  adminIdLabel: 'आपकी एडमिन आईडी',
+  loginAtLabel: 'वेबसाइट लॉगिन पेज',
+  setPasswordTitle: 'अपना पासवर्ड बनाएँ',
+  setPasswordHint: 'अपनी एडमिन आईडी से वेबसाइट पर लॉग इन करने के लिए पासवर्ड बनाएँ। उसके बाद WhatsApp लिंक केवल लॉगिन पेज खोलेगा।',
+  changePasswordTitle: 'पासवर्ड बदलें',
+  oldPassword: 'मौजूदा पासवर्ड',
+  newPassword: 'नया पासवर्ड (कम से कम 8 अक्षर)',
+  repeatPassword: 'नया पासवर्ड फिर से',
+  savePassword: 'पासवर्ड सहेजें',
+  passwordSaved: 'पासवर्ड सहेज लिया गया। अब से अपनी एडमिन आईडी और इस पासवर्ड से लॉग इन करें।',
+  passwordShort: 'पासवर्ड 8 से 72 अक्षरों का होना चाहिए।',
+  passwordWrong: 'मौजूदा पासवर्ड गलत है।',
+  passwordMismatch: 'दोनों नए पासवर्ड एक जैसे नहीं हैं।',
+  logout: 'लॉग आउट',
 };
 
 const or: typeof en = {
@@ -560,6 +594,23 @@ const or: typeof en = {
   disputeNotice: (id: number, shop: string) => `ଅର୍ଡର #${id} (${shop}) ରେ ପେମେଣ୍ଟ ଅଭିଯୋଗ: ଗ୍ରାହକ ସ୍କ୍ରିନସଟ୍ ଦେଇଛନ୍ତି, ବିକ୍ରେତା କୁହନ୍ତି ପଇସା ଆସିନାହିଁ। ଦୟାକରି ଆଡମିନ ପେଜର ଅର୍ଡର ଟ୍ୟାବରେ ଦେଖନ୍ତୁ।`,
   tellId: (shop: string, id: string, bot: string) =>
     `ନମସ୍କାର! ${shop} ପାଇଁ ଆପଣଙ୍କ ବିକ୍ରେତା ID ${id}। ଆପଣଙ୍କ ଡ୍ୟାସବୋର୍ଡ ଖୋଲିବା ପାଇଁ WhatsAppରେ ${bot || 'Smart Village ବଟ୍'}କୁ ${id} ପଠାନ୍ତୁ।`,
+  // Admin account (website login)
+  openAdminLogin: (code: string) => `ୱେବସାଇଟରେ ଆଡମିନ୍ ପେଜ୍ ଖୋଲନ୍ତୁ ଏବଂ ଆପଣଙ୍କ ଆଡମିନ୍ ID ${code} ଓ ପାସୱାର୍ଡ ଦେଇ ଲଗ୍ ଇନ୍ କରନ୍ତୁ 👇`,
+  accountTitle: 'ମୋ ଆକାଉଣ୍ଟ',
+  adminIdLabel: 'ଆପଣଙ୍କ ଆଡମିନ୍ ID',
+  loginAtLabel: 'ୱେବସାଇଟ ଲଗଇନ୍ ପେଜ୍',
+  setPasswordTitle: 'ଆପଣଙ୍କ ପାସୱାର୍ଡ ସେଟ୍ କରନ୍ତୁ',
+  setPasswordHint: 'ଆପଣଙ୍କ ଆଡମିନ୍ ID ଦେଇ ୱେବସାଇଟରେ ଲଗ୍ ଇନ୍ କରିବାକୁ ଏକ ପାସୱାର୍ଡ ସେଟ୍ କରନ୍ତୁ। ତା’ପରେ WhatsApp ଲିଙ୍କ କେବଳ ଲଗଇନ୍ ପେଜ୍ ଖୋଲିବ।',
+  changePasswordTitle: 'ପାସୱାର୍ଡ ବଦଳାନ୍ତୁ',
+  oldPassword: 'ବର୍ତ୍ତମାନର ପାସୱାର୍ଡ',
+  newPassword: 'ନୂଆ ପାସୱାର୍ଡ (ଅତି କମରେ 8 ଅକ୍ଷର)',
+  repeatPassword: 'ନୂଆ ପାସୱାର୍ଡ ପୁଣି ଥରେ',
+  savePassword: 'ପାସୱାର୍ଡ ସେଭ୍ କରନ୍ତୁ',
+  passwordSaved: 'ପାସୱାର୍ଡ ସେଭ୍ ହେଲା। ଏବେଠାରୁ ଆପଣଙ୍କ ଆଡମିନ୍ ID ଓ ଏହି ପାସୱାର୍ଡ ଦେଇ ଲଗ୍ ଇନ୍ କରନ୍ତୁ।',
+  passwordShort: 'ପାସୱାର୍ଡ 8 ରୁ 72 ଅକ୍ଷର ହେବା ଦରକାର।',
+  passwordWrong: 'ବର୍ତ୍ତମାନର ପାସୱାର୍ଡ ଭୁଲ।',
+  passwordMismatch: 'ଦୁଇଟି ନୂଆ ପାସୱାର୍ଡ ସମାନ ନୁହେଁ।',
+  logout: 'ଲଗ୍ ଆଉଟ୍',
 };
 
 const as: typeof en = {
@@ -745,6 +796,23 @@ const as: typeof en = {
   disputeNotice: (id: number, shop: string) => `অৰ্ডাৰ #${id} (${shop}) ত পেমেণ্টৰ অভিযোগ: গ্ৰাহকে স্ক্ৰীণশ্বট দিছে, বিক্ৰেতাই কয় যে ধন অহা নাই। অনুগ্ৰহ কৰি এডমিন পেজৰ অৰ্ডাৰ টেবত চাওক।`,
   tellId: (shop: string, id: string, bot: string) =>
     `নমস্কাৰ! ${shop}ৰ বাবে আপোনাৰ বিক্ৰেতা ID ${id}। আপোনাৰ ডেশ্বব’ৰ্ড খুলিবলৈ WhatsAppত ${bot || 'Smart Village বট'}লৈ ${id} পঠিয়াওক।`,
+  // Admin account (website login)
+  openAdminLogin: (code: string) => `ৱেবছাইটত এডমিন পেজ খোলক আৰু আপোনাৰ এডমিন ID ${code} আৰু পাছৱৰ্ডেৰে লগ ইন কৰক 👇`,
+  accountTitle: 'মোৰ একাউণ্ট',
+  adminIdLabel: 'আপোনাৰ এডমিন ID',
+  loginAtLabel: 'ৱেবছাইট লগইন পেজ',
+  setPasswordTitle: 'আপোনাৰ পাছৱৰ্ড ছেট কৰক',
+  setPasswordHint: 'আপোনাৰ এডমিন IDৰে ৱেবছাইটত লগ ইন কৰিবলৈ এটা পাছৱৰ্ড ছেট কৰক। তাৰ পিছত WhatsApp লিংকে কেৱল লগইন পেজ খুলিব।',
+  changePasswordTitle: 'পাছৱৰ্ড সলনি কৰক',
+  oldPassword: 'বৰ্তমানৰ পাছৱৰ্ড',
+  newPassword: 'নতুন পাছৱৰ্ড (অতি কমেও 8টা আখৰ)',
+  repeatPassword: 'নতুন পাছৱৰ্ড আকৌ',
+  savePassword: 'পাছৱৰ্ড ছেভ কৰক',
+  passwordSaved: 'পাছৱৰ্ড ছেভ হ’ল। এতিয়াৰ পৰা আপোনাৰ এডমিন ID আৰু এই পাছৱৰ্ডেৰে লগ ইন কৰক।',
+  passwordShort: 'পাছৱৰ্ড 8 ৰ পৰা 72 টা আখৰৰ হ’ব লাগিব।',
+  passwordWrong: 'বৰ্তমানৰ পাছৱৰ্ড ভুল।',
+  passwordMismatch: 'দুয়োটা নতুন পাছৱৰ্ড একে নহয়।',
+  logout: 'লগ আউট',
 };
 
 const DASH_TEXT: Record<string, typeof en> = { en, hi, or, as };

@@ -35,9 +35,12 @@ import { rupees } from './pageKit';
 import { wt } from './webText';
 import { dt } from './dashText';
 import { renderAdminPage } from './adminPage';
+import { checkPassword, hashPassword, loginBlocked, loginFailed, loginSucceeded, normalAdminCode, passwordOk, renderLoginPage } from './adminAuth';
 import { SellerOrderRow, StepTime, renderSellerPage } from './sellerPage';
 
 const app = express();
+// The address of the person (for the login try limit) comes from ngrok / the web server in front
+app.set('trust proxy', 'loopback');
 // Keep the raw request body: the Meta signature is calculated over the exact bytes.
 // The larger limit is for test photos sent with Send-Img (real WhatsApp only sends a media ID).
 app.use(
@@ -1799,16 +1802,101 @@ function stateChoices() {
 }
 
 // Admin dashboard: add a seller, list all sellers
+// Every admin gets a unique Admin ID (ADM-1234) for the website login
+async function withAdminCode<U extends { id: number; adminCode: string | null }>(admin: U): Promise<U> {
+  if (admin.adminCode) return admin;
+  for (let i = 0; i < 50; i++) {
+    const code = `ADM-${1000 + crypto.randomInt(9000)}`;
+    try {
+      await prisma.user.update({ where: { id: admin.id }, data: { adminCode: code } });
+      return { ...admin, adminCode: code };
+    } catch {
+      // that ID is taken: try another
+    }
+  }
+  throw new Error('No free Admin ID');
+}
+
+// The login page (the website's "Admin Login" button can point here)
+app.get('/admin/login', (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('X-Frame-Options', 'DENY');
+  res.send(renderLoginPage(req.query.expired ? 'expired' : req.query.out ? 'out' : null));
+});
+
+// Log in: { id, password } -> { ok, url } with a fresh 24-hour admin page link
+app.post('/admin/login', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const code = normalAdminCode(req.body?.id);
+    const password = req.body?.password;
+    const ip = req.ip ?? '';
+    if (loginBlocked(code, ip)) {
+      res.status(429).json({ ok: false });
+      return;
+    }
+    const admin = code && typeof password === 'string' ? await prisma.user.findUnique({ where: { adminCode: code } }) : null;
+    if (!admin || admin.role !== 'ADMIN' || !checkPassword(String(password), admin.passwordHash)) {
+      loginFailed(code, ip);
+      console.log(`Admin login refused for ${code || '(no ID)'}`);
+      res.status(401).json({ ok: false });
+      return;
+    }
+    loginSucceeded(code);
+    const token = await newDashToken(admin.id);
+    console.log(`Admin ${code} logged in`);
+    res.json({ ok: true, url: `/admin?t=${token}` });
+  } catch (err) {
+    console.error('Admin login failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// Log out: the admin page link stops working at once
+app.post('/admin/logout', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  const admin = await dashVisitor(req.body?.t, 'ADMIN');
+  if (admin) await prisma.user.update({ where: { id: admin.id }, data: { dashToken: null, dashTokenAt: null } });
+  res.json({ ok: true, url: '/admin/login?out=1' });
+});
+
+// Set the first password, or change it: { t, old?, password }
+app.post('/admin/password', async (req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const admin = await dashVisitor(req.body?.t, 'ADMIN');
+    if (!admin) {
+      res.status(403).json({ ok: false });
+      return;
+    }
+    const D = dt(admin.language);
+    if (!passwordOk(req.body.password)) {
+      res.status(400).json({ ok: false, error: D.passwordShort });
+      return;
+    }
+    // Changing needs the old password; the first one is set from the WhatsApp link
+    if (admin.passwordHash && !checkPassword(String(req.body.old ?? ''), admin.passwordHash)) {
+      res.status(401).json({ ok: false, error: D.passwordWrong });
+      return;
+    }
+    await prisma.user.update({ where: { id: admin.id }, data: { passwordHash: hashPassword(req.body.password) } });
+    console.log(`Admin ${admin.adminCode ?? admin.id} ${admin.passwordHash ? 'changed' : 'set'} their password`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Password change failed:', err);
+    res.status(500).json({ ok: false });
+  }
+});
+
 app.get('/admin', async (req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
   res.set('X-Content-Type-Options', 'nosniff');
-  const admin = await dashVisitor(req.query.t, 'ADMIN');
-  if (!admin) {
-    res
-      .status(403)
-      .send(simplePage('Link expired', 'This link is old or not valid. Go back to WhatsApp and open the dashboard again.', backToWhatsApp()));
+  const found = await dashVisitor(req.query.t, 'ADMIN');
+  if (!found) {
+    res.redirect(req.query.t ? '/admin/login?expired=1' : '/admin/login');
     return;
   }
+  const admin = await withAdminCode(found);
   const lang = admin.language;
   const states = stateChoices();
   const categories = await prisma.category.findMany({ orderBy: { id: 'asc' } });
@@ -1841,6 +1929,7 @@ app.get('/admin', async (req: Request, res: Response) => {
     renderAdminPage({
       language: lang,
       token: String(req.query.t),
+      account: { adminCode: admin.adminCode ?? '', hasPassword: Boolean(admin.passwordHash), loginUrl: publicUrl('/admin/login') },
       stateKey: await adminStateKey(),
       stats: {
         sellers: sellers.length,
@@ -3522,11 +3611,18 @@ async function handleWebhook(body: any) {
     // ---- Admin commands (only for users with the ADMIN role) ----
     if (user.role === 'ADMIN' && user.state === 'BROWSING') {
       // DASHBOARD: link to the admin web page (add sellers, see all sellers)
+      // (once the admin has a password, only the website login page: the link alone is not enough)
       if (command === 'DASHBOARD') {
+        const D = dt(user.language);
+        if (user.passwordHash) {
+          const { adminCode } = await withAdminCode(user);
+          await sendReply(phone, { text: D.openAdminLogin(adminCode ?? ''), link: { title: D.clickHere, url: publicUrl('/admin/login') } });
+          return;
+        }
         const token = await newDashToken(user.id);
         await sendReply(phone, {
-          text: dt(user.language).openAdmin,
-          link: { title: dt(user.language).clickHere, url: publicUrl(`/admin?t=${token}`) },
+          text: D.openAdmin,
+          link: { title: D.clickHere, url: publicUrl(`/admin?t=${token}`) },
         });
         return;
       }
